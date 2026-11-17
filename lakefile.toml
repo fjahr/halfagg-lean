@@ -1,0 +1,39 @@
+name = "HalfaggLean"
+version = "0.1.0"
+keywords = ["bitcoin", "cryptography", "schnorr", "bip458", "half-aggregation"]
+defaultTargets = ["Halfagg"]
+
+[leanOptions]
+pp.unicode.fun = true
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+weak.linter.style.header = false
+maxSynthPendingDepth = 3
+
+# Mathlib and VCVio are pinned here to taproot-lean's versions, so that they win
+# over the versions agm-lean would pull in.
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.34.1"
+
+# Pinned to the commit the proofs are developed against.
+[[require]]
+name = "TaprootLean"
+git = "https://github.com/dni/taproot-lean"
+rev = "f2c623b6143ec3c2c385357deefba819a251bbfe"
+
+# The algebraic group model interface of zkSecurity's agm-lean (Apache-2.0).
+[[require]]
+name = "agm-lean"
+git = "https://github.com/zksecurity/agm-lean"
+rev = "c207f29d1bba8b36fd6c09a0a3a6b4e82148b402"
+
+# Keep taproot-lean's VCVio pin authoritative over agm-lean's (22 commits older).
+[[require]]
+name = "VCVio"
+git = "https://github.com/Verified-zkEVM/VCVio"
+rev = "afa6593f15e1e79ecb3cf22fc56191cecb452bb0"
+
+[[lean_lib]]
+name = "Halfagg"
