@@ -22,7 +22,7 @@ taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VC
 
 **Is the theorem vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`).
 
-**What does the bound say?** `(q + ℓ)/n`, where `q` counts randomizer requests and `ℓ` bounds the forgery's length. Chen and Zhao have `(q + 1)/n`. For secp256k1 both are negligible.
+**What does the bound say?** `(q + ℓ)/n`, where `q` counts randomizer requests and `ℓ` bounds the forgery's length. Chen and Zhao have `(q + 1)/n`. For secp256k1 both are negligible. The `q/n` part is real: `grinder_advantage` in `Halfagg/Tightness.lean` proves that a forger who tries `q` second items wins with probability at least `1 - ((n - 1)/n)^q`.
 
 ## What the theorem does not say
 

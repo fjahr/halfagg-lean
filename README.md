@@ -38,6 +38,8 @@ The statement is a reduction. It does not bound the forger's or the reduction's 
 
 `halfagg_unforgeable` uses only Lean's standard axioms. The secp256k1 version also inherits taproot-lean's `native_decide` computation of `n·G = 0`.
 
+`grinder_advantage` (`Halfagg/Tightness.lean`) shows the bound is tight in `q`: a forger with `q` randomizer queries and no signing queries wins with probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`.
+
 A forger may also hash raw x-only encodings after an item that fails `lift_x`. No list with such an item verifies (`aggWins_lifts`), so the forger does not have to explain them.
 
 ## Test vectors
