@@ -18,4 +18,8 @@ import Halfagg.Proofs.SignQueries
 import Halfagg.Unforgeability
 import Halfagg.Examples
 import Halfagg.Tightness
+import Halfagg.SecurityROM
+import Halfagg.Proofs.Eager
+import Halfagg.Proofs.ROM
+import Halfagg.UnforgeabilityROM
 import Halfagg.Summary

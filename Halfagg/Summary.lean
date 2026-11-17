@@ -2,6 +2,7 @@ import Halfagg.Basic
 import Halfagg.Vectors
 import Halfagg.Unforgeability
 import Halfagg.Tightness
+import Halfagg.UnforgeabilityROM
 
 /-!
 # Main results and their axioms
@@ -85,6 +86,10 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 /-- info: 'Halfagg.Security.aggWins_lifts' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.aggWins_lifts
+
+/-- info: 'Halfagg.Security.halfagg_unforgeable_rom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.halfagg_unforgeable_rom
 
 /-- info: 'Halfagg.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
