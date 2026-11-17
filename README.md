@@ -18,9 +18,9 @@ Every result in `Halfagg/Basic.lean` holds over any curve satisfying taproot-lea
 
 ## Unforgeability
 
-`halfagg_unforgeable` (`Halfagg/Unforgeability.lean`) proves that half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, in the algebraic group model with the randomizer hash as a random oracle and for every challenge hash. The game is the standard aggregate chosen-key game. Algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean). An explicit reduction turns a forger into a BIP 340 forger with the same signing queries, losing at most `(q + ℓ)/n` for `q` randomizer queries and `ℓ` entries. `secp256k1_halfagg_unforgeable` is the same statement for secp256k1.
+`halfagg_unforgeable` (`Halfagg/Unforgeability.lean`) proves that half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, in the algebraic group model with the randomizer hash as a random oracle and for every challenge hash. The game is the standard aggregate chosen-key game. Algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean). An explicit reduction turns a forger into a BIP 340 forger, losing at most `(q + ℓ)/n` for `q` randomizer queries and `ℓ` entries. `reduction_sign_queries` proves that the reduction asks for no signature the forger did not ask for. `secp256k1_halfagg_unforgeable` is the same statement for secp256k1.
 
-To review the result, read `Halfagg/Security.lean` (the game, the forger model, the reduction, and a header listing the modelling choices and limitations) and the theorem statement. The proofs are under `Halfagg/Proofs/`:
+To review the result, read `Halfagg/Security.lean` (the game, the forger model, the reduction, and a header listing the modelling choices and limitations) and the theorem statements in `Halfagg/Unforgeability.lean`. [REVIEW.md](REVIEW.md) is a guide for that. The proofs are under `Halfagg/Proofs/`:
 
 | File | Content |
 |---|---|
@@ -28,6 +28,7 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 | `Invariant.lean`, `Scheme.lean` | The reduction's bookkeeping stays valid (`core_inv`). |
 | `LoggedRun.lean`, `Annotated.lean`, `Trace.lean`, `BadBound.lean` | The annotated experiment and the bad-event bound `(q + ℓ)/n` (`ann_bad_bound`). |
 | `Natural.lean`, `BridgeReduction.lean` | The reduction's BIP 340 game equals the annotated experiment followed by extraction (`red_advantage_eq`). |
+| `SignQueries.lean` | The reduction's signing queries (`reduction_sign_bound`). |
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |
 | `Secp256k1.lean` | The theorem's curve hypothesis for secp256k1. |
 
@@ -36,6 +37,8 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 The statement is a reduction. It does not bound the forger's or the reduction's running time.
 
 `halfagg_unforgeable` uses only Lean's standard axioms. The secp256k1 version also inherits taproot-lean's `native_decide` computation of `n·G = 0`.
+
+A forger may also hash raw x-only encodings after an item that fails `lift_x`. No list with such an item verifies (`aggWins_lifts`), so the forger does not have to explain them.
 
 ## Test vectors
 
@@ -51,7 +54,7 @@ python3 scripts/gen_vectors.py path/to/bips/bip-0458/vectors > Halfagg/VectorDat
 
 - Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`.
 - The tagged hashes are arbitrary functions. The randomizer is a function of the list `[(r₀, pk₀, m₀), …, (rᵢ, pkᵢ, mᵢ)]`. BIP 458 fixes public keys, messages and nonces at 32 bytes, so the byte encoding it hashes is injective and this loses nothing.
-- `lake build` prints the axioms of every main result (`Halfagg/Summary.lean`). The theorems in `Halfagg/Basic.lean` use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`).
+- `lake build` fails if the axioms of a main result change (`Halfagg/Summary.lean`). The theorems in `Halfagg/Basic.lean` use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`).
 
 ## Building
 
@@ -60,6 +63,13 @@ Requirements: [elan](https://github.com/leanprover/elan), which installs the Lea
 ```sh
 lake exe cache get   # download prebuilt Mathlib (several GB)
 lake build
+```
+
+To repeat what CI runs after the build:
+
+```sh
+scripts/check.sh                  # no sorry, no new axioms, native_decide only in the vector checks
+lake env leanchecker Halfagg      # replay every project module in the kernel
 ```
 
 The build also compiles the parts of taproot-lean it needs. On machines with little memory, use `LEAN_NUM_THREADS=2 lake build`. Do not run `lake update`: it would move the dependencies off their pinned commits.

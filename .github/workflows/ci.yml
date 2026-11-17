@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source checks
+        run: scripts/check.sh
+      # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
+      # runs `lake build`. The build fails if the axioms of a main result change
+      # (Halfagg/Summary.lean).
+      - uses: leanprover/lean-action@v1
+      - name: Replay every project module in the kernel
+        run: lake env leanchecker Halfagg
