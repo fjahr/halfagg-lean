@@ -63,11 +63,11 @@ explanations, so the theorem is about the standard game.
   arbitrary encodings, because no list with such an item passes
   `VerifyAggregate` (`aggWins_lifts`). A forgery cannot contain such an item,
   and for the same reason that loses nothing.
-* **The challenge hash is a fixed function**, as in Chen and Zhao's Theorem 2.
-  The theorem therefore does not compose directly with a proof of BIP340
-  unforgeability in which the challenge hash is a random oracle (such as
-  `Taproot.BIP340Security.euf_cma`). That needs the variant of their Remark 2,
-  with the challenge hash as an oracle of the game.
+* **The challenge hash is a fixed function** in this file, as in Chen and Zhao's
+  Theorem 2. `Halfagg/SecurityROM.lean` has the variant of their Remark 2, with
+  the challenge hash as an oracle of the game. That variant chains with
+  `Taproot.BIP340Security.euf_cma`, in which the challenge hash is a random
+  oracle (`halfagg_dlog`).
 * **Running time is not formalized.** `reduction` is explicit, so its cost can
   be read off, but no theorem bounds it.
 -/

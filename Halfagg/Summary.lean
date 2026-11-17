@@ -91,6 +91,10 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Security.halfagg_unforgeable_rom
 
+/-- info: 'Halfagg.Security.halfagg_dlog' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.halfagg_dlog
+
 /-- info: 'Halfagg.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.grinder_advantage
@@ -103,3 +107,12 @@ info: 'Halfagg.Security.secp256k1_halfagg_unforgeable' depends on axioms: [prope
 -/
 #guard_msgs in
 #print axioms Halfagg.Security.secp256k1_halfagg_unforgeable
+
+/--
+info: 'Halfagg.Security.secp256k1_halfagg_dlog' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Security.secp256k1_halfagg_dlog

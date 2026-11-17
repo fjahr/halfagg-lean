@@ -31,12 +31,17 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 | `SignQueries.lean` | The reduction's signing queries (`reduction_sign_bound`). |
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |
 | `Secp256k1.lean` | The theorem's curve hypothesis for secp256k1. |
+| `Eager.lean` | A lazily sampled oracle on a finite domain is a uniformly sampled table (`rom_eq_table`). |
+| `ROM.lean` | Against a fixed challenge table, the oracle reduction is the reduction above (`rom_experiment_eq`). |
+| `ROMBounds.lean` | The oracle reduction's hash and signing queries (`reductionROM_bound`). |
 
 `Halfagg/Examples.lean` shows the theorem is not vacuous: a concrete algebraic forger satisfying its hypotheses, and an honest signature satisfying the game's win predicate.
 
 The statement is a reduction. It does not bound the forger's or the reduction's running time.
 
 `halfagg_unforgeable` uses only Lean's standard axioms. The secp256k1 version also inherits taproot-lean's `native_decide` computation of `n·G = 0`.
+
+`halfagg_unforgeable_rom` (`Halfagg/UnforgeabilityROM.lean`) is the same theorem with the challenge hash as a random oracle that the forger and the reduction can only query. Its BIP 340 game is the one of taproot-lean's `euf_cma`, so the two results chain. `halfagg_dlog` turns a forger into a discrete-log solver: with `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + ℓ)/n - qS·(qS + Q)·2/(n - 1)`, the solver succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The definitions are in `Halfagg/SecurityROM.lean`. This version needs a finite message type and samples the challenge table up front.
 
 `grinder_advantage` (`Halfagg/Tightness.lean`) shows the bound is tight in `q`: a forger with `q` randomizer queries and no signing queries wins with probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`.
 
