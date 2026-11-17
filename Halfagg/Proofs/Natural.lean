@@ -27,7 +27,7 @@ theorem coreImpl_natural {m m' : Type → Type} [Monad m] [Monad m'] [LawfulMona
     (hbind : ∀ {α β : Type} (x : m α) (f : α → m β), ρ (x >>= f) = ρ x >>= fun a => ρ (f a))
     (pk : X) (unif : (k : ℕ) → m (Fin (k + 1))) (ro : List (AItem n X M) → m (ZMod n))
     (sg : M → m (X × ZMod n)) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request M) (Reply n M)) Result)
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
     (st : Core n X M) :
     ρ ((simulateQ (coreImpl C challenge pk unif ro sg) prog).run st) =
       (simulateQ (coreImpl C challenge pk (fun k => ρ (unif k)) (fun l => ρ (ro l))
@@ -61,11 +61,11 @@ theorem coreImpl_run_random (k : ℕ) :
     (coreImpl C challenge pk unif ro sg ⟨⟨.random k, groups⟩, coeffs⟩).run st =
       (do let u ← unif k; pure (⟨u, fun _ => []⟩, st)) := rfl
 
-theorem coreImpl_run_rand (ms : List M) :
-    (coreImpl C challenge pk unif ro sg ⟨⟨.rand ms, groups⟩, coeffs⟩).run st =
+theorem coreImpl_run_rand (ms : List M) (tail : List (Item X M)) :
+    (coreImpl C challenge pk unif ro sg ⟨⟨.rand ms tail, groups⟩, coeffs⟩).run st =
       (do
-        let z ← ro (annotate (memoize C st (groups ()) (coeffs ())).memo
-          (toItems C ms (groups ())))
+        let z ← ro (annotate C (memoize C st (groups ()) (coeffs ())).memo
+          (toItems C ms (groups ()) ++ rawTail C tail))
         pure (⟨z, fun _ => []⟩, memoize C st (groups ()) (coeffs ()))) := rfl
 
 theorem coreImpl_run_sign (msg : M) :

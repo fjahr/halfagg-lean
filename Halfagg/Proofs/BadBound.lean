@@ -61,7 +61,7 @@ theorem keygen_bound :
 
 /-- One request costs one hash query if it is a randomizer request, else none. -/
 theorem annImpl_step (pk : X) (sk : ZMod n)
-    (t : Explained (ZMod n) (Request M) (Pts E)) (s : Core n X M) :
+    (t : Explained (ZMod n) (Request X M) (Pts E)) (s : Core n X M) :
     ((annImpl C challenge pk sk t).run s).IsQueryBoundP isHash
       (if isRand t.value.data = true then 1 else 0) := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
@@ -70,7 +70,7 @@ theorem annImpl_step (pk : X) (sk : ZMod n)
     simp only [annImpl, coreImpl, isRand, StateT.run]
     rw [isQueryBoundP_query_bind_iff]
     simp
-  | rand ms =>
+  | rand ms tail =>
     simp only [annImpl, coreImpl, isRand, StateT.run]
     rw [isQueryBoundP_query_bind_iff]
     simp
@@ -79,7 +79,7 @@ theorem annImpl_step (pk : X) (sk : ZMod n)
     exact isQueryBoundP_bind (n := 0) (m := 0) (sign_bound C challenge pk sk msg)
       fun _ _ => isQueryBoundP_pure _ _ _
 
-theorem annPhase1_bound (F : AlgForger n E M) (q : ℕ)
+theorem annPhase1_bound (F : AlgForger n E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     (annPhase1 C challenge F).IsQueryBoundP isHash q := by
   unfold annPhase1
@@ -89,7 +89,7 @@ theorem annPhase1_bound (F : AlgForger n E M) (q : ℕ)
   exact IsQueryBoundP.simulateQ_run_StateT_of_step (hq _)
     (fun t s => annImpl_step C challenge ks.1 ks.2 t s) Core.init
 
-theorem annExperiment_bound (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M) (q ℓ : ℕ)
+theorem annExperiment_bound (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M) (q ℓ : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (hℓ : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :
     (annExperiment C challenge F).IsQueryBoundP isHash (q + ℓ) := by
@@ -97,7 +97,7 @@ theorem annExperiment_bound (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
   refine isQueryBoundP_bind (annPhase1_bound C challenge F q hq) fun r hr => ?_
   obtain ⟨d, -, -, -, hout, -⟩ := phase1_ok C challenge hx0 F r hr
   have hlen : (finalItems C r.2.1 r.2.2).length ≤ ℓ := by
-    simp only [finalItems, annotate, List.length_map]
+    simp only [finalItems, annotate_length]
     exact (toItems_length_le C _ _).trans (hℓ _ _ hout)
   refine (isQueryBoundP_bind (m := 0) (zs_bound _ _) fun _ _ =>
     isQueryBoundP_pure _ _ _).mono ?_
@@ -106,7 +106,7 @@ theorem annExperiment_bound (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
 /-! ## The bound -/
 
 /-- **The bad event is unlikely.** -/
-theorem ann_bad_bound [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
+theorem ann_bad_bound [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
     (q ℓ : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (hℓ : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :

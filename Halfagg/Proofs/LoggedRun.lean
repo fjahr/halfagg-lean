@@ -33,7 +33,8 @@ theorem log_length_le [DecidableEq D] [∀ d, SampleableType (R d)]
   induction oa using OracleComp.inductionOn generalizing Q c with
   | pure x =>
     intro z hz
-    simp [randomOracleLoggedRun] at hz
+    simp only [randomOracleLoggedRun, QueryImpl.passthrough_add, simulateQ_pure, WriterT.run_pure,
+      List.empty_eq, StateT.run_pure, MonadAttach.support_pure, Set.mem_singleton_iff] at hz
     subst hz
     simp
   | query_bind t mx ih =>
@@ -92,7 +93,7 @@ theorem fixedTable_hash [DecidableEq D] (t : D) (g : ∀ d, R d) (c : (ofFn R).Q
   · rw [QueryImpl.withCaching_run_none _ hct] at hp
     have hl : ((QueryImpl.ofFn g).liftTarget ProbComp) t = pure (g t) := rfl
     rw [hl] at hp
-    simp at hp
+    simp only [map_pure, MonadAttach.support_pure, Set.mem_singleton_iff] at hp
     subst hp
     refine ⟨rfl, ?_, by simp⟩
     intro t' u' h'
@@ -100,7 +101,7 @@ theorem fixedTable_hash [DecidableEq D] (t : D) (g : ∀ d, R d) (c : (ofFn R).Q
     · subst ht; simpa using h'.symm
     · rw [QueryCache.cacheQuery_of_ne _ _ ht] at h'; exact hc t' u' h'
   · rw [QueryImpl.withCaching_run_some _ hct] at hp
-    simp at hp
+    simp only [MonadAttach.support_pure, Set.mem_singleton_iff] at hp
     subst hp
     have := hc t u hct
     exact ⟨this, hc, by rw [hct, this]⟩
@@ -113,7 +114,8 @@ theorem fixedTable_support [DecidableEq D] (oa : OracleComp (unifSpec + ofFn R) 
   induction oa using OracleComp.inductionOn generalizing c with
   | pure x =>
     intro z hz
-    simp [fixedTableLoggedRun] at hz
+    simp only [fixedTableLoggedRun, QueryImpl.passthrough_add, simulateQ_pure, WriterT.run_pure,
+      List.empty_eq, StateT.run_pure, MonadAttach.support_pure, Set.mem_singleton_iff] at hz
     subst hz
     exact ⟨by simp, hc⟩
   | query_bind t mx ih =>

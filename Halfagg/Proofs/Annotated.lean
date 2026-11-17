@@ -39,7 +39,7 @@ def zQueryAnn (items : List (AItem n X M)) (i : ℕ) :
 /-- The reduction's bookkeeping with real signatures under `sk` and the
 annotated random oracle. -/
 noncomputable def annImpl (pk : X) (sk : ZMod n) :
-    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request M) (Reply n M))
+    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
       (StateT (Core n X M) (OracleComp (unifSpec + AnnSpec n X M))) :=
   coreImpl C challenge pk
     (fun k => liftM ((unifSpec + AnnSpec n X M).query (.inl k)))
@@ -48,7 +48,7 @@ noncomputable def annImpl (pk : X) (sk : ZMod n) :
       (OracleComp (unifSpec + AnnSpec n X M))).sign pk sk msg)
 
 /-- Key generation and the forger's run. -/
-noncomputable def annPhase1 (F : AlgForger n E M) :
+noncomputable def annPhase1 (F : AlgForger n E X M) :
     OracleComp (unifSpec + AnnSpec n X M)
       (X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M) := do
   let ks ← (bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n X M))).keygen
@@ -59,11 +59,11 @@ noncomputable def annPhase1 (F : AlgForger n E M) :
 /-- The forgery's annotated items, after recording its representations. -/
 def finalItems (out : Explained (ZMod n) (Out n M) (Pts E)) (st : Core n X M) :
     List (AItem n X M) :=
-  annotate (memoize C st (out.value.groups ()) (out.coefficients ())).memo
+  annotate C (memoize C st (out.value.groups ()) (out.coefficients ())).memo
     (toItems C out.value.data.ms (out.value.groups ()))
 
 /-- The annotated experiment. -/
-noncomputable def annExperiment (F : AlgForger n E M) :
+noncomputable def annExperiment (F : AlgForger n E X M) :
     OracleComp (unifSpec + AnnSpec n X M) (Transcript n X M) := do
   let r ← annPhase1 C challenge F
   let zs ← (List.range (finalItems C r.2.1 r.2.2).length).mapM

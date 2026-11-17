@@ -22,10 +22,10 @@ variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
 
 /-- The annotated experiment with a lazily sampled random oracle. -/
-noncomputable def annROM (F : AlgForger n E M) : ProbComp (Transcript n X M) :=
+noncomputable def annROM (F : AlgForger n E X M) : ProbComp (Transcript n X M) :=
   (simulateQ (AnnSpec n X M).romImpl (annExperiment C challenge F)).run' ∅
 
-theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
+theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
     (q ℓ : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (hℓ : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :

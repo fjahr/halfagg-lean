@@ -47,7 +47,7 @@ theorem core_inv {ι' : Type} {spec' : OracleSpec ι'} (hx0 : C.liftX (C.x 0) = 
     (hsg : ∀ msg, ∀ sig ∈ support (sg msg),
       C.liftX sig.1 = some (repPoint C d (sig.2, -challenge sig.1 pk msg)))
     {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request M) (Reply n M))
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
       (Explained (ZMod n) Result (Pts E)))
     (recv : List E) (hprog : IsAlgebraic (fun _ => recv) prog)
     (st : Core n X M) (hst : CoreOK C d recv st)
@@ -76,7 +76,7 @@ theorem core_inv {ι' : Type} {spec' : OracleSpec ι'} (hx0 : C.liftX (C.x 0) = 
       have h := hnext ⟨u, fun _ => []⟩
       rw [extend_nil] at h
       exact ih _ recv h _ hst z hz
-    | rand ms =>
+    | rand ms tail =>
       simp only [coreImpl, StateT.run, support_bind, support_pure, Set.mem_iUnion,
         Set.mem_singleton_iff] at hrep
       obtain ⟨u, -, hu⟩ := hrep

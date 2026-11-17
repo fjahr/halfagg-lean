@@ -47,15 +47,51 @@ theorem toItems_length_le (ms : List M) (pts : List E) :
   omega
 
 theorem map_strip_annotate (memo : X → Option (Rep n)) (its : List (Item X M)) :
-    (annotate memo its).map strip = its := by
-  simp [annotate, strip, Function.comp_def]
+    (annotate C memo its).map strip = its := by
+  induction its with
+  | nil => rfl
+  | cons it rest ih =>
+    simp only [annotate]
+    split_ifs
+    · rw [List.map_cons, ih]; rfl
+    · simp [strip, Function.comp_def]
+
+theorem annotate_length (memo : X → Option (Rep n)) (its : List (Item X M)) :
+    (annotate C memo its).length = its.length := by
+  simpa using congrArg List.length (map_strip_annotate C memo its)
+
+/-- On a list whose items all lift, every item gets its recorded representations. -/
+theorem annotate_of_lifts (memo : X → Option (Rep n)) {its : List (Item X M)}
+    (h : ∀ it ∈ its, lifts C it = true) :
+    annotate C memo its =
+      its.map fun it => ⟨it.1, it.2.1, it.2.2, (memo it.1).getD 0, (memo it.2.1).getD 0⟩ := by
+  induction its with
+  | nil => rfl
+  | cons it rest ih =>
+    simp only [annotate, h it List.mem_cons_self, ↓reduceIte, List.map_cons]
+    rw [ih fun a ha => h a (List.mem_cons_of_mem _ ha)]
+
+/-- Annotation commutes with taking a prefix. -/
+theorem annotate_take (memo : X → Option (Rep n)) (its : List (Item X M)) (k : ℕ) :
+    (annotate C memo its).take k = annotate C memo (its.take k) := by
+  induction its generalizing k with
+  | nil => simp [annotate]
+  | cons it rest ih =>
+    cases k with
+    | zero => simp [annotate]
+    | succ k =>
+      simp only [List.take_succ_cons, annotate]
+      split_ifs
+      · rw [List.take_succ_cons, ih]
+      · rw [← List.map_take, List.take_succ_cons]
 
 theorem itemOK_annotate (d : ZMod n) {memo : X → Option (Rep n)} (hm : MemoOK C d memo)
-    (its : List (Item X M))
+    (its : List (Item X M)) (hl : ∀ it ∈ its, lifts C it = true)
     (hall : ∀ it ∈ its, (memo it.1).isSome ∧ (memo it.2.1).isSome) :
-    ∀ a ∈ annotate memo its, ItemOK C d a := by
+    ∀ a ∈ annotate C memo its, ItemOK C d a := by
   intro a ha
-  simp only [annotate, List.mem_map] at ha
+  rw [annotate_of_lifts C memo hl] at ha
+  simp only [List.mem_map] at ha
   obtain ⟨it, hit, rfl⟩ := ha
   obtain ⟨h1, h2⟩ := hall it hit
   obtain ⟨ρ₁, hρ₁⟩ := Option.isSome_iff_exists.mp h1
@@ -67,9 +103,10 @@ theorem itemOK_annotate (d : ZMod n) {memo : X → Option (Rep n)} (hm : MemoOK 
 /-- The final items of a run with valid bookkeeping have valid representations. -/
 theorem finalItems_ok (hx0 : C.liftX (C.x 0) = none) (d : ZMod n) {recv : List E}
     {st : Core n X M} (hst : CoreOK C d recv st)
-    {out : Explained (ZMod n) (Out n M) (Pts E)} (hout : out.Valid (fun _ => recv)) :
+    {out : Explained (ZMod n) (Out n M) (Pts E)} (hout : out.Valid (fun _ => recv))
+    (hl : ∀ it ∈ toItems C out.value.data.ms (out.value.groups ()), lifts C it = true) :
     ∀ a ∈ finalItems C out st, ItemOK C d a := by
-  refine itemOK_annotate C d (memoOK_memoize C hx0 d hst.2 hst.1 (hout ())) _ fun it hit => ?_
+  refine itemOK_annotate C d (memoOK_memoize C hx0 d hst.2 hst.1 (hout ())) _ hl fun it hit => ?_
   obtain ⟨R, hR, P, hP, h1, h2⟩ := toItems_mem C hit
   rw [h1, h2]
   exact ⟨memoizeList_isSome C _ _ _ _ hR, memoizeList_isSome C _ _ _ _ hP⟩
@@ -141,7 +178,7 @@ theorem zs_fixed (items : List (AItem n X M)) (g : List (AItem n X M) → ZMod n
 
 /-- After key generation and the forger's run, the bookkeeping is valid for the
 normalized secret key `d`. -/
-theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
+theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) :
     ∃ d : ZMod n, d ≠ 0 ∧ C.hasEvenY (C.mulG d) = true ∧ r.1 = C.x (C.mulG d) ∧
@@ -171,7 +208,7 @@ theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
 /-! ## The trace -/
 
 /-- **A failed extraction leaves a bad key in the log.** -/
-theorem ann_trace [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E M)
+theorem ann_trace [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
     (g : List (AItem n X M) → ZMod n)
     (z : (Transcript n X M × QueryLog (AnnSpec n X M)) × (AnnSpec n X M).QueryCache)
     (hz : z ∈ support (fixedTableLoggedRun (annExperiment C challenge F) g ∅))
@@ -193,8 +230,15 @@ theorem ann_trace [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n 
   obtain ⟨d, hd, heven, hpk, -, recv, hcore, hval⟩ := phase1_ok C challenge hx0 F p.1.1 hp1
   set items := finalItems C p.1.1.2.1 p.1.1.2.2 with hitems
   obtain ⟨hzs, -, hkeys⟩ := zs_fixed items g (List.range items.length) p.2 hpag w hw
-  have hok := finalItems_ok C hx0 d hcore hval
   simp only [winT, extractOK, hpk] at hwin hno
+  have hl : ∀ it ∈ toItems C p.1.1.2.1.value.data.ms (p.1.1.2.1.value.groups ()),
+      lifts C it = true := by
+    have h := hwin
+    simp only [aggWins, verifyWith, Bool.and_eq_true, List.all_eq_true] at h
+    have h2 := h.1.1.2
+    rw [items_map, hitems, finalItems, map_strip_annotate] at h2
+    exact h2
+  have hok := finalItems_ok C hx0 d hcore hval hl
   have hpos : 0 < items.length := by
     rcases hi : items with _ | ⟨a, l⟩
     · rw [hi] at hwin; simp [aggWins] at hwin

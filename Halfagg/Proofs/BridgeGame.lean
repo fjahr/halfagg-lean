@@ -95,14 +95,14 @@ theorem gRun_unif (pk : X) (sk : ZMod n) (k : ℕ) (l : List M)
     gRun C challenge pk sk (liftM ((GameSpec n X M).query (.inl (.inl k)))) l c =
       (fun u => ((u, l), c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   unfold gRun gApp
-  simp [unifFwd_runR, rom_signR]
+  simp [unifFwd_runR]
 
 theorem gRun_rand (pk : X) (sk : ZMod n) (L : List (Item X M)) (l : List M)
     (c : (RandSpec n X M).QueryCache) :
     gRun C challenge pk sk (liftM ((GameSpec n X M).query (.inl (.inr L)))) l c =
       (fun p => ((p.1, l), p.2)) <$> ((RandSpec n X M).randomOracle L).run c := by
   unfold gRun gApp
-  simp [unifFwd_runR, rom_signR]
+  simp
 
 theorem gRun_sign (pk : X) (sk : ZMod n) (msg : M) (l : List M)
     (c : (RandSpec n X M).QueryCache) :
@@ -110,7 +110,7 @@ theorem gRun_sign (pk : X) (sk : ZMod n) (msg : M) (l : List M)
       (fun sig => ((sig, l ++ [msg]), c)) <$>
         (bip340 (M := M) C challenge ProbComp).sign pk sk msg := by
   unfold gRun gApp
-  simp [unifFwd_runR, rom_signR]
+  simp [rom_signR]
 
 /-! ## One request, on each side -/
 
@@ -127,12 +127,14 @@ theorem g_random (k : ℕ) (l : List M) (c : (RandSpec n X M).QueryCache) :
     pure ⟨u, fun _ => []⟩) from rfl, gRun_bind, gRun_unif]
   simp [gRun_pure]
 
-theorem g_rand (ms : List M) (l : List M) (c : (RandSpec n X M).QueryCache) :
-    gRun C challenge pk sk (eraseImpl C (n := n) (M := M) ⟨.rand ms, groups⟩) l c =
+theorem g_rand (ms : List M) (tail : List (Item X M)) (l : List M)
+    (c : (RandSpec n X M).QueryCache) :
+    gRun C challenge pk sk (eraseImpl C (n := n) (M := M) ⟨.rand ms tail, groups⟩) l c =
       (fun p => ((⟨p.1, fun _ => []⟩, l), p.2)) <$>
-        ((RandSpec n X M).randomOracle (toItems C ms (groups ()))).run c := by
-  rw [show eraseImpl C (n := n) (M := M) ⟨.rand ms, groups⟩ = (do
-    let z ← (liftM ((GameSpec n X M).query (.inl (.inr (toItems C ms (groups ()))))) :
+        ((RandSpec n X M).randomOracle (toItems C ms (groups ()) ++ rawTail C tail)).run c := by
+  rw [show eraseImpl C (n := n) (M := M) ⟨.rand ms tail, groups⟩ = (do
+    let z ← (liftM ((GameSpec n X M).query
+      (.inl (.inr (toItems C ms (groups ()) ++ rawTail C tail)))) :
       OracleComp (GameSpec n X M) _)
     pure ⟨z, fun _ => []⟩) from rfl, gRun_bind, gRun_rand]
   simp [gRun_pure]
@@ -153,11 +155,11 @@ theorem j_random (k : ℕ) (cA : (AnnSpec n X M).QueryCache) :
   rw [coreImpl_run_random]
   simp [unifFwd_run]
 
-theorem j_rand (ms : List M) (cA : (AnnSpec n X M).QueryCache) :
-    ((jImpl C challenge pk sk ⟨⟨.rand ms, groups⟩, coeffs⟩).run st).run cA =
+theorem j_rand (ms : List M) (tail : List (Item X M)) (cA : (AnnSpec n X M).QueryCache) :
+    ((jImpl C challenge pk sk ⟨⟨.rand ms tail, groups⟩, coeffs⟩).run st).run cA =
       (fun p => ((⟨p.1, fun _ => []⟩, memoize C st (groups ()) (coeffs ())), p.2)) <$>
-        ((AnnSpec n X M).randomOracle (annotate (memoize C st (groups ()) (coeffs ())).memo
-          (toItems C ms (groups ())))).run cA := by
+        ((AnnSpec n X M).randomOracle (annotate C (memoize C st (groups ()) (coeffs ())).memo
+          (toItems C ms (groups ()) ++ rawTail C tail))).run cA := by
   unfold jImpl
   rw [coreImpl_run_rand]
   simp
@@ -179,34 +181,39 @@ theorem memoExt_memoize (st : Core n X M) (pts : List E) (coeffs : List (List (Z
   fun _ _ h => memoizeList_of_some C _ _ _ h
 
 theorem covered_memoize (st : Core n X M) (ms : List M) (pts : List E)
-    (coeffs : List (List (ZMod n))) :
-    covered (memoize C st pts coeffs).memo (toItems C ms pts) := by
-  intro it hit
+    (coeffs : List (List (ZMod n))) (tail : List (Item X M)) :
+    covered C (memoize C st pts coeffs).memo (toItems C ms pts ++ rawTail C tail) := by
+  refine covered_append C (fun it hit => ?_) (covered_rawTail C _ tail)
   obtain ⟨R, hR, P, hP, h1, h2⟩ := toItems_mem C hit
   rw [h1, h2]
   exact ⟨memoizeList_isSome C _ _ _ _ hR, memoizeList_isSome C _ _ _ _ hP⟩
 
+theorem covered_memoize_nil (st : Core n X M) (ms : List M) (pts : List E)
+    (coeffs : List (List (ZMod n))) :
+    covered C (memoize C st pts coeffs).memo (toItems C ms pts) := by
+  simpa [rawTail] using covered_memoize C st ms pts coeffs []
+
 /-- **One request**: the game's run projects from the joint handler's. -/
-theorem game_step (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request M) (Pts E))
-    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv st.memo cA) :
-    gRun C challenge pk sk (eraseImpl C t.value) st.signed (plainOf st.memo cA) =
-      (fun y => ((y.1.1, y.1.2.signed), plainOf y.1.2.memo y.2)) <$>
+theorem game_step (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X M) (Pts E))
+    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv C st.memo cA) :
+    gRun C challenge pk sk (eraseImpl C t.value) st.signed (plainOf C st.memo cA) =
+      (fun y => ((y.1.1, y.1.2.signed), plainOf C y.1.2.memo y.2)) <$>
         ((jImpl C challenge pk sk t).run st).run cA := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
   cases data with
   | random k => rw [g_random, j_random]; simp
-  | rand ms =>
+  | rand ms tail =>
     rw [g_rand, j_rand,
-      ← plainOf_ext hinv (memoExt_memoize C st (groups ()) (coeffs ())),
-      ro_step cA (covered_memoize C st ms (groups ()) (coeffs ()))]
+      ← plainOf_ext C hinv (memoExt_memoize C st (groups ()) (coeffs ())),
+      ro_step C cA (covered_memoize C st ms (groups ()) (coeffs ()) tail)]
     simp [memoize_signed]
   | sign msg => rw [g_sign, j_sign]; simp
 
 /-- The joint handler keeps the cache invariant. -/
-theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request M) (Pts E))
-    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv st.memo cA) :
+theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X M) (Pts E))
+    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     ∀ y ∈ support (((jImpl C challenge pk sk t).run st).run cA),
-      CacheInv y.1.2.memo y.2 := by
+      CacheInv C y.1.2.memo y.2 := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
   intro y hy
   cases data with
@@ -214,11 +221,11 @@ theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request M)
     rw [j_random, support_map] at hy
     obtain ⟨u, -, rfl⟩ := hy
     exact hinv
-  | rand ms =>
+  | rand ms tail =>
     rw [j_rand, support_map] at hy
     obtain ⟨p, hp, rfl⟩ := hy
-    exact ro_step_inv (cacheInv_ext hinv (memoExt_memoize C st (groups ()) (coeffs ())))
-      (covered_memoize C st ms (groups ()) (coeffs ())) p hp
+    exact ro_step_inv C (cacheInv_ext C hinv (memoExt_memoize C st (groups ()) (coeffs ())))
+      (covered_memoize C st ms (groups ()) (coeffs ()) tail) p hp
   | sign msg =>
     rw [j_sign, support_map] at hy
     obtain ⟨sig, -, rfl⟩ := hy
@@ -227,11 +234,11 @@ theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request M)
 /-! ## The forger's run -/
 
 theorem game_stack (pk : X) (sk : ZMod n) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request M) (Reply n M)) Result)
-    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv st.memo cA) :
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
+    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     gRun C challenge pk sk (simulateQ (fun q => eraseImpl C q.value) prog) st.signed
-        (plainOf st.memo cA) =
-      (fun y => ((y.1.1, y.1.2.signed), plainOf y.1.2.memo y.2)) <$>
+        (plainOf C st.memo cA) =
+      (fun y => ((y.1.1, y.1.2.signed), plainOf C y.1.2.memo y.2)) <$>
         ((simulateQ (jImpl C challenge pk sk) prog).run st).run cA := by
   induction prog using OracleComp.inductionOn generalizing st cA with
   | pure x => simp [gRun_pure]
@@ -242,10 +249,10 @@ theorem game_stack (pk : X) (sk : ZMod n) {Result : Type}
     exact ih y.1.1 y.1.2 y.2 (game_step_inv C challenge pk sk t st cA hinv y hy)
 
 theorem j_stack_inv (pk : X) (sk : ZMod n) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request M) (Reply n M)) Result)
-    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv st.memo cA) :
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
+    (st : Core n X M) (cA : (AnnSpec n X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     ∀ y ∈ support (((simulateQ (jImpl C challenge pk sk) prog).run st).run cA),
-      CacheInv y.1.2.memo y.2 := by
+      CacheInv C y.1.2.memo y.2 := by
   induction prog using OracleComp.inductionOn generalizing st cA with
   | pure x =>
     intro y hy
@@ -262,34 +269,32 @@ theorem j_stack_inv (pk : X) (sk : ZMod n) {Result : Type}
 /-! ## The verifier's randomizers -/
 
 theorem zq_game (memo : X → Option (Rep n)) (its : List (Item X M))
-    (hcov : covered memo its) (i : ℕ) (cA : (AnnSpec n X M).QueryCache)
-    (hinv : CacheInv memo cA) :
-    (simulateQ (RandSpec n X M).romImpl (zQuery (n := n) its i)).run (plainOf memo cA) =
-        (fun y => (y.1, plainOf memo y.2)) <$> (jZ (annotate memo its) i).run cA ∧
-      ∀ y ∈ support ((jZ (annotate memo its) i).run cA), CacheInv memo y.2 := by
+    (hcov : covered C memo its) (i : ℕ) (cA : (AnnSpec n X M).QueryCache)
+    (hinv : CacheInv C memo cA) :
+    (simulateQ (RandSpec n X M).romImpl (zQuery (n := n) its i)).run (plainOf C memo cA) =
+        (fun y => (y.1, plainOf C memo y.2)) <$> (jZ (annotate C memo its) i).run cA ∧
+      ∀ y ∈ support ((jZ (annotate C memo its) i).run cA), CacheInv C memo y.2 := by
   unfold zQuery jZ
   split_ifs with hi
   · refine ⟨by simp, fun y hy => ?_⟩
     simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hy
     subst hy
     exact hinv
-  · have hc : covered memo (its.take (i + 1)) := fun it hit => hcov it (List.mem_of_mem_take hit)
-    have ht : (annotate memo its).take (i + 1) = annotate memo (its.take (i + 1)) := by
-      simp [annotate, List.map_take]
-    rw [ht]
-    refine ⟨?_, ro_step_inv hinv hc⟩
-    rw [← ro_step cA hc]
+  · have hc : covered C memo (its.take (i + 1)) := covered_take C hcov _
+    rw [annotate_take]
+    refine ⟨?_, ro_step_inv C hinv hc⟩
+    rw [← ro_step C cA hc]
     simp
 
 theorem game_zs (memo : X → Option (Rep n)) (its : List (Item X M))
-    (hcov : covered memo its) (is : List ℕ) (cA : (AnnSpec n X M).QueryCache)
-    (hinv : CacheInv memo cA) :
-    (simulateQ (RandSpec n X M).romImpl (is.mapM (zQuery (n := n) its))).run (plainOf memo cA) =
-      (fun y => (y.1, plainOf memo y.2)) <$> (is.mapM (jZ (annotate memo its))).run cA := by
+    (hcov : covered C memo its) (is : List ℕ) (cA : (AnnSpec n X M).QueryCache)
+    (hinv : CacheInv C memo cA) :
+    (simulateQ (RandSpec n X M).romImpl (is.mapM (zQuery (n := n) its))).run (plainOf C memo cA) =
+      (fun y => (y.1, plainOf C memo y.2)) <$> (is.mapM (jZ (annotate C memo its))).run cA := by
   induction is generalizing cA with
   | nil => simp
   | cons i is ih =>
-    obtain ⟨hstep, hstepinv⟩ := zq_game memo its hcov i cA hinv
+    obtain ⟨hstep, hstepinv⟩ := zq_game C memo its hcov i cA hinv
     rw [List.mapM_cons, List.mapM_cons]
     simp only [simulateQ_bind, simulateQ_pure, StateT.run_bind, StateT.run_pure, map_bind]
     rw [hstep, bind_map_left]
@@ -306,7 +311,7 @@ theorem gRun_map (pk : X) (sk : ZMod n) {α β : Type} (f : α → β)
   simp [gRun]
 
 /-- The game after key generation, as the joint run followed by the win check. -/
-theorem game_run_eq (F : AlgForger n E M) (pk : X) (sk : ZMod n) :
+theorem game_run_eq (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
     (do
       let w ← gRun C challenge pk sk ((erase C F).main pk) [] ∅
       let zs ← (simulateQ (RandSpec n X M).romImpl
@@ -319,18 +324,18 @@ theorem game_run_eq (F : AlgForger n E M) (pk : X) (sk : ZMod n) :
       pure (aggWins C challenge pk ((finalItems C p.1.1 p.1.2).map strip) p.1.1.value.data.s q.1
         (fun m => p.1.2.signed.contains m))) := by
   have hstack := game_stack C challenge pk sk (F.main (initial C ((C.liftX pk).getD 0)))
-    (Core.init : Core n X M) ∅ (cacheInv_empty _)
+    (Core.init : Core n X M) ∅ (cacheInv_empty C _)
   rw [show (Core.init : Core n X M).signed = [] from rfl, plainOf_empty] at hstack
   simp only [erase]
   rw [gRun_map, hstack]
   simp only [bind_map_left, Functor.map_map]
   refine bind_congr_of_forall_mem_support _ fun p hp => ?_
-  have hinv := j_stack_inv C challenge pk sk _ _ _ (cacheInv_empty _) p hp
+  have hinv := j_stack_inv C challenge pk sk _ _ _ (cacheInv_empty C _) p hp
   have hext := memoExt_memoize C p.1.2 (p.1.1.value.groups ()) (p.1.1.coefficients ())
-  rw [← plainOf_ext hinv hext,
-    game_zs _ _ (covered_memoize C p.1.2 p.1.1.value.data.ms (p.1.1.value.groups ())
-      (p.1.1.coefficients ())) _ p.2 (cacheInv_ext hinv hext), bind_map_left]
-  simp [finalItems, annotate, strip, Function.comp_def]
+  rw [← plainOf_ext C hinv hext,
+    game_zs C _ _ (covered_memoize_nil C p.1.2 p.1.1.value.data.ms (p.1.1.value.groups ())
+      (p.1.1.coefficients ())) _ p.2 (cacheInv_ext C hinv hext), bind_map_left]
+  simp [finalItems, map_strip_annotate, annotate_length]
 
 /-- The outcome of the game as a function of the transcript. -/
 def winB (t : Transcript n X M) : Bool :=
@@ -338,7 +343,7 @@ def winB (t : Transcript n X M) : Bool :=
 
 /-- **The standard game with the erased forger is the joint experiment followed
 by the win check.** -/
-theorem game_experiment_eq (F : AlgForger n E M) :
+theorem game_experiment_eq (F : AlgForger n E X M) :
     (simulateQ (RandSpec n X M).romImpl (aggExperiment C challenge (erase C F))).run' ∅ =
       winB C challenge <$> jExp C challenge F := by
   have hexp : aggExperiment C challenge (erase C F) = (do
@@ -374,7 +379,7 @@ theorem game_experiment_eq (F : AlgForger n E M) :
 
 /-- **Bridge A.** The standard game with the erased forger wins exactly as often
 as the annotated experiment's transcript wins. -/
-theorem bridge_game (F : AlgForger n E M) :
+theorem bridge_game (F : AlgForger n E X M) :
     aggAdvantage C challenge (erase C F) ≤
       Pr{let t ← annROM C challenge F}[winT C challenge t] := by
   unfold aggAdvantage
