@@ -31,6 +31,10 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |
 | `Secp256k1.lean` | The theorem's curve hypothesis for secp256k1. |
 
+`Halfagg/Examples.lean` shows the theorem is not vacuous: a concrete algebraic forger satisfying its hypotheses, and an honest signature satisfying the game's win predicate.
+
+The statement is a reduction. It does not bound the forger's or the reduction's running time.
+
 `halfagg_unforgeable` uses only Lean's standard axioms. The secp256k1 version also inherits taproot-lean's `native_decide` computation of `n·G = 0`.
 
 ## Test vectors

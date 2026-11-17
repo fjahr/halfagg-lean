@@ -15,4 +15,5 @@ import Halfagg.Proofs.BridgeReduction
 import Halfagg.Proofs.Projection
 import Halfagg.Proofs.BridgeGame
 import Halfagg.Unforgeability
+import Halfagg.Examples
 import Halfagg.Summary

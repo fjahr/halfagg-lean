@@ -358,8 +358,8 @@ noncomputable def tableZs (items : List (AItem n X M)) :
 /-- **The reduction**: run the forger with `coreImpl`, forwarding uniform
 sampling and signing to its own oracles and answering randomizer requests from
 its table; then record the forgery's representations, draw the randomizers the
-verifier needs, and extract a BIP340 forgery. It makes exactly the forger's
-signing queries and runs in time linear in the forger's. -/
+verifier needs, and extract a BIP340 forgery. It makes one signing query per
+signing request of the forger. Its running time is not formalized. -/
 noncomputable def reduction [Inhabited M] (F : AlgForger n E M) :
     SignatureAlg.UnforgeableAdversary (bip340 (M := M) C challenge ProbComp) where
   main pk := do
