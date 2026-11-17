@@ -202,6 +202,49 @@ theorem isum_eq_zero {α β : Type*} [AddCommMonoid β] {f : ℕ → α → β} 
   rw [isum_congr (g := fun _ _ => 0) h]
   exact isum_zero_fun k l
 
+/-- **Cut after the last nonzero weight.** If a weighted sum with first
+coefficient `1` vanishes while some weight is nonzero, then it vanishes over the
+prefix ending at the last nonzero weight, and that prefix has at least two
+items. -/
+theorem cut_last {α : Type} (items : List α) (cf : ℕ → ZMod n) (w : α → ZMod n)
+    (hcf0 : cf 0 = 1) (hne : ∃ a ∈ items, w a ≠ 0)
+    (hsum : isum (fun i b => cf i * w b) 0 items = 0) :
+    ∃ j, 1 ≤ j ∧ ∃ hj : j < items.length, w items[j] ≠ 0 ∧
+      (∀ i (hi : i < items.length), j < i → w items[i] = 0) ∧
+      isum (fun i b => cf i * w b) 0 (items.take (j + 1)) = 0 := by
+  classical
+  let J := (Finset.range items.length).filter fun j =>
+    ∃ hj : j < items.length, w items[j] ≠ 0
+  obtain ⟨a, ha, hwa⟩ := hne
+  obtain ⟨ia, hia, hia'⟩ := List.mem_iff_getElem.mp ha
+  have hJ : J.Nonempty := ⟨ia, by simp [J, hia, hia', hwa]⟩
+  set j := J.max' hJ
+  obtain ⟨-, hjlen, hwj⟩ := Finset.mem_filter.mp (J.max'_mem hJ)
+  have hafter : ∀ i (hi : i < items.length), j < i → w items[i] = 0 := by
+    intro i hi hji
+    by_contra h
+    have : i ∈ J := by simp [J, hi, h]
+    exact absurd (J.le_max' i this) (not_le.mpr hji)
+  have hcut : isum (fun i b => cf i * w b) 0 (items.take (j + 1)) =
+      isum (fun i b => cf i * w b) 0 items := by
+    conv_rhs => rw [← List.take_append_drop (j + 1) items]
+    rw [isum_append, isum_eq_zero (l := items.drop (j + 1)), add_zero]
+    intro i b hb hi _
+    obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hb
+    simp only [List.getElem_drop]
+    rw [hafter _ _ (by simp at hi ⊢; omega), mul_zero]
+  refine ⟨j, ?_, hjlen, hwj, hafter, hcut.trans hsum⟩
+  by_contra hj0
+  have hj0 : j = 0 := by omega
+  have hall : isum (fun i b => cf i * w b) 0 items = w items[0] := by
+    rw [← hcut, hj0]
+    cases items with
+    | nil => simp at hjlen
+    | cons b l => simp [hcf0]
+  rw [hall] at hsum
+  have hidx : items[j] = items[0] := by simp only [hj0]
+  exact hwj (by rw [hidx]; exact hsum)
+
 /-- An annotated item without its representations. -/
 def strip (a : AItem n X M) : Item X M := (a.r, a.pk, a.m)
 
@@ -245,11 +288,11 @@ theorem s_eq (d : ZMod n) (items : List (AItem n X M)) (zf : ℕ → ZMod n) (s 
 
 /-- **Extraction** (Chen and Zhao, proof of Theorem 1). A winning forgery whose
 representations are valid either yields a valid BIP340 forgery on an unsigned
-message, or has a prefix `items.take (j + 1)` with `j ≥ 1` whose last
-coefficient `β*ⱼ` is nonzero and whose randomized sum `Σ zᵢ⋅β*ᵢ` vanishes. -/
+message, or some coefficient `β*ᵢ` is nonzero while the randomized sum
+`Σ zᵢ⋅β*ᵢ` vanishes. -/
 theorem extract_or_bad [Inhabited M] (d : ZMod n) (hd : d ≠ 0)
     (heven : C.hasEvenY (C.mulG d) = true) (items : List (AItem n X M)) (s : ZMod n)
-    (zs : List (ZMod n)) (signed : List M) (hz0 : zs.getD 0 0 = 1)
+    (zs : List (ZMod n)) (signed : List M)
     (hok : ∀ a ∈ items, ItemOK C d a)
     (hwin : aggWins C challenge (C.x (C.mulG d)) (items.map strip) s zs
       (fun m => signed.contains m) = true) :
@@ -257,8 +300,8 @@ theorem extract_or_bad [Inhabited M] (d : ZMod n) (hd : d ≠ 0)
         (extractForgery C challenge (C.x (C.mulG d)) items s zs signed).1
         (extractForgery C challenge (C.x (C.mulG d)) items s zs signed).2 = true ∧
       signed.contains (extractForgery C challenge (C.x (C.mulG d)) items s zs signed).1 = false) ∨
-    ∃ j, 1 ≤ j ∧ ∃ hj : j < items.length, (starRep challenge items[j]).2 ≠ 0 ∧
-      isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 (items.take (j + 1)) = 0 := by
+    ((∃ a ∈ items, (starRep challenge a).2 ≠ 0) ∧
+      isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 items = 0) := by
   set pk := C.x (C.mulG d) with hpk
   have hPstar : C.liftX pk = some (C.mulG d) := C.liftX_x _ (C.mulG_ne_zero hd) heven
   -- unpack the win
@@ -304,43 +347,8 @@ theorem extract_or_bad [Inhabited M] (d : ZMod n) (hd : d ≠ 0)
     rw [← hapk]
     linear_combination d * hβa - (challenge a.r a.pk a.m) * hPd
   · by_cases hβ : isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 items = 0
-    · -- `β* = 0` while `β*ₐ ≠ 0`: cut after the last item with `β*ⱼ ≠ 0`
-      right
-      classical
-      let J := (Finset.range items.length).filter fun j =>
-        ∃ hj : j < items.length, (starRep challenge items[j]).2 ≠ 0
-      obtain ⟨ia, hia, hia'⟩ := List.mem_iff_getElem.mp ha
-      have hJ : J.Nonempty := ⟨ia, by simp [J, hia, hia', hβa]⟩
-      set j := J.max' hJ
-      obtain ⟨-, hjlen, hβj⟩ := Finset.mem_filter.mp (J.max'_mem hJ)
-      have hafter : ∀ i (hi : i < items.length), j < i →
-          (starRep challenge items[i]).2 = 0 := by
-        intro i hi hji
-        by_contra h
-        have : i ∈ J := by simp [J, hi, h]
-        exact absurd (J.le_max' i this) (not_le.mpr hji)
-      have hcut : isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0
-          (items.take (j + 1)) =
-          isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 items := by
-        conv_rhs => rw [← List.take_append_drop (j + 1) items]
-        rw [isum_append, isum_eq_zero (l := items.drop (j + 1)), add_zero]
-        intro i b hb hi _
-        obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hb
-        simp only [List.getElem_drop]
-        rw [hafter _ _ (by simp at hi ⊢; omega), mul_zero]
-      refine ⟨j, ?_, hjlen, hβj, hcut.trans hβ⟩
-      by_contra hj0
-      have hj0 : j = 0 := by omega
-      have hall : isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 items =
-          (starRep challenge items[0]).2 := by
-        rw [← hcut, hj0]
-        have hz0' : zs[0]?.getD 0 = 1 := by simpa [List.getD_eq_getElem?_getD] using hz0
-        cases items with
-        | nil => simp at hjlen
-        | cons b l => simp [hz0']
-      rw [hall] at hβ
-      have hidx : items[j] = items[0] := by simp only [hj0]
-      exact hβj (by rw [hidx]; exact hβ)
+    · -- `β* = 0` while `β*ₐ ≠ 0`: the bad event
+      exact Or.inr ⟨⟨a, ha, hβa⟩, hβ⟩
     · -- `β* ≠ 0`: `(s - α*)/β*` is the secret key
       left
       have hx : (s - isum (fun i b => zs.getD i 0 * (starRep challenge b).1) 0 items) /

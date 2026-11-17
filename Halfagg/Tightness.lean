@@ -6,8 +6,8 @@ import Halfagg.Unforgeability
 `grinder q` is an algebraic forger that makes no signing requests and at most
 `q` randomizer requests. `grinder_advantage`: it wins the standard game with
 probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`. So the additive
-term of `halfagg_unforgeable` cannot be improved beyond its dependence on `ℓ`,
-unless BIP340 can be forged without signing queries.
+term `(q + 1)/n` of `halfagg_unforgeable` is tight up to one query, unless BIP340
+can be forged without signing queries.
 
 The forger uses the target key's point `P*` as every nonce: the item
 `(x(P*), pk*, m)` contributes `P* + e⋅P* = (1 + e)⋅P*` to the verification
@@ -446,25 +446,6 @@ theorem grindLoop_signs (pk : X) (p : ℕ → Bool) (k j : ℕ) (b : Groups (Pts
     · exact isQueryBoundP_pure _ _ _
     · exact ih _ _
 
-theorem grindLoop_length (pk : X) (k j : ℕ) (b : Groups (Pts E)) :
-    ∀ out ∈ support (grindLoop (E := E) challenge pk k j b), out.value.data.ms.length ≤ 2 := by
-  induction k generalizing j b with
-  | zero =>
-    intro out h
-    simp only [grindLoop, support_pure, Set.mem_singleton_iff] at h
-    subst h
-    simp [Explained.ofVectors]
-  | succ k ih =>
-    intro out h
-    rw [grindLoop, queryBind_eq, mem_support_bind_iff] at h
-    obtain ⟨rep, -, h⟩ := h
-    dsimp only at h
-    split_ifs at h
-    · simp only [support_pure, Set.mem_singleton_iff] at h
-      subst h
-      simp [Explained.ofVectors]
-    · exact ih _ _ out h
-
 theorem grinder_queries (q : ℕ) : ∀ input,
     ((grinder C challenge q).main input).IsQueryBoundP (fun r => isRand r.value.data) q := by
   intro input
@@ -481,25 +462,15 @@ theorem grinder_signs (q : ℕ) (p : ℕ → Bool) : ∀ input,
   · exact isQueryBoundP_pure _ _ _
   · exact grindLoop_signs challenge _ _ _ _ _
 
-theorem grinder_length (q : ℕ) : ∀ input, ∀ out ∈ support ((grinder C challenge q).main input),
-    out.value.data.ms.length ≤ 2 := by
-  intro input out h
-  simp only [grinder] at h
-  split at h
-  · simp only [support_pure, Set.mem_singleton_iff] at h
-    subst h
-    simp [Explained.ofVectors]
-  · exact grindLoop_length challenge _ _ _ _ out h
-
 /-- The main theorem applied to the grinding forger: its reduction is a BIP340
-forger that wins with probability at least `1 - ((n - 1)/n)^q - (q + 2)/n`. -/
+forger that wins with probability at least `1 - ((n - 1)/n)^q - (q + 1)/n`. -/
 theorem grinder_sandwich (hx0 : C.liftX (C.x 0) = none) (q : ℕ) :
     1 - (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction C challenge (grinder C challenge q)) + ((q : ℕ) + (2 : ℕ) : ℝ≥0∞) / n :=
+        (reduction C challenge (grinder C challenge q)) + ((q : ℕ) + 1 : ℝ≥0∞) / n :=
   (grinder_advantage C challenge q).trans
-    (halfagg_unforgeable C challenge hx0 (grinder C challenge q) q 2
-      (grinder_queries C challenge q) (grinder_length C challenge q))
+    (halfagg_unforgeable C challenge hx0 (grinder C challenge q) q
+      (grinder_queries C challenge q))
 
 /-- That reduction makes no signing queries. -/
 theorem grinder_reduction_no_sign (q : ℕ) (pk : X) :

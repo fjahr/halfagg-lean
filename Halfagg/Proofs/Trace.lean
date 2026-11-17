@@ -1,11 +1,11 @@
 import Halfagg.Proofs.Annotated
 
 /-!
-# A failed extraction leaves a bad key in the log
+# The forgery's items and the forger's phase
 
-`ann_trace`: in a run of `annExperiment` against a fixed answer table `g`, if the
-transcript wins but the reduction's extraction fails, then some key the verifier
-queried is bad for `g`.
+Facts about the items of a forgery (`toItems`, `annotate`, `finalItems_ok`) and
+`phase1_ok`: after key generation and the forger's run in the annotated
+experiment, the reduction's bookkeeping is valid.
 -/
 
 set_option linter.unusedSectionVars false
@@ -111,69 +111,6 @@ theorem finalItems_ok (hx0 : C.liftX (C.x 0) = none) (d : ZMod n) {recv : List E
   rw [h1, h2]
   exact ⟨memoizeList_isSome C _ _ _ _ hR, memoizeList_isSome C _ _ _ _ hP⟩
 
-/-! ## Runs against a fixed table -/
-
-theorem fixedTable_pure {α : Type} (x : α) (g : List (AItem n X M) → ZMod n)
-    (c : (AnnSpec n X M).QueryCache) :
-    fixedTableLoggedRun (pure x : OracleComp (unifSpec + AnnSpec n X M) α) g c =
-      pure ((x, []), c) := by
-  simp [fixedTableLoggedRun]
-
-/-- One verifier query against the table returns `zOf` and logs its key. -/
-theorem zq_fixed (items : List (AItem n X M)) (g : List (AItem n X M) → ZMod n) (i : ℕ)
-    (c : (AnnSpec n X M).QueryCache) (hc : Agree c g) :
-    ∀ p ∈ support (fixedTableLoggedRun (zQueryAnn items i) g c),
-      p.1.1 = zOf g items i ∧ Agree p.2 g ∧
-        (i ≠ 0 → items.take (i + 1) ∈ freshKeysOfLog p.1.2) := by
-  intro p hp
-  unfold zQueryAnn at hp
-  unfold zOf
-  split_ifs at hp ⊢ with hi
-  · rw [fixedTable_pure] at hp
-    simp only [support_pure, Set.mem_singleton_iff] at hp
-    subst hp
-    exact ⟨rfl, hc, fun h => absurd hi h⟩
-  · rw [fixedTableLoggedRun_hashQuery, support_map] at hp
-    obtain ⟨r, hr, rfl⟩ := hp
-    obtain ⟨h1, h2, -⟩ := fixedTable_hash _ g c hc r hr
-    exact ⟨h1, h2, fun _ => by simp⟩
-
-/-- The verifier's queries against the table return `zOf` and log their keys. -/
-theorem zs_fixed (items : List (AItem n X M)) (g : List (AItem n X M) → ZMod n)
-    (is : List ℕ) (c : (AnnSpec n X M).QueryCache) (hc : Agree c g) :
-    ∀ w ∈ support (fixedTableLoggedRun (is.mapM (zQueryAnn items)) g c),
-      w.1.1 = is.map (zOf g items) ∧ Agree w.2 g ∧
-        ∀ i ∈ is, i ≠ 0 → items.take (i + 1) ∈ freshKeysOfLog w.1.2 := by
-  induction is generalizing c with
-  | nil =>
-    intro w hw
-    rw [List.mapM_nil, fixedTable_pure] at hw
-    simp only [support_pure, Set.mem_singleton_iff] at hw
-    subst hw
-    exact ⟨rfl, hc, by simp⟩
-  | cons i is ih =>
-    intro w hw
-    rw [List.mapM_cons, fixedTableLoggedRun_bind, mem_support_bind_iff] at hw
-    obtain ⟨p, hp, hw⟩ := hw
-    rw [support_map] at hw
-    obtain ⟨q, hq, rfl⟩ := hw
-    rw [fixedTableLoggedRun_bind, mem_support_bind_iff] at hq
-    obtain ⟨p₂, hp₂, hq⟩ := hq
-    rw [support_map] at hq
-    obtain ⟨q₂, hq₂, rfl⟩ := hq
-    rw [fixedTable_pure] at hq₂
-    simp only [support_pure, Set.mem_singleton_iff] at hq₂
-    subst hq₂
-    obtain ⟨h1, h2, h3⟩ := zq_fixed items g i c hc p hp
-    obtain ⟨k1, k2, k3⟩ := ih p.2 h2 p₂ hp₂
-    refine ⟨by simp [h1, k1], k2, fun j hj hj0 => ?_⟩
-    simp only [mem_freshKeysOfLog, List.append_nil, List.mem_append] at h3 k3 ⊢
-    rcases List.mem_cons.mp hj with rfl | hj
-    · obtain ⟨e, he, hk⟩ := h3 hj0
-      exact ⟨e, Or.inl he, hk⟩
-    · obtain ⟨e, he, hk⟩ := k3 j hj hj0
-      exact ⟨e, Or.inr he, hk⟩
-
 /-! ## The forger's phase -/
 
 /-- After key generation and the forger's run, the bookkeeping is valid for the
@@ -204,70 +141,5 @@ theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
       (fun msg sig h => sign_support C challenge hne msg sig h) _ _
       (F.algebraic (initial C (C.mulG (C.evenScalar sk)))) Core.init
       (coreOK_init C (C.evenScalar sk)) r' hr'
-
-/-! ## The trace -/
-
-/-- **A failed extraction leaves a bad key in the log.** -/
-theorem ann_trace [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
-    (g : List (AItem n X M) → ZMod n)
-    (z : (Transcript n X M × QueryLog (AnnSpec n X M)) × (AnnSpec n X M).QueryCache)
-    (hz : z ∈ support (fixedTableLoggedRun (annExperiment C challenge F) g ∅))
-    (hwin : winT C challenge z.1.1) (hno : ¬ extractOK C challenge z.1.1) :
-    ∃ t ∈ freshKeysOfLog z.1.2, badKey challenge t g := by
-  unfold annExperiment at hz
-  rw [fixedTableLoggedRun_bind, mem_support_bind_iff] at hz
-  obtain ⟨p, hp, hz⟩ := hz
-  rw [support_map] at hz
-  obtain ⟨q, hq, rfl⟩ := hz
-  rw [fixedTableLoggedRun_bind, mem_support_bind_iff] at hq
-  obtain ⟨w, hw, hq⟩ := hq
-  rw [support_map] at hq
-  obtain ⟨q₂, hq₂, rfl⟩ := hq
-  rw [fixedTable_pure] at hq₂
-  simp only [support_pure, Set.mem_singleton_iff] at hq₂
-  subst hq₂
-  obtain ⟨hp1, hpag⟩ := fixedTable_support _ g ∅ (agree_empty g) p hp
-  obtain ⟨d, hd, heven, hpk, -, recv, hcore, hval⟩ := phase1_ok C challenge hx0 F p.1.1 hp1
-  set items := finalItems C p.1.1.2.1 p.1.1.2.2 with hitems
-  obtain ⟨hzs, -, hkeys⟩ := zs_fixed items g (List.range items.length) p.2 hpag w hw
-  simp only [winT, extractOK, hpk] at hwin hno
-  have hl : ∀ it ∈ toItems C p.1.1.2.1.value.data.ms (p.1.1.2.1.value.groups ()),
-      lifts C it = true := by
-    have h := hwin
-    simp only [aggWins, verifyWith, Bool.and_eq_true, List.all_eq_true] at h
-    have h2 := h.1.1.2
-    rw [items_map, hitems, finalItems, map_strip_annotate] at h2
-    exact h2
-  have hok := finalItems_ok C hx0 d hcore hval hl
-  have hpos : 0 < items.length := by
-    rcases hi : items with _ | ⟨a, l⟩
-    · rw [hi] at hwin; simp [aggWins] at hwin
-    · simp
-  have hget : ∀ i < items.length, w.1.1.getD i 0 = zOf g items i := by
-    intro i hi
-    simp [hzs, List.getD_eq_getElem?_getD, hi]
-  have hz0 : w.1.1.getD 0 0 = 1 := by rw [hget 0 hpos]; simp [zOf]
-  rcases extract_or_bad C challenge d hd heven items _ _ _ hz0 hok hwin with
-    hex | ⟨j, hj1, hjlen, hβ, hsum⟩
-  · exact (hno hex).elim
-  · refine ⟨items.take (j + 1), ?_, ?_⟩
-    · have := hkeys j (List.mem_range.mpr hjlen) (by omega)
-      simp only [mem_freshKeysOfLog, List.append_nil, List.mem_append] at this ⊢
-      obtain ⟨e, he, hk⟩ := this
-      exact ⟨e, Or.inr he, hk⟩
-    · have hlen : (items.take (j + 1)).length = j + 1 := by
-        rw [List.length_take]; omega
-      refine ⟨by omega, items[j], ?_, hβ, ?_⟩
-      · rw [List.getLast?_eq_getElem?, hlen]
-        simp [hjlen]
-      · rw [← hsum]
-        refine isum_congr fun i a _ _ hi => ?_
-        rw [hlen] at hi
-        rw [hget i (by omega)]
-        congr 1
-        unfold zOf
-        split_ifs
-        · rfl
-        · rw [List.take_take, min_eq_left (by omega)]
 
 end Halfagg.Security

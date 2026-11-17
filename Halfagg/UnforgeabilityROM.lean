@@ -24,17 +24,16 @@ variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E
 
 /-- **Half-aggregation is as secure as BIP340, with the challenge hash as a
 random oracle.** An algebraic forger with oracle access to the challenge hash,
-at most `q` randomizer requests and forgeries of at most `ℓ` items wins with
-probability at most the success probability of `reductionROM F` in the BIP340
-game of `Taproot.BIP340Security.euf_cma`, plus `(q + ℓ)/n`. -/
+at most `q` randomizer requests, wins with probability at most the success
+probability of `reductionROM F` in the BIP340 game of
+`Taproot.BIP340Security.euf_cma`, plus `(q + 1)/n`. -/
 theorem halfagg_unforgeable_rom [Inhabited M] [Finite M] [Finite X]
     [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (F : RomForger n E X M) (q ℓ : ℕ)
-    (hq : ∀ g input, ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q)
-    (hℓ : ∀ g input, ∀ out ∈ support ((F.at g).main input), out.value.data.ms.length ≤ ℓ) :
+    (F : RomForger n E X M) (q : ℕ)
+    (hq : ∀ g input, ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     aggAdvantageROM C F ≤
       SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (reductionROM C F) +
-        (q + ℓ : ℝ≥0∞) / n := by
+        (q + 1 : ℝ≥0∞) / n := by
   have hfs : SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (reductionROM C F) =
       Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
         gameOK C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] := by
@@ -43,7 +42,7 @@ theorem halfagg_unforgeable_rom [Inhabited M] [Finite M] [Finite X]
   rw [hfs]
   unfold aggAdvantageROM aggExperimentROM
   refine prEvent_bind_le_add_const _ _ _ _ _ _ fun g => ?_
-  have h := halfagg_unforgeable C (hOf g) hx0 (F.at g) q ℓ (hq g) (hℓ g)
+  have h := halfagg_unforgeable C (hOf g) hx0 (F.at g) q (hq g)
   unfold aggAdvantage SignatureAlg.unforgeableAdvantage at h
   rw [ProbCompRuntime.rom_evalDist, ← prEvent_eq_evalDist_singleton,
     ProbCompRuntime.probComp_evalDist, ← prEvent_eq_evalDist_singleton, red_experiment_eq] at h
@@ -57,7 +56,7 @@ For an algebraic forger with at most `q` randomizer requests, `qH` challenge
 queries, `qS` signing requests and forgeries of at most `ℓ` items, let
 `Q = qH + qS + ℓ + 1` and
 
-`ε = Pr[forger wins] - (q + ℓ)/n - qS⋅(qS + Q)⋅2/(n - 1)`.
+`ε = Pr[forger wins] - (q + 1)/n - qS⋅(qS + Q)⋅2/(n - 1)`.
 
 Then a discrete-log solver built from the forger succeeds with probability at
 least `ε⋅(ε/(Q + 1) - 1/n)`. The first loss is this project's tight step, the
@@ -69,15 +68,14 @@ theorem halfagg_dlog [Inhabited M] [Finite M] [Finite X]
     (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
     (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :
-    let ε := aggAdvantageROM C F - (q + ℓ : ℝ≥0∞) / n -
+    let ε := aggAdvantageROM C F - (q + 1 : ℝ≥0∞) / n -
       (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞))
     ε * (ε / ((qH + qS + ℓ + 1 : ℕ) + 1 : ℝ≥0∞) - FiatShamir.challengeSpaceInv (ZMod n)) ≤
       Pr{let x ← (dlogExperiment C (dlogOfKeyRecovery C
         (FiatShamir.cmaReduction (sigma C) (keyGen C) M (simTranscript C) (reductionROM C F)
           (qH + qS + ℓ + 1))))}[x = true] := by
   intro ε
-  have hrom := halfagg_unforgeable_rom C hx0 F q ℓ (at_queries F q hq)
-    (fun g input out h => hL input out (at_support F g input h))
+  have hrom := halfagg_unforgeable_rom C hx0 F q (at_queries F q hq)
   have hd := euf_cma_dlog C M (reductionROM C F) qS (qH + qS + ℓ + 1)
     (reductionROM_bound C F qH qS ℓ hH hS hL)
   refine le_trans ?_ hd
@@ -95,7 +93,7 @@ theorem secp256k1_halfagg_dlog {M : Type} [DecidableEq M] [Inhabited M] [Finite 
     (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
     (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :
-    let ε := aggAdvantageROM Secp256k1.secp256k1 F - (q + ℓ : ℝ≥0∞) / Secp256k1.n -
+    let ε := aggAdvantageROM Secp256k1.secp256k1 F - (q + 1 : ℝ≥0∞) / Secp256k1.n -
       (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((Secp256k1.n - 1 : ℕ) : ℝ≥0∞))
     ε * (ε / ((qH + qS + ℓ + 1 : ℕ) + 1 : ℝ≥0∞) -
         FiatShamir.challengeSpaceInv (ZMod Secp256k1.n)) ≤

@@ -278,18 +278,4 @@ theorem at_queries (F : RomForger n E X M) (q : ℕ)
       rw [isQueryBoundP_query_iff]
       exact fun h' => absurd h' ht
 
-theorem at_support (F : RomForger n E X M) (g : M × (X × X) → ZMod n)
-    (input : Message Unit (Pts E)) :
-    support ((F.at g).main input) ⊆ support (F.main input) := by
-  change support (simulateQ (answerChal g) (F.main input)) ⊆ _
-  generalize F.main input = prog
-  induction prog using OracleComp.inductionOn with
-  | pure x => simp
-  | query_bind t next ih =>
-    intro z hz
-    simp only [simulateQ_bind, simulateQ_spec_query] at hz
-    rw [mem_support_bind_iff] at hz
-    obtain ⟨y, -, hz⟩ := hz
-    exact (mem_support_bind_iff _ _ _).mpr ⟨y, mem_support_query _ y, ih y hz⟩
-
 end Halfagg.Security

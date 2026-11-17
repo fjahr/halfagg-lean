@@ -14,6 +14,9 @@ import Halfagg.Proofs.Natural
 import Halfagg.Proofs.BridgeReduction
 import Halfagg.Proofs.Projection
 import Halfagg.Proofs.BridgeGame
+import Halfagg.Proofs.Transcript
+import Halfagg.Proofs.Verifier
+import Halfagg.Proofs.TightBound
 import Halfagg.Proofs.SignQueries
 import Halfagg.Unforgeability
 import Halfagg.Examples

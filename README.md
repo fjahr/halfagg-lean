@@ -18,7 +18,7 @@ Every result in `Halfagg/Basic.lean` holds over any curve satisfying taproot-lea
 
 ## Unforgeability
 
-`halfagg_unforgeable` (`Halfagg/Unforgeability.lean`) proves that half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, in the algebraic group model with the randomizer hash as a random oracle and for every challenge hash. The game is the standard aggregate chosen-key game. Algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean). An explicit reduction turns a forger into a BIP 340 forger, losing at most `(q + ℓ)/n` for `q` randomizer queries and `ℓ` entries. `reduction_sign_queries` proves that the reduction asks for no signature the forger did not ask for. `secp256k1_halfagg_unforgeable` is the same statement for secp256k1.
+`halfagg_unforgeable` (`Halfagg/Unforgeability.lean`) proves that half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, in the algebraic group model with the randomizer hash as a random oracle and for every challenge hash. The game is the standard aggregate chosen-key game. Algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean). An explicit reduction turns a forger into a BIP 340 forger, losing at most `(q + 1)/n` for `q` randomizer queries, the bound of Chen and Zhao. `reduction_sign_queries` proves that the reduction asks for no signature the forger did not ask for. `secp256k1_halfagg_unforgeable` is the same statement for secp256k1.
 
 To review the result, read `Halfagg/Security.lean` (the game, the forger model, the reduction, and a header listing the modelling choices and limitations) and the theorem statements in `Halfagg/Unforgeability.lean`. [REVIEW.md](REVIEW.md) is a guide for that. The proofs are under `Halfagg/Proofs/`:
 
@@ -26,7 +26,8 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 |---|---|
 | `Algebra.lean` | Representations and the extraction (`extract_or_bad`). |
 | `Invariant.lean`, `Scheme.lean` | The reduction's bookkeeping stays valid (`core_inv`). |
-| `LoggedRun.lean`, `Annotated.lean`, `Trace.lean`, `BadBound.lean` | The annotated experiment and the bad-event bound `(q + ℓ)/n` (`ann_bad_bound`). |
+| `LoggedRun.lean`, `Annotated.lean`, `Trace.lean`, `BadBound.lean` | The annotated experiment, its bad event and the forger's query count. |
+| `Transcript.lean`, `Verifier.lean`, `TightBound.lean` | The bad-event bound `(q + 1)/n` (`annROM_bad`): `q/n` for the forger's own queries, `1/n` for the verifier's draws. |
 | `Natural.lean`, `BridgeReduction.lean` | The reduction's BIP 340 game equals the annotated experiment followed by extraction (`red_advantage_eq`). |
 | `SignQueries.lean` | The reduction's signing queries (`reduction_sign_bound`). |
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |
@@ -41,9 +42,9 @@ The statement is a reduction. It does not bound the forger's or the reduction's 
 
 `halfagg_unforgeable` uses only Lean's standard axioms. The secp256k1 version also inherits taproot-lean's `native_decide` computation of `n·G = 0`.
 
-`halfagg_unforgeable_rom` (`Halfagg/UnforgeabilityROM.lean`) is the same theorem with the challenge hash as a random oracle that the forger and the reduction can only query. Its BIP 340 game is the one of taproot-lean's `euf_cma`, so the two results chain. `halfagg_dlog` turns a forger into a discrete-log solver: with `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + ℓ)/n - qS·(qS + Q)·2/(n - 1)`, the solver succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The definitions are in `Halfagg/SecurityROM.lean`. This version needs a finite message type and samples the challenge table up front.
+`halfagg_unforgeable_rom` (`Halfagg/UnforgeabilityROM.lean`) is the same theorem with the challenge hash as a random oracle that the forger and the reduction can only query. Its BIP 340 game is the one of taproot-lean's `euf_cma`, so the two results chain. `halfagg_dlog` turns a forger into a discrete-log solver: with `Q = qH + qS + ℓ + 1` (`ℓ` bounds the forgery's length) and `ε = Pr[forger wins] - (q + 1)/n - qS·(qS + Q)·2/(n - 1)`, the solver succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The definitions are in `Halfagg/SecurityROM.lean`. This version needs a finite message type and samples the challenge table up front.
 
-`grinder_advantage` (`Halfagg/Tightness.lean`) shows the bound is tight in `q`: a forger with `q` randomizer queries and no signing queries wins with probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`.
+`grinder_advantage` (`Halfagg/Tightness.lean`) shows the bound is tight up to one query: a forger with `q` randomizer queries and no signing queries wins with probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`.
 
 A forger may also hash raw x-only encodings after an item that fails `lift_x`. No list with such an item verifies (`aggWins_lifts`), so the forger does not have to explain them.
 

@@ -6,7 +6,7 @@ import Halfagg.Unforgeability
 * `demo`: a concrete algebraic forger that requests a signature, requests a
   randomizer for two items built from the returned nonce point, and outputs a
   two-item forgery that depends on the randomizer. It satisfies the hypotheses
-  of `halfagg_unforgeable` with `q = 1` and `ℓ = 2` (`demo_theorem`).
+  of `halfagg_unforgeable` with `q = 1` (`demo_theorem`).
 * `aggWins_honest`: the game's win predicate holds for an honest BIP340
   signature on a message that was never signed, as a one-item aggregate.
 
@@ -52,16 +52,6 @@ def demo : AlgForger n E X ℕ where
       ⟨Explained.valid_ofVectors _ _ _, fun rep2 => ?_⟩⟩
     exact Explained.valid_ofVectors _ _ _
 
-theorem demo_length : ∀ input, ∀ out ∈ support ((demo (n := n) (E := E) (X := X)).main input),
-    out.value.data.ms.length ≤ 2 := by
-  intro input out h
-  simp only [demo, queryBind, Explained.ofVectors, List.map_cons, List.map_nil,
-    PFunctor.FreeM.liftBind_eq, PFunctor.selfMonomial_B, PFunctor.FreeM.bind_eq_bind,
-    bind_pure_comp, MonadAttach.support_bind, MonadAttach.mem_support, MonadAttach.support_map,
-    Set.mem_iUnion, Set.mem_image, exists_prop] at h
-  obtain ⟨_, _, _, _, rfl⟩ := h
-  simp
-
 theorem demo_queries : ∀ input, ((demo (n := n) (E := E) (X := X)).main input).IsQueryBoundP
     (fun r => isRand r.value.data) 1 := by
   intro input
@@ -83,13 +73,13 @@ theorem demo_queries : ∀ input, ((demo (n := n) (E := E) (X := X)).main input)
   · exact Nat.lt_of_lt_of_le Nat.one_pos (by simp [Explained.ofVectors, isRand])
   exact isQueryBoundP_pure _ _ _
 
-/-- The main theorem applies to `demo` with `q = 1` and `ℓ = 2`. -/
+/-- The main theorem applies to `demo` with `q = 1`. -/
 theorem demo_theorem [DecidableEq E] [DecidableEq X] (C : Curve n E X)
     (challenge : X → X → ℕ → ZMod n) (hx0 : C.liftX (C.x 0) = none) :
     aggAdvantage C challenge (erase C demo) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge demo) +
-        ((1 : ℕ) + (2 : ℕ) : ℝ≥0∞) / n :=
-  halfagg_unforgeable C challenge hx0 demo 1 2 demo_queries demo_length
+        ((1 : ℕ) + 1 : ℝ≥0∞) / n :=
+  halfagg_unforgeable C challenge hx0 demo 1 demo_queries
 
 end Forger
 

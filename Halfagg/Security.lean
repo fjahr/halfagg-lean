@@ -14,9 +14,9 @@ Signatures with Tight Reductions* (ESORICS 2022, eprint 2022/222), for BIP458's
 scheme (their `IASchnorr`): in the algebraic group model (AGM), with the
 randomizer hash as a random oracle, `reduction F` turns an algebraic
 half-aggregate forger `F` into a BIP340 forger with the same signing queries that
-wins with probability at least `ε - (q + ℓ)/n`. Here `ε` is `F`'s success
-probability in the standard game, `q` bounds its randomizer queries and `ℓ` the
-number of entries of its forgery. Chen and Zhao give `ε - (q + 1)/n`.
+wins with probability at least `ε - (q + 1)/n`, as in Chen and Zhao. Here `ε` is
+`F`'s success probability in the standard game and `q` bounds its randomizer
+queries.
 
 ## The game
 

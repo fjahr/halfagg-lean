@@ -21,11 +21,11 @@ taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VC
 
 **Does the reduction cheat?** `reduction` gets a BIP 340 public key and a signing oracle and nothing else. It answers randomizer requests from its own table. `reduction_sign_queries` shows it asks for no signature the forger did not ask for. VCVio's game rejects a forgery on a signed message.
 
-**Do the random-oracle forger and reduction only query the oracle?** `RomForger.main` and `reductionROM` are oracle programs over a challenge-hash oracle, so they cannot read the table. `reductionROM_bound` counts the reduction's queries: the forger's signing requests, and `qH + qS + ℓ + 1` hash queries. The game samples the whole table first and then answers queries from it. For a finite domain that is the same as lazy sampling (`rom_eq_table`).
+**Do the random-oracle forger and reduction only query the oracle?** `RomForger.main` and `reductionROM` are oracle programs over a challenge-hash oracle, so they cannot read the table. `reductionROM_bound` counts the reduction's queries: the forger's signing requests, and `qH + qS + ℓ + 1` hash queries for a forger with `qH` hash queries, `qS` signing requests and forgeries of at most `ℓ` items. The game samples the whole table first and then answers queries from it. For a finite domain that is the same as lazy sampling (`rom_eq_table`).
 
 **Is the theorem vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`).
 
-**What does the bound say?** `(q + ℓ)/n`, where `q` counts randomizer requests and `ℓ` bounds the forgery's length. Chen and Zhao have `(q + 1)/n`. For secp256k1 both are negligible. The `q/n` part is real: `grinder_advantage` in `Halfagg/Tightness.lean` proves that a forger who tries `q` second items wins with probability at least `1 - ((n - 1)/n)^q`.
+**What does the bound say?** `(q + 1)/n`, where `q` counts randomizer requests, as in Chen and Zhao. It is tight up to one query: `grinder_advantage` in `Halfagg/Tightness.lean` proves that a forger who tries `q` second items wins with probability at least `1 - ((n - 1)/n)^q`.
 
 ## What the theorem does not say
 

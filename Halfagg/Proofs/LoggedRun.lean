@@ -11,8 +11,8 @@ Generic facts about VCVio's `randomOracleLoggedRun` and `fixedTableLoggedRun`:
 * `log_length_le`: a computation making at most `Q` hash queries logs at most `Q`.
 * `expectedFreshQueryCharge_le`: so its expected fresh-query charge at a constant
   error `ε` is at most `Q * ε`.
-* `fixedTable_support`: a run against a fixed answer table `g` only produces
-  outputs the computation can produce, and keeps its cache inside `g`.
+* `fixedTable_hash`: one hash query against a fixed answer table `g` returns the
+  table's answer and keeps the cache inside `g`.
 -/
 
 open OracleSpec OracleComp
@@ -105,35 +105,6 @@ theorem fixedTable_hash [DecidableEq D] (t : D) (g : ∀ d, R d) (c : (ofFn R).Q
     subst hp
     have := hc t u hct
     exact ⟨this, hc, by rw [hct, this]⟩
-
-/-- A run against a fixed table only produces outputs the computation can
-produce, and its cache stays inside the table. -/
-theorem fixedTable_support [DecidableEq D] (oa : OracleComp (unifSpec + ofFn R) α)
-    (g : ∀ d, R d) (c : (ofFn R).QueryCache) (hc : Agree c g) :
-    ∀ z ∈ support (fixedTableLoggedRun oa g c), z.1.1 ∈ support oa ∧ Agree z.2 g := by
-  induction oa using OracleComp.inductionOn generalizing c with
-  | pure x =>
-    intro z hz
-    simp only [fixedTableLoggedRun, QueryImpl.passthrough_add, simulateQ_pure, WriterT.run_pure,
-      List.empty_eq, StateT.run_pure, MonadAttach.support_pure, Set.mem_singleton_iff] at hz
-    subst hz
-    exact ⟨by simp, hc⟩
-  | query_bind t mx ih =>
-    intro z hz
-    rw [fixedTableLoggedRun_bind, mem_support_bind_iff] at hz
-    obtain ⟨p, hp, hz⟩ := hz
-    rw [support_map] at hz
-    obtain ⟨q, hq, rfl⟩ := hz
-    rcases t with k | d
-    · rw [fixedTableLoggedRun_uniformQuery, support_map] at hp
-      obtain ⟨u, -, rfl⟩ := hp
-      obtain ⟨h1, h2⟩ := ih u c hc q hq
-      exact ⟨(mem_support_bind_iff _ _ _).mpr ⟨u, mem_support_query _ u, h1⟩, h2⟩
-    · rw [fixedTableLoggedRun_hashQuery, support_map] at hp
-      obtain ⟨r, hr, rfl⟩ := hp
-      obtain ⟨-, hag, -⟩ := fixedTable_hash d g c hc r hr
-      obtain ⟨h1, h2⟩ := ih r.1 r.2 hag q hq
-      exact ⟨(mem_support_bind_iff _ _ _).mpr ⟨r.1, mem_support_query _ r.1, h1⟩, h2⟩
 
 /-- Lifted sampling makes no hash queries. (After VCVio's
 `FiatShamir.nmaHashQueryBound_liftComp_zero`.) -/
