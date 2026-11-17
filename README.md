@@ -52,6 +52,28 @@ A forger may also hash raw x-only encodings after an item that fails `lift_x`. N
 python3 scripts/gen_vectors.py path/to/bips/bip-0458/vectors > Halfagg/VectorData.lean
 ```
 
+## Differential testing
+
+The byte layer has no theorems, so `scripts/fuzz.py` compares it with other implementations. It generates valid and malformed inputs for `Aggregate`, `IncAggregate` and `VerifyAggregate`, takes BIP 458's `halfagg.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `schnorrsig_halfagg` module (`scripts/fuzz_secp256k1.c`).
+
+```sh
+python3 scripts/fuzz.py path/to/bips/bip-0458 --cases 2500 --seed 1
+```
+
+For libsecp256k1, build the library with the module and compile the driver:
+
+```sh
+cmake -S path/to/secp256k1 -B build -DBUILD_SHARED_LIBS=OFF \
+  -DSECP256K1_EXPERIMENTAL=ON -DSECP256K1_ENABLE_MODULE_SCHNORRSIG_HALFAGG=ON
+cmake --build build
+cc -O2 -Ipath/to/secp256k1/include scripts/fuzz_secp256k1.c build/lib/libsecp256k1.a -o fuzz_secp256k1
+python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp256k1 --cases 10000
+```
+
+The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
+
+Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4) and 30,000 against libsecp256k1 (seeds 21 to 23), of which about 24,000 were compared.
+
 ## Modelling choices and trust base
 
 - Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`.

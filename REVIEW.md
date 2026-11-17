@@ -29,7 +29,7 @@ taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VC
 - The challenge hash is a fixed function. The result does not chain with a random-oracle proof of BIP 340 down to discrete log.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorem.
-- The byte encodings have no theorems. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against the model.
+- The byte encodings have no theorems. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against the model. `scripts/fuzz.py` compares the model with the Python reference and with libsecp256k1 on random inputs.
 
 ## Machine checks
 
