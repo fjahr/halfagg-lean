@@ -109,6 +109,11 @@ class Gen:
         return ("I", agg, pm, self.triples(0, 3))
 
     def case_verify(self):
+        if self.rng.random() < 0.02:
+            # The empty aggregate with s = n. A verifier without the check
+            # s < n reduces it to the valid s = 0 and accepts. For any other
+            # s >= n it rejects anyway, because the reduced s fails the equation.
+            return ("V", b32(N), [])
         pms = self.triples(0, 4, bad=0.0)
         r = self.rng.random()
         if r < 0.10 and len(pms) >= 2:

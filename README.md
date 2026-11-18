@@ -80,6 +80,14 @@ python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
 
+`scripts/mutate_secp256k1.py` measures what these tests can see. It applies 21 one-line mutants to the module, such as dropping a range check or hashing `z₀`, and runs the module's unit tests and the generated cases against each:
+
+```sh
+python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0458
+```
+
+The unit tests catch 19 mutants and the cases 18, together 20. The one that only the cases catch drops the check `s < n` from `aggverify`. Such a verifier still rejects an `s ≥ n` whose reduction fails the equation, so the only input that tells it apart is the empty aggregate with `s = n`, which the generator produces. The remaining mutant reduces an `r ≥ p` mod `p`. No input can catch it, because nobody can produce a signature whose nonce has an x-coordinate below `2^256 - p`.
+
 Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4) and 30,000 against libsecp256k1 (seeds 21 to 23), of which about 24,000 were compared. CI runs 300 cases against the Python reference of the same bips commit.
 
 ## Modelling choices and trust base
