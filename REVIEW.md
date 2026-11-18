@@ -8,14 +8,14 @@ About 900 lines decide whether the results mean anything.
 
 1. `Halfagg/Basic.lean`, the definitions before the first theorem. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
 2. `Halfagg/Security.lean`, all of it. The header lists the modelling choices and the limitations.
-3. `Halfagg/Unforgeability.lean`, the four theorem statements.
+3. `Halfagg/Unforgeability.lean`, the theorem statements.
 4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
 
 taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too.
 
 ## Questions to ask
 
-**Is the game the standard one?** `aggExperiment` and `aggWins` never mention representations or the reduction. The adversary picks every public key except the target. It wins with any verifying list that has one item under the target key with a message it never had signed.
+**Is the game the standard one?** `aggExperiment` and `aggWins` never mention representations or the reduction. The adversary picks every public key except the target. It wins with any verifying list that has one item under the target key with a message it never had signed. The game draws the randomizers from the oracle (`zQuery`) and then calls `verifyWith`, so `verifyAggregate` does not appear in it. `game_verifier` proves that with the oracle answered by a function `rand`, those two steps compute `verifyAggregate` with the randomizer hash `rand`.
 
 **Is the forger class too small?** `AlgForger` is agm-lean's adversary. It must explain every point it sends as a combination of `G`, the target key and the nonce points of the signatures it received. `erase` drops the explanations, so the theorem bounds the forger's advantage in the standard game. The x-coordinates a forger hashes come from points it explained, with one exception. After an item that fails `lift_x`, a randomizer request may contain arbitrary encodings (`rawTail`). `aggWins_lifts` is the reason that is safe.
 

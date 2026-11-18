@@ -78,4 +78,52 @@ theorem aggWins_lifts {pk : X} {its : List (Item X M)} {s : ZMod n} {zs : List (
   have h2 := h.1.1.2
   rwa [items_map] at h2
 
+/-! ## The game's verifier is `VerifyAggregate` -/
+
+/-- Answer randomizer queries from the function `rand` and pass uniform sampling
+on: the randomizer oracle as a fixed hash function. -/
+def answerRand (rand : List (Item X M) → ZMod n) : QueryImpl (unifSpec + RandSpec n X M) ProbComp
+  | .inl k => liftM (unifSpec.query k)
+  | .inr its => pure (rand its)
+
+omit [DecidableEq X] [DecidableEq M] in
+theorem zQuery_answerRand (rand : List (Item X M) → ZMod n) (its : List (Item X M)) (i : ℕ) :
+    simulateQ (answerRand rand) (zQuery its i) = pure (z rand its i) := by
+  unfold zQuery z
+  split_ifs with h <;> rfl
+
+theorem aggWins_eq_verifyAggregate (rand : List (Item X M) → ZMod n) (pk : X)
+    (its : List (Item X M)) (s : ZMod n) (signed : M → Bool) :
+    aggWins C challenge pk its s ((List.range its.length).map (z rand its)) signed =
+      (verifyAggregate C challenge rand ⟨its.map (·.1), s⟩ (its.map (·.2)) &&
+        its.any fun it => it.2.1 == pk && !signed it.2.2) := by
+  unfold aggWins verifyAggregate verifyWith
+  simp only [items_map]
+  have h : isum (fun i it =>
+      ((List.map (z rand its) (List.range its.length)).getD i 0).val • term C challenge it) 0 its =
+      isum (fun i it => (z rand its i).val • term C challenge it) 0 its :=
+    isum_congr fun i a _ _ hi => by
+      have hi' : i < its.length := by omega
+      simp [hi']
+  rw [h]
+
+/-- **The game's verifier is BIP 458's `VerifyAggregate`.** With the randomizer
+oracle answered by the function `rand`, the last two lines of `aggExperiment`
+compute `verifyAggregate` with the randomizer hash `rand`, and check that some
+item has the target key and a message that was never signed. -/
+theorem game_verifier (rand : List (Item X M) → ZMod n) (pk : X) (its : List (Item X M))
+    (s : ZMod n) (signed : M → Bool) :
+    simulateQ (answerRand rand) (do
+        let zs ← (List.range its.length).mapM (zQuery its)
+        return aggWins C challenge pk its s zs signed) =
+      pure (verifyAggregate C challenge rand ⟨its.map (·.1), s⟩ (its.map (·.2)) &&
+        its.any fun it => it.2.1 == pk && !signed it.2.2) := by
+  have hz : ∀ is : List ℕ,
+      simulateQ (answerRand rand) (is.mapM (zQuery its)) = pure (is.map (z rand its)) := by
+    intro is
+    induction is with
+    | nil => rfl
+    | cons i is ih => simp [List.mapM_cons, zQuery_answerRand, ih]
+  rw [simulateQ_bind, hz, pure_bind, simulateQ_pure, aggWins_eq_verifyAggregate]
+
 end Halfagg.Security
