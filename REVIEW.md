@@ -38,6 +38,24 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **What does the bound say?** `(q + 1)/n`, where `q` counts randomizer requests, as in Chen and Zhao. It is tight up to one query: `grinder_advantage` in `Halfagg/Tightness.lean` proves that a forger who tries `q` second items wins with probability at least `1 - ((n - 1)/n)^q`.
 
+## BIP 458's claims
+
+What BIP 458 says about correctness and security, and the theorem for it.
+
+| BIP 458 | Lean |
+|---|---|
+| Motivation: a verifier that accepts the aggregate "can be sure that the individual signatures would have passed verification". | Not for the signatures given to `Aggregate` (`aggregate_accepts_invalid`). What holds: the owner of an honest key signed its message (`halfagg_unforgeable`), and whoever produced the aggregate knew a BIP 340 signature for every item (`halfagg_knowledge`). |
+| Rationale: Chen and Zhao's tight proof in the random oracle and algebraic group model. | `halfagg_unforgeable`, with loss `(q + 1)/n`. `grinder_advantage` shows the loss is tight. `halfagg_unforgeable_rom` and `halfagg_dlog` have the challenge hash as a random oracle too. |
+| Rationale: `z₀ = 1` is secure. | The game's verifier uses `z₀ = 1` (`zQuery`), so the theorems are about this choice. With every randomizer `1` the proof fails (first mutant below). |
+| Rationale: signatures can be added to an aggregate later. | `incAggregate_append`, `aggregate_append`: adding in steps gives the same aggregate as aggregating at once. |
+| Rationale: 32-byte messages keep the input of each randomizer hash unambiguous. | `randomizerInput_injective`. |
+| Rationale: implementations should stream the hash input through one hash state. | No theorem. The model hashes every prefix from the start. libsecp256k1 streams, and the differential test compares the two. |
+| `Aggregate`: valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_aggregateBytes` on bytes, `verifyAggregate_aggregate` in the model. |
+| `IncAggregate`: a verifying aggregate and valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_incAggregateBytes` on bytes, `verifyAggregate_incAggregate` in the model. |
+| `Aggregate`, `IncAggregate`: the inverse does not hold. | `aggregate_accepts_invalid`, for invalid triples given to `Aggregate`. No theorem for an invalid aggregate given to `IncAggregate`. |
+| `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. That holds for secp256k1 but is a hypothesis of the theorem. |
+| The pseudocode of `VerifyAggregate`. | `verifyAggregateBytes_eq`: the verifier on bytes is the parsing and range checks followed by the model's `verifyAggregate`. The 53 test vectors and the differential test compare the byte functions with `halfagg.py`. |
+
 ## What the theorem does not say
 
 - Only the step from half-aggregation to BIP 340 is tight. `halfagg_dlog` inherits the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability.
