@@ -18,4 +18,4 @@ jobs:
       # (Halfagg/Summary.lean).
       - uses: leanprover/lean-action@v1
       - name: Replay every project module in the kernel
-        run: lake env leanchecker Halfagg
+        run: scripts/replay.sh

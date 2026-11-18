@@ -99,7 +99,7 @@ To repeat what CI runs after the build:
 
 ```sh
 scripts/check.sh                  # no sorry, no new axioms, native_decide only in the vector checks
-lake env leanchecker Halfagg      # replay every project module in the kernel
+scripts/replay.sh                 # replay every project module in the kernel, one process per module
 ```
 
 The build also compiles the parts of taproot-lean it needs. On machines with little memory, use `LEAN_NUM_THREADS=2 lake build`. Do not run `lake update`: it would move the dependencies off their pinned commits.

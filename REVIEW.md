@@ -39,6 +39,6 @@ taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VC
 
 - `lake build` compiles every proof and fails if the axioms of a main result change (`Halfagg/Summary.lean`).
 - `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`.
-- `lake env leanchecker Halfagg` replays every project module in the kernel, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
+- `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 
 Mutating the model is a useful test. Three mutants that weakened the randomizer broke the proof at `badKey_prob` or `extract_or_bad`. Removing the `lifts` check from `rawTail` breaks it at `covered_rawTail`.
