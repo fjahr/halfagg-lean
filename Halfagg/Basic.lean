@@ -312,6 +312,35 @@ theorem aggregate_accepts_invalid {e₀ e₁ : Entry n X M} (rest : List (Entry 
   rw [Bool.not_eq_false] at h
   exact hδ (sub_eq_self.mp (verify_unique C challenge h₁ h).symm)
 
+/-- `VerifyAggregate` as one sum of scalar multiplications:
+`s⋅G = z₀⋅R₀ + (z₀⋅e₀)⋅P₀ + … + z_{u-1}⋅R_{u-1} + (z_{u-1}⋅e_{u-1})⋅P_{u-1}`, with
+the products `zᵢ⋅eᵢ` reduced mod `n`. A multi-scalar multiplication computes
+this form. -/
+def verifyMulti (C : Curve n E X) (challenge : X → X → M → ZMod n)
+    (rand : List (Item X M) → ZMod n) (agg : AggSig n X) (pm : List (X × M)) : Bool :=
+  let its := items pm agg.rs
+  decide (agg.rs.length = pm.length) && its.all (lifts C) &&
+    decide (C.mulG agg.s = isum (fun i it =>
+      (z rand its i).val • (C.liftX it.1).getD 0 +
+        (z rand its i * challenge it.1 it.2.1 it.2.2).val • (C.liftX it.2.1).getD 0) 0 its)
+
+omit [DecidableEq X] in
+/-- **The multi-scalar form is `VerifyAggregate` in a group of prime order.**
+Reducing `zᵢ⋅eᵢ` mod `n` needs `n⋅Pᵢ = 0` for the lifted public keys. That holds
+for every point of secp256k1, but it is a hypothesis here
+(`Taproot.Curve.PrimeOrder`), because taproot-lean does not prove that the
+curve has `n` points. -/
+theorem verifyMulti_eq (hord : PrimeOrder n E) (agg : AggSig n X) (pm : List (X × M)) :
+    verifyMulti C challenge rand agg pm = verifyAggregate C challenge rand agg pm := by
+  have h : isum (fun i it =>
+        (z rand (items pm agg.rs) i).val • (C.liftX it.1).getD 0 +
+          (z rand (items pm agg.rs) i * challenge it.1 it.2.1 it.2.2).val •
+            (C.liftX it.2.1).getD 0) 0 (items pm agg.rs) =
+      isum (fun i it => (z rand (items pm agg.rs) i).val • term C challenge it) 0
+        (items pm agg.rs) :=
+    isum_congr fun i it _ _ _ => by rw [term, nsmul_add, val_mul_smul (hord _)]
+  simp only [verifyMulti, verifyAggregate, verifyWith, h]
+
 end Verification
 
 end Halfagg

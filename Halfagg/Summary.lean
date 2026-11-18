@@ -45,6 +45,10 @@ set_option linter.style.longLine false
 #guard_msgs in
 #print axioms Halfagg.aggregate_accepts_invalid
 
+/-- info: 'Halfagg.verifyMulti_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.verifyMulti_eq
+
 /-! ## Test vectors (compiled evaluation) -/
 
 /--

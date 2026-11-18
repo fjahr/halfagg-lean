@@ -15,6 +15,7 @@ Every result in `Halfagg/Basic.lean` holds over any curve satisfying taproot-lea
 | `verifyAggregate_single` | With `z₀ = 1`, `VerifyAggregate(r ‖ bytes(s), [(pk, m)])` accepts exactly when BIP 340 `Verify(pk, m, (r, s))` does. |
 | `incAggregate_append`, `aggregate_append` | Incremental aggregation agrees with aggregating at once: `Aggregate(A ++ B) = IncAggregate(Aggregate(A), A, B)`. |
 | `aggregate_accepts_invalid` | The aggregate does not certify the individual signatures (BIP 458's remark after `Aggregate`): moving `δ ≠ 0` between the `s` values of the first two signatures, weighted by `z₁`, makes the second signature invalid but leaves the aggregate unchanged. |
+| `verifyMulti_eq` | A verifier can compute one sum of scalar multiplications, `s⋅G = Σ zᵢ⋅Rᵢ + (zᵢ⋅eᵢ mod n)⋅Pᵢ`, as BIP 458 suggests. This needs `n⋅P = 0` for every point, which is a hypothesis: it holds for secp256k1, but taproot-lean does not prove that the curve has `n` points. |
 
 ## Unforgeability
 
