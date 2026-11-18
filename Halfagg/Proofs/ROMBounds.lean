@@ -22,16 +22,6 @@ attribute [local instance] smulVal
 variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
 
-/-- Whether a forger's oracle call is a challenge-hash query. -/
-def isChalCall : (RomForgerSpec n E X M).Domain → Bool
-  | .inl _ => true
-  | .inr _ => false
-
-/-- Whether a forger's oracle call is a signing request. -/
-def isSignCall : (RomForgerSpec n E X M).Domain → Bool
-  | .inl _ => false
-  | .inr t => isSign (fun _ => true) t.value.data
-
 section Bound
 
 variable (p : (RomSpec n X M).Domain → Prop) [DecidablePred p] (cH cS : ℕ)
@@ -256,11 +246,6 @@ theorem reductionROM_bound [Inhabited M] (F : RomForger n E X M) (qH qS ℓ : �
       (by omega)
 
 /-! ## The forger with its challenge queries answered from a table -/
-
-/-- Whether a forger's oracle call is a randomizer request. -/
-def isRandCall : (RomForgerSpec n E X M).Domain → Bool
-  | .inl _ => false
-  | .inr t => isRand t.value.data
 
 theorem at_queries (F : RomForger n E X M) (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
