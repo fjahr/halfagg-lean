@@ -48,7 +48,16 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 - `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`. It also checks that every code block under [The statements](#the-statements) is in the sources word for word.
 - `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 
-Mutating the model is a useful test. Three mutants that weakened the randomizer broke the proof at `badKey_prob` or `extract_or_bad`. Removing the `lifts` check from `rawTail` breaks it at `covered_rawTail`.
+Mutating the model is a useful test. Each of these four mutants stops the build in one theorem:
+
+| Mutant | Edit | Fails in |
+|---|---|---|
+| Every randomizer is `1` | `zQuery`, `tableZs`, `zQueryAnn` and `zOf` return `1` for every `i` | `badKey_prob` |
+| `zᵢ` does not cover item `i` | the same four definitions hash `take i` in place of `take (i + 1)` | `badKey_prob` |
+| A win needs no unsigned message | `aggWins` loses `&& !signed it.2.2` | `extract_or_bad` |
+| The raw tail is always used | `rawTail` returns `it :: rest` in both branches | `covered_rawTail` |
+
+`zQuery`, `tableZs`, `aggWins` and `rawTail` are in `Halfagg/Security.lean`, `zQueryAnn` and `zOf` in `Halfagg/Proofs/Annotated.lean`. The first two mutants change the game and the proof's copies of the randomizer. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.
 
 ## The statements
 
