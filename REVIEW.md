@@ -42,7 +42,7 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorem.
 - The random oracles answer uniformly in `ZMod n`. BIP 458 and BIP 340 reduce a 256-bit hash mod `n`. For secp256k1 that is about `2^-127.65` from uniform per answer, and the bounds leave this term out.
-- No theorem says that the functions on bytes in `Halfagg/Vectors.lean` are BIP 458's algorithms. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against them, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1 on random inputs. `Halfagg/Encoding.lean` proves that the verifier on bytes is the model's verifier on the decoded input and that the randomizer's hash input determines the item list. Aggregation on bytes has no such theorem.
+- No theorem says that the functions on bytes in `Halfagg/Vectors.lean` are BIP 458's algorithms. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against them, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1 on random inputs. `Halfagg/Encoding.lean` proves that the verifier on bytes is the model's verifier on the decoded input and that the randomizer's hash input determines the item list. It also proves that `Aggregate` and `IncAggregate` on bytes are correct: signatures on 32-byte messages that pass BIP 340 `Verify` aggregate without failure, and the result passes `VerifyAggregate`.
 
 ## Machine checks
 

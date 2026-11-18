@@ -84,7 +84,7 @@ Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4
 
 ## Modelling choices and trust base
 
-- Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`. `verifyAggregateBytes_eq` (`Halfagg/Encoding.lean`) proves that `VerifyAggregate` on bytes is this parsing followed by the model's `verifyAggregate`, and `decodeVerify_randomizer` that its randomizers hash the bytes of the input.
+- Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`. `verifyAggregateBytes_eq` (`Halfagg/Encoding.lean`) proves that `VerifyAggregate` on bytes is this parsing followed by the model's `verifyAggregate`, and `decodeVerify_randomizer` that its randomizers hash the bytes of the input. `verifyAggregateBytes_aggregateBytes` and `verifyAggregateBytes_incAggregateBytes` prove that `Aggregate` and `IncAggregate` on bytes are correct.
 - The tagged hashes are arbitrary functions. The randomizer is a function of the list `[(r₀, pk₀, m₀), …, (rᵢ, pkᵢ, mᵢ)]`. BIP 458 fixes public keys, messages and nonces at 32 bytes, so the byte encoding it hashes is injective (`randomizerInput_injective`) and this loses nothing.
 - `lake build` fails if the axioms of a main result change (`Halfagg/Summary.lean`). The theorems in `Halfagg/Basic.lean` use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`).
 

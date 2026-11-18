@@ -5,7 +5,7 @@ import Halfagg.Vectors
 
 `Halfagg/Basic.lean` and the security theorems work with x-only keys and nonces
 as field elements and with the randomizer as a function of the item list.
-BIP458 works with bytes. This file proves the two facts that connect them.
+BIP458 works with bytes. This file proves the facts that connect them.
 
 * `randomizerInput_injective`, `randomizerF_input_injective`: the bytes
   `r₀ ‖ pk₀ ‖ m₀ ‖ … ‖ rᵢ ‖ pkᵢ ‖ mᵢ` that the randomizer hashes determine the
@@ -16,10 +16,15 @@ BIP458 works with bytes. This file proves the two facts that connect them.
   `decodeVerify_pm_injective` shows that decoding keeps different `(pk, m)`
   lists apart, and `decodeVerify_randomizer` that the randomizers of the decoded
   input hash the bytes of the input.
+* `verifyAggregateBytes_incAggregateBytes`, `verifyAggregateBytes_aggregateBytes`:
+  `IncAggregate` and `Aggregate` on bytes are correct. Signatures that pass
+  BIP340 `Verify` on bytes aggregate to bytes that pass `VerifyAggregate`.
+  `incAggregateBytes_isSome` and `aggregateBytes_isSome` show that the two
+  functions do not fail on such signatures.
 
-No proof here uses compiled evaluation. `verifyAggregateBytes_eq` mentions the
-curve `secp256k1` and inherits taproot-lean's compiled computation of `n·G = 0`
-from it (`Halfagg/Summary.lean`).
+No proof here uses compiled evaluation. The theorems that mention the curve
+`secp256k1` inherit taproot-lean's compiled computation of `n·G = 0` from it
+(`Halfagg/Summary.lean`).
 -/
 
 namespace Halfagg.Vectors
@@ -316,5 +321,217 @@ theorem decodeVerify_pm_injective {aggsig aggsig' : Bytes} {pm pm' : List (Bytes
       have hab : a = b := Prod.ext (toNatBE_injective (by rw [la, lb]) hnat) hm
       rw [hab, ih (fun e he => c1 e (List.mem_cons_of_mem _ he)) hrest
         (fun e he => c2 e (List.mem_cons_of_mem _ he))]
+
+/-! ## Aggregation on bytes -/
+
+theorem n_lt : n < 2 ^ 256 := by norm_num [n]
+
+theorem chunks32_cons {c : Bytes} (hc : c.length = 32) (b : Bytes) (v : ℕ) :
+    chunks32 (c ++ b) (v + 1) = c :: chunks32 b v := by
+  unfold chunks32
+  rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+  congr 1
+  · simp [hc]
+  · refine List.map_congr_left fun i _ => ?_
+    simp only [Function.comp_apply]
+    rw [show 32 * (i + 1) = 32 + 32 * i by ring, ← List.drop_drop, List.drop_left' hc]
+
+/-- Splitting a concatenation of 32-byte strings gives the strings back. -/
+theorem chunks32_flatten {L : List Bytes} (hL : ∀ c ∈ L, c.length = 32) (t : Bytes) :
+    chunks32 (L.flatten ++ t) L.length = L := by
+  induction L with
+  | nil => simp [chunks32]
+  | cons c L ih =>
+    rw [List.flatten_cons, List.append_assoc, List.length_cons, chunks32_cons (hL c (by simp)),
+      ih fun c hc => hL c (List.mem_cons_of_mem _ hc)]
+
+theorem length_flatten32 {L : List Bytes} (hL : ∀ c ∈ L, c.length = 32) :
+    L.flatten.length = 32 * L.length := by
+  induction L with
+  | nil => rfl
+  | cons c L ih =>
+    rw [List.flatten_cons, List.length_append, hL c (by simp),
+      ih fun c hc => hL c (List.mem_cons_of_mem _ hc), List.length_cons]
+    ring
+
+theorem drop_flatten {L : List Bytes} (hL : ∀ c ∈ L, c.length = 32) (t : Bytes) :
+    (L.flatten ++ t).drop (32 * L.length) = t := by
+  rw [← length_flatten32 hL]
+  exact List.drop_left
+
+/-- **The verifier on bytes accepts the encoding of an aggregate that the model's
+verifier accepts**: `r₀ ‖ … ‖ r_{u-1} ‖ bytes(s)` for 32-byte nonces and public
+keys below `p` and 32-byte messages. -/
+theorem verifyAggregateBytes_encode {L : List Bytes} {s : ZMod n} {pm : List (Bytes × Bytes)}
+    (hlen : L.length = pm.length) (hL : ∀ c ∈ L, c.length = 32 ∧ toNatBE c < p)
+    (hpm : ∀ e ∈ pm, e.1.length = 32 ∧ e.2.length = 32 ∧ toNatBE e.1 < p)
+    (hver : verifyAggregate secp256k1 challenge randomizerF
+      ⟨L.map fun r => (toNatBE r : F), s⟩ (pm.map fun e => ((toNatBE e.1 : F), e.2)) = true) :
+    verifyAggregateBytes (L.flatten ++ bytes32 s.val) pm = true := by
+  have h32 : ∀ c ∈ L, c.length = 32 := fun c hc => (hL c hc).1
+  have hs : toNatBE (bytes32 s.val) = s.val := by
+    rw [toNatBE_bytes32, Nat.mod_eq_of_lt ((ZMod.val_lt s).trans n_lt)]
+  unfold verifyAggregateBytes
+  dsimp only
+  rw [← hlen, chunks32_flatten h32, drop_flatten h32, hs, ZMod.natCast_zmod_val, hver]
+  simp only [List.length_append, length_flatten32 h32, bytes32_length, Bool.and_eq_true,
+    List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq, and_true]
+  exact ⟨⟨⟨⟨by ring, fun e he => ⟨(hpm e he).1, (hpm e he).2.1⟩⟩, fun e he => (hpm e he).2.2⟩,
+    fun c hc => (hL c hc).2⟩, ZMod.val_lt s⟩
+
+/-- The result of `incAggregate` when the nonce count matches. -/
+theorem incAggregate_eq_some {X M : Type*} (rand : List (Item X M) → ZMod n) {agg : AggSig n X}
+    {pmAggd : List (X × M)} (pms : List (Entry n X M)) (h : agg.rs.length = pmAggd.length) :
+    incAggregate rand agg pmAggd pms = some ⟨agg.rs ++ pms.map (·.r),
+      agg.s + isum (fun i e => z rand (items pmAggd agg.rs ++ pms.map entryItem) i * e.s)
+        pmAggd.length pms⟩ := by
+  simp only [incAggregate, h, ↓reduceIte]
+
+/-- A signature to aggregate, with the public key and the nonce as field
+elements. -/
+def decodeEntry (x : Bytes × Bytes × Bytes) : Entry n F Bytes :=
+  ⟨(toNatBE x.1 : F), x.2.1, (toNatBE (x.2.2.take 32) : F), (toNatBE (x.2.2.drop 32) : ZMod n)⟩
+
+/-- What BIP340 `Verify(pk, m, sig)` on bytes says about its input. -/
+theorem verifyBytes_spec {pk m sig : Bytes} (h : verifyBytes pk m sig = true) :
+    pk.length = 32 ∧ sig.length = 64 ∧ toNatBE pk < p ∧ toNatBE (sig.take 32) < p ∧
+      toNatBE (sig.drop 32) < n ∧
+      Entry.valid secp256k1 challenge (decodeEntry (pk, m, sig)) = true := by
+  unfold verifyBytes at h
+  dsimp only at h
+  simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩, h6⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6⟩
+
+/-- **Correctness of `IncAggregate` on bytes**: adding signatures that pass
+BIP340 `Verify` to an aggregate that passes `VerifyAggregate` gives an
+aggregate that passes `VerifyAggregate`. -/
+theorem verifyAggregateBytes_incAggregateBytes {aggsig aggsig' : Bytes}
+    {pmAggd : List (Bytes × Bytes)} {pms : List (Bytes × Bytes × Bytes)}
+    (hagg : verifyAggregateBytes aggsig pmAggd = true)
+    (hpms : ∀ x ∈ pms, verifyBytes x.1 x.2.1 x.2.2 = true)
+    (hinc : incAggregateBytes aggsig pmAggd pms = some aggsig') :
+    verifyAggregateBytes aggsig' (pmAggd ++ pms.map fun x => (x.1, x.2.1)) = true := by
+  -- the aggregate so far
+  unfold verifyAggregateBytes at hagg
+  dsimp only at hagg
+  simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq] at hagg
+  obtain ⟨⟨⟨⟨⟨hlen, h32⟩, hpk⟩, hrs⟩, -⟩, hver⟩ := hagg
+  have hrs32 := chunks32_length hlen.ge
+  have hrslen : (chunks32 aggsig pmAggd.length).length = pmAggd.length := by simp [chunks32]
+  -- the signatures to add
+  have hval := fun x hx => verifyBytes_spec (hpms x hx)
+  unfold incAggregateBytes at hinc
+  dsimp only at hinc
+  split_ifs at hinc with hok
+  simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq] at hok
+  obtain ⟨⟨-, hnew⟩, -⟩ := hok
+  rw [incAggregate_eq_some randomizer _ hrslen] at hinc
+  simp only [Option.map_some, Option.some.injEq] at hinc
+  subst hinc
+  -- the decoded items hash to the same randomizers
+  have hits : (items (pmAggd.map fun e => ((toNatBE e.1 : F), e.2))
+        ((chunks32 aggsig pmAggd.length).map fun r => (toNatBE r : F)) ++
+      (pms.map decodeEntry).map entryItem).map encodeItem =
+      items pmAggd (chunks32 aggsig pmAggd.length) ++
+        (pms.map fun x => (⟨x.1, x.2.1, x.2.2.take 32,
+          (toNatBE (x.2.2.drop 32) : ZMod n)⟩ : Entry n Bytes Bytes)).map entryItem := by
+    rw [List.map_append, encodeItem_items (fun e he => ⟨(h32 e he).1, hpk e he⟩)
+      (fun r hr => ⟨hrs32 r hr, hrs r hr⟩)]
+    congr 1
+    rw [List.map_map, List.map_map, List.map_map]
+    refine List.map_congr_left fun x hx => ?_
+    obtain ⟨h1, h2, h3, h4, -, -⟩ := hval x hx
+    exact encodeItem_decode (by rw [List.length_take, h2]; rfl) h4 h1 h3
+  have hz : ∀ i, z randomizerF (items (pmAggd.map fun e => ((toNatBE e.1 : F), e.2))
+        ((chunks32 aggsig pmAggd.length).map fun r => (toNatBE r : F)) ++
+      (pms.map decodeEntry).map entryItem) i =
+      z randomizer (items pmAggd (chunks32 aggsig pmAggd.length) ++
+        (pms.map fun x => (⟨x.1, x.2.1, x.2.2.take 32,
+          (toNatBE (x.2.2.drop 32) : ZMod n)⟩ : Entry n Bytes Bytes)).map entryItem) i := by
+    intro i
+    unfold z
+    split_ifs
+    · rfl
+    · rw [randomizerF_eq, List.map_take, hits]
+  refine verifyAggregateBytes_encode (by simp [hrslen]) ?_ ?_ ?_
+  · intro c hc
+    rcases List.mem_append.mp hc with hc | hc
+    · exact ⟨hrs32 c hc, hrs c hc⟩
+    · simp only [List.map_map, List.mem_map, Function.comp_apply] at hc
+      obtain ⟨x, hx, rfl⟩ := hc
+      obtain ⟨-, h2, -, h4, -, -⟩ := hval x hx
+      exact ⟨by rw [List.length_take, h2]; rfl, h4⟩
+  · intro e he
+    rcases List.mem_append.mp he with he | he
+    · exact ⟨(h32 e he).1, (h32 e he).2, hpk e he⟩
+    · obtain ⟨x, hx, rfl⟩ := List.mem_map.mp he
+      obtain ⟨h1, -, h3, -, -, -⟩ := hval x hx
+      exact ⟨h1, (hnew x hx).1.1.2, h3⟩
+  · have hc : ((chunks32 aggsig pmAggd.length).map fun r => (toNatBE r : F)).length =
+        (pmAggd.map fun e => ((toNatBE e.1 : F), e.2)).length := by simp [hrslen]
+    have hvalid : ∀ e ∈ pms.map decodeEntry, Entry.valid secp256k1 challenge e = true := by
+      intro e he
+      obtain ⟨x, hx, rfl⟩ := List.mem_map.mp he
+      exact (hval x hx).2.2.2.2.2
+    have key := verifyAggregate_incAggregate secp256k1 challenge randomizerF hver hvalid
+      (incAggregate_eq_some randomizerF _ hc)
+    convert key using 2
+    · rw [AggSig.mk.injEq]
+      refine ⟨by simp only [List.map_append, List.map_map]; rfl, ?_⟩
+      dsimp only
+      rw [List.length_map, isum_map, isum_map]
+      congr 1
+      refine isum_congr fun i x _ _ _ => ?_
+      exact congrArg (fun t => t * (toNatBE (x.2.2.drop 32) : ZMod n)) (hz i).symm
+    · simp only [List.map_append, List.map_map]
+      rfl
+
+/-- The empty aggregate `bytes(0)` passes `VerifyAggregate` for the empty list. -/
+theorem verifyAggregateBytes_empty : verifyAggregateBytes (bytes32 0) [] = true := by
+  have h := verifyAggregateBytes_encode (L := []) (s := 0) (pm := []) rfl (by simp) (by simp)
+    (verifyAggregate_empty secp256k1 challenge randomizerF)
+  simpa using h
+
+/-- **Correctness of `Aggregate` on bytes**: the aggregate of signatures that
+pass BIP340 `Verify` passes `VerifyAggregate`. -/
+theorem verifyAggregateBytes_aggregateBytes {aggsig : Bytes} {pms : List (Bytes × Bytes × Bytes)}
+    (hpms : ∀ x ∈ pms, verifyBytes x.1 x.2.1 x.2.2 = true)
+    (h : aggregateBytes pms = some aggsig) :
+    verifyAggregateBytes aggsig (pms.map fun x => (x.1, x.2.1)) = true := by
+  simpa using verifyAggregateBytes_incAggregateBytes verifyAggregateBytes_empty hpms h
+
+/-- **`IncAggregate` on bytes does not fail on valid input**: an aggregate that
+passes `VerifyAggregate` and signatures on 32-byte messages that pass BIP340
+`Verify`. -/
+theorem incAggregateBytes_isSome {aggsig : Bytes} {pmAggd : List (Bytes × Bytes)}
+    {pms : List (Bytes × Bytes × Bytes)} (hagg : verifyAggregateBytes aggsig pmAggd = true)
+    (hpms : ∀ x ∈ pms, verifyBytes x.1 x.2.1 x.2.2 = true)
+    (hm : ∀ x ∈ pms, x.2.1.length = 32) :
+    (incAggregateBytes aggsig pmAggd pms).isSome = true := by
+  unfold verifyAggregateBytes at hagg
+  dsimp only at hagg
+  simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq] at hagg
+  obtain ⟨⟨⟨⟨⟨hlen, h32⟩, -⟩, -⟩, hs⟩, -⟩ := hagg
+  have hval := fun x hx => verifyBytes_spec (hpms x hx)
+  have hok : (aggsig.length == 32 * (pmAggd.length + 1) &&
+      pmAggd.all (fun x => is32 x.1 && is32 x.2) &&
+      pms.all (fun x => is32 x.1 && is32 x.2.1 && x.2.2.length == 64 &&
+        decide (toNatBE (x.2.2.drop 32) < n)) &&
+      decide (toNatBE (aggsig.drop (32 * pmAggd.length)) < n)) = true := by
+    simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq]
+    exact ⟨⟨⟨hlen, h32⟩, fun x hx =>
+      ⟨⟨⟨(hval x hx).1, hm x hx⟩, (hval x hx).2.1⟩, (hval x hx).2.2.2.2.1⟩⟩, hs⟩
+  unfold incAggregateBytes
+  dsimp only
+  rw [hok, incAggregate_eq_some randomizer _ (by simp [chunks32])]
+  rfl
+
+/-- `Aggregate` on bytes does not fail on signatures on 32-byte messages that
+pass BIP340 `Verify`. -/
+theorem aggregateBytes_isSome {pms : List (Bytes × Bytes × Bytes)}
+    (hpms : ∀ x ∈ pms, verifyBytes x.1 x.2.1 x.2.2 = true)
+    (hm : ∀ x ∈ pms, x.2.1.length = 32) : (aggregateBytes pms).isSome = true :=
+  incAggregateBytes_isSome verifyAggregateBytes_empty hpms hm
 
 end Halfagg.Vectors

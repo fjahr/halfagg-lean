@@ -102,6 +102,42 @@ info: 'Halfagg.Vectors.verifyAggregateBytes_eq' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Vectors.decodeVerify_pm_injective
 
+/--
+info: 'Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes
+
+/--
+info: 'Halfagg.Vectors.verifyAggregateBytes_aggregateBytes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Vectors.verifyAggregateBytes_aggregateBytes
+
+/--
+info: 'Halfagg.Vectors.incAggregateBytes_isSome' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Vectors.incAggregateBytes_isSome
+
+/--
+info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Vectors.aggregateBytes_isSome
+
 /-! ## Unforgeability -/
 
 /-- info: 'Halfagg.Security.halfagg_unforgeable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
