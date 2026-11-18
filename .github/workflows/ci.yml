@@ -11,11 +11,24 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # BIP 458 at the commit the model was compared with: the test vectors and
+      # the Python reference.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: bitcoin/bips
+          ref: a7f91321f25b5be8d93e901775621c21519e80b7
+          path: bips
+          sparse-checkout: bip-0458
       - name: Source checks
         run: scripts/check.sh
+      - name: Regenerate the test vector data
+        run: python3 scripts/gen_vectors.py bips/bip-0458/vectors | diff - Halfagg/VectorData.lean
       # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
       # runs `lake build`. The build fails if the axioms of a main result change
       # (Halfagg/Summary.lean).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+      # Also type-checks scripts/Fuzz.lean.
+      - name: Differential test against the Python reference
+        run: python3 scripts/fuzz.py bips/bip-0458 --cases 300 --seed 1
       - name: Replay every project module in the kernel
         run: scripts/replay.sh

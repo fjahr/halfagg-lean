@@ -58,6 +58,8 @@ A forger may also hash raw x-only encodings after an item that fails `lift_x`. N
 python3 scripts/gen_vectors.py path/to/bips/bip-0458/vectors > Halfagg/VectorData.lean
 ```
 
+CI regenerates the file from bitcoin/bips at commit [`a7f9132`](https://github.com/bitcoin/bips/tree/a7f91321f25b5be8d93e901775621c21519e80b7/bip-0458) and fails if it differs.
+
 ## Differential testing
 
 The byte layer has no theorems, so `scripts/fuzz.py` compares it with other implementations. It generates valid and malformed inputs for `Aggregate`, `IncAggregate` and `VerifyAggregate`, takes BIP 458's `halfagg.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `schnorrsig_halfagg` module (`scripts/fuzz_secp256k1.c`).
@@ -78,7 +80,7 @@ python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
 
-Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4) and 30,000 against libsecp256k1 (seeds 21 to 23), of which about 24,000 were compared.
+Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4) and 30,000 against libsecp256k1 (seeds 21 to 23), of which about 24,000 were compared. CI runs 300 cases against the Python reference of the same bips commit.
 
 ## Modelling choices and trust base
 
