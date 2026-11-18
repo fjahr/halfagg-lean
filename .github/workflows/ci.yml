@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Source checks
         run: scripts/check.sh
       # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
       # runs `lake build`. The build fails if the axioms of a main result change
       # (Halfagg/Summary.lean).
-      - uses: leanprover/lean-action@v1
+      - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
       - name: Replay every project module in the kernel
         run: scripts/replay.sh

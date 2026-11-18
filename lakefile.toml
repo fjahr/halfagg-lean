@@ -5,6 +5,7 @@ defaultTargets = ["Halfagg"]
 
 [leanOptions]
 pp.unicode.fun = true
+autoImplicit = false
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 weak.linter.style.header = false

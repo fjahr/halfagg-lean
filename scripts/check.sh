@@ -1,7 +1,7 @@
 #!/bin/sh
 # Source checks that complement the axiom checks in Halfagg/Summary.lean:
-# no `sorry`, no new axioms or unsafe code, and `native_decide` only in the
-# test vector checks.
+# no `sorry`, no new axioms or unsafe code, and compiled evaluation
+# (`native_decide`, `decide +native`) only in the test vector checks.
 set -eu
 cd "$(dirname "$0")/.."
 fail=0
@@ -12,8 +12,8 @@ if grep -rnwE 'axiom|unsafe|implemented_by|extern|skipKernelTC' Halfagg --includ
     grep -v '^Halfagg/Summary.lean:'; then
   echo 'error: axiom, unsafe code or kernel bypass found'; fail=1
 fi
-if grep -rlw 'native_decide' Halfagg --include='*.lean' |
+if grep -rlE 'native|ofReduceBool|reduceBool|trustCompiler' Halfagg --include='*.lean' |
     grep -vE '^Halfagg/(Vectors|Summary)\.lean$'; then
-  echo 'error: native_decide outside the test vector checks'; fail=1
+  echo 'error: compiled evaluation outside the test vector checks'; fail=1
 fi
 exit $fail

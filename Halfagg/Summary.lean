@@ -1,6 +1,7 @@
 import Halfagg.Basic
 import Halfagg.Vectors
 import Halfagg.Unforgeability
+import Halfagg.Examples
 import Halfagg.Tightness
 import Halfagg.UnforgeabilityROM
 
@@ -102,6 +103,30 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 /-- info: 'Halfagg.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.grinder_advantage
+
+/-- info: 'Halfagg.Security.reductionROM_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.reductionROM_bound
+
+/-- info: 'Halfagg.LoggedRun.rom_eq_table' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.LoggedRun.rom_eq_table
+
+/-- info: 'Halfagg.Security.grinder_sandwich' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.grinder_sandwich
+
+/-- info: 'Halfagg.Security.grinder_reduction_no_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.grinder_reduction_no_sign
+
+/-- info: 'Halfagg.Examples.demo_theorem' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Examples.demo_theorem
+
+/-- info: 'Halfagg.Examples.aggWins_honest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Examples.aggWins_honest
 
 /--
 info: 'Halfagg.Security.secp256k1_halfagg_unforgeable' depends on axioms: [propext,
