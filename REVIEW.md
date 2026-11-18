@@ -37,7 +37,7 @@ taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VC
 - The random-oracle version needs a finite message type. BIP 458's 32-byte messages are one.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorem.
-- The byte encodings have no theorems. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against the model. `scripts/fuzz.py` compares the model with the Python reference and with libsecp256k1 on random inputs.
+- No theorem says that the functions on bytes in `Halfagg/Vectors.lean` are BIP 458's algorithms. `Halfagg/Vectors.lean` runs BIP 458's 53 test vectors against them, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1 on random inputs. `Halfagg/Encoding.lean` proves that the verifier on bytes is the model's verifier on the decoded input and that the randomizer's hash input determines the item list. Aggregation on bytes has no such theorem.
 
 ## Machine checks
 

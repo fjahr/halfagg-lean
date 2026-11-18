@@ -62,7 +62,7 @@ CI regenerates the file from bitcoin/bips at commit [`a7f9132`](https://github.c
 
 ## Differential testing
 
-The byte layer has no theorems, so `scripts/fuzz.py` compares it with other implementations. It generates valid and malformed inputs for `Aggregate`, `IncAggregate` and `VerifyAggregate`, takes BIP 458's `halfagg.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `schnorrsig_halfagg` module (`scripts/fuzz_secp256k1.c`).
+No theorem can say that the byte layer is BIP 458's algorithm, so `scripts/fuzz.py` compares it with other implementations. It generates valid and malformed inputs for `Aggregate`, `IncAggregate` and `VerifyAggregate`, takes BIP 458's `halfagg.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `schnorrsig_halfagg` module (`scripts/fuzz_secp256k1.c`).
 
 ```sh
 python3 scripts/fuzz.py path/to/bips/bip-0458 --cases 2500 --seed 1
@@ -84,8 +84,8 @@ Runs so far found no mismatch: 10,000 cases against the Lean model (seeds 1 to 4
 
 ## Modelling choices and trust base
 
-- Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`.
-- The tagged hashes are arbitrary functions. The randomizer is a function of the list `[(r₀, pk₀, m₀), …, (rᵢ, pkᵢ, mᵢ)]`. BIP 458 fixes public keys, messages and nonces at 32 bytes, so the byte encoding it hashes is injective and this loses nothing.
+- Public keys and nonces `r` are x-coordinates, `s` values are elements of `ZMod n`, and the range checks `s < n` are part of the type. Byte encodings and the checks on them are in `Halfagg/Vectors.lean`. `verifyAggregateBytes_eq` (`Halfagg/Encoding.lean`) proves that `VerifyAggregate` on bytes is this parsing followed by the model's `verifyAggregate`, and `decodeVerify_randomizer` that its randomizers hash the bytes of the input.
+- The tagged hashes are arbitrary functions. The randomizer is a function of the list `[(r₀, pk₀, m₀), …, (rᵢ, pkᵢ, mᵢ)]`. BIP 458 fixes public keys, messages and nonces at 32 bytes, so the byte encoding it hashes is injective (`randomizerInput_injective`) and this loses nothing.
 - `lake build` fails if the axioms of a main result change (`Halfagg/Summary.lean`). The theorems in `Halfagg/Basic.lean` use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`).
 
 ## Building

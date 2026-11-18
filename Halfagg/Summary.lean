@@ -1,5 +1,6 @@
 import Halfagg.Basic
 import Halfagg.Vectors
+import Halfagg.Encoding
 import Halfagg.Unforgeability
 import Halfagg.Examples
 import Halfagg.Tightness
@@ -73,6 +74,33 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.verifyAggregate_vectors
+
+/-! ## Byte encodings -/
+
+/-- info: 'Halfagg.Vectors.randomizerInput_injective' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Vectors.randomizerInput_injective
+
+/-- info: 'Halfagg.Vectors.randomizerF_input_injective' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Vectors.randomizerF_input_injective
+
+/--
+info: 'Halfagg.Vectors.verifyAggregateBytes_eq' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Halfagg.Vectors.verifyAggregateBytes_eq
+
+/-- info: 'Halfagg.Vectors.decodeVerify_randomizer' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Vectors.decodeVerify_randomizer
+
+/-- info: 'Halfagg.Vectors.decodeVerify_pm_injective' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Vectors.decodeVerify_pm_injective
 
 /-! ## Unforgeability -/
 
