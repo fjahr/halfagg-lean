@@ -32,6 +32,7 @@ To review the result, read `Halfagg/Security.lean` (the game, the forger model, 
 | `Natural.lean`, `BridgeReduction.lean` | The reduction's BIP 340 game equals the annotated experiment followed by extraction (`red_advantage_eq`). |
 | `SignQueries.lean` | The reduction's signing queries (`reduction_sign_bound`). |
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |
+| `Knowledge.lean` | Every extracted signature verifies unless the bad event occurs (`extract_all_or_bad`, `know_bad`). |
 | `Secp256k1.lean` | The theorem's curve hypothesis for secp256k1. |
 | `Eager.lean` | A lazily sampled oracle on a finite domain is a uniformly sampled table (`rom_eq_table`). |
 | `ROM.lean` | Against a fixed challenge table, the oracle reduction is the reduction above (`rom_experiment_eq`). |
@@ -46,6 +47,8 @@ The statement is a reduction. It does not bound the forger's or the reduction's 
 `halfagg_unforgeable_rom` (`Halfagg/UnforgeabilityROM.lean`) is the same theorem with the challenge hash as a random oracle that the forger and the reduction can only query. Its BIP 340 game is the one of taproot-lean's `euf_cma`, so the two results chain. `halfagg_dlog` turns a forger into a discrete-log solver: with `Q = qH + qS + ℓ + 1` (`ℓ` bounds the forgery's length) and `ε = Pr[forger wins] - (q + 1)/n - qS·(qS + Q)·2/(n - 1)`, the solver succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The definitions are in `Halfagg/SecurityROM.lean`. This version needs a finite message type and samples the challenge table up front.
 
 `grinder_advantage` (`Halfagg/Tightness.lean`) shows the bound is tight up to one query: a forger with `q` randomizer queries and no signing queries wins with probability at least `1 - ((n - 1)/n)^q`, which is about `q/n`.
+
+`halfagg_knowledge` (`Halfagg/Knowledge.lean`, definitions in `Halfagg/SecurityKnowledge.lean`) covers the keys the forger chose itself: whoever produces a verifying aggregate knows a BIP 340 signature for every item. An extractor reads the forger's explanations and outputs those signatures, with no signing query of its own (`extractor_sign_queries`). If the aggregate verifies with probability `ε`, they all verify with probability at least `ε - (q + 1)/n`.
 
 A forger may also hash raw x-only encodings after an item that fails `lift_x`. No list with such an item verifies (`aggWins_lifts`), so the forger does not have to explain them.
 

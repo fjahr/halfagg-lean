@@ -120,11 +120,18 @@ theorem fail_sum [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E
   · exact (hno hex).elim
   · exact h
 
-/-- **The bad event is unlikely.** -/
-theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
-    (q : ℕ) (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    Pr{let t ← annROM C challenge F}[winT C challenge t ∧ ¬ extractOK C challenge t] ≤
-      (q + 1 : ℝ≥0∞) / n := by
+/-- **An event that makes the randomized sum vanish is unlikely.** If an event
+of the transcript implies that some coefficient `β*ᵢ` is nonzero while the
+randomized sum `Σ zᵢ⋅β*ᵢ` vanishes, its probability is at most `(q + 1)/n`. -/
+theorem annROM_sum_bound (F : AlgForger n E X M) (q : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
+    (ev : Transcript n X M → Prop)
+    (hev : ∀ r ∈ support (annPhase1 C challenge F), ∀ zs : List (ZMod n),
+      ev (r.1, finalItems C r.2.1 r.2.2, r.2.1.value.data.s, zs, r.2.2.signed) →
+      (∃ b ∈ finalItems C r.2.1 r.2.2, betaOf challenge b ≠ 0) ∧
+        isum (fun i b => zs.getD i 0 * betaOf challenge b) 0 (finalItems C r.2.1 r.2.2) = 0) :
+    Pr{let t ← annROM C challenge F}[ev t] ≤ (q + 1 : ℝ≥0∞) / n := by
+  classical
   have hrom : annROM C challenge F =
       ((simulateQ (AnnSpec n X M).romImpl (loggedPhase1 C challenge F)).run ∅ >>= fun p =>
         ((List.range (finalItems C p.1.1.2.1 p.1.1.2.2).length).mapM
@@ -151,8 +158,7 @@ theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n
         exact ⟨p, hp, rfl⟩
       rw [← withLog_fst (annPhase1 C challenge F), support_map]
       exact ⟨p.1, h1, rfl⟩
-    exact (prEvent_mono_of_support _ _ _ fun y _ hy =>
-      fail_sum C challenge hx0 F p.1.1 hr y.1 hy.1 hy.2).trans
+    exact (prEvent_mono_of_support _ _ _ fun y _ hy => hev p.1.1 hr y.1 hy).trans
       (verifier_bound _ _ p.2 hD')
   · have h1 : Pr{let p ← (simulateQ (AnnSpec n X M).romImpl
           (loggedPhase1 C challenge F)).run ∅}[
@@ -166,5 +172,13 @@ theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n
       rw [div_eq_mul_inv, div_eq_mul_inv, add_mul, one_mul]
     rw [← h3]
     exact add_le_add h2 le_rfl
+
+/-- **The bad event is unlikely.** -/
+theorem annROM_bad [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
+    (q : ℕ) (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
+    Pr{let t ← annROM C challenge F}[winT C challenge t ∧ ¬ extractOK C challenge t] ≤
+      (q + 1 : ℝ≥0∞) / n :=
+  annROM_sum_bound C challenge F q hq _
+    fun r hr zs h => fail_sum C challenge hx0 F r hr zs h.1 h.2
 
 end Halfagg.Security

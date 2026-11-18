@@ -2,6 +2,7 @@ import Halfagg.Basic
 import Halfagg.Vectors
 import Halfagg.Encoding
 import Halfagg.Unforgeability
+import Halfagg.Knowledge
 import Halfagg.Examples
 import Halfagg.Tightness
 import Halfagg.UnforgeabilityROM
@@ -159,6 +160,14 @@ info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
 /-- info: 'Halfagg.Security.game_verifier' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.game_verifier
+
+/-- info: 'Halfagg.Security.halfagg_knowledge' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.halfagg_knowledge
+
+/-- info: 'Halfagg.Security.extractor_sign_queries' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.extractor_sign_queries
 
 /-- info: 'Halfagg.Security.halfagg_unforgeable_rom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

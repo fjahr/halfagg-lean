@@ -310,19 +310,22 @@ theorem gRun_map (pk : X) (sk : ZMod n) {α β : Type} (f : α → β)
       (fun y => ((f y.1.1, y.1.2), y.2)) <$> gRun C challenge pk sk oa l c := by
   simp [gRun]
 
-/-- The game after key generation, as the joint run followed by the win check. -/
-theorem game_run_eq (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
+/-- The game after key generation, as the joint run followed by any check `f` of
+the key, the items, `s`, the randomizers and the signed messages. -/
+theorem game_run_eq {β : Type}
+    (f : X → List (Item X M) → ZMod n → List (ZMod n) → List M → β)
+    (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
     (do
       let w ← gRun C challenge pk sk ((erase C F).main pk) [] ∅
       let zs ← (simulateQ (RandSpec n X M).romImpl
         ((List.range w.1.1.1.length).mapM (zQuery (n := n) w.1.1.1))).run w.2
-      pure (aggWins C challenge pk w.1.1.1 w.1.1.2 zs.1 (fun m => w.1.2.contains m))) = (do
+      pure (f pk w.1.1.1 w.1.1.2 zs.1 w.1.2)) = (do
       let p ← ((simulateQ (jImpl C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
         (jZ (finalItems C p.1.1 p.1.2))).run p.2
-      pure (aggWins C challenge pk ((finalItems C p.1.1 p.1.2).map strip) p.1.1.value.data.s q.1
-        (fun m => p.1.2.signed.contains m))) := by
+      pure (f pk ((finalItems C p.1.1 p.1.2).map strip) p.1.1.value.data.s q.1
+        p.1.2.signed)) := by
   have hstack := game_stack C challenge pk sk (F.main (initial C ((C.liftX pk).getD 0)))
     (Core.init : Core n X M) ∅ (cacheInv_empty C _)
   rw [show (Core.init : Core n X M).signed = [] from rfl, plainOf_empty] at hstack
@@ -373,7 +376,8 @@ theorem game_experiment_eq (F : AlgForger n E X M) :
   simp only [key, simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind,
     StateT.run_pure, rom_keygenR, map_bind, bind_map_left, map_pure]
   refine bind_congr fun ks => ?_
-  have h := game_run_eq C challenge F ks.1 ks.2
+  have h := game_run_eq C challenge
+    (fun pk its s zs l => aggWins C challenge pk its s zs (fun m => l.contains m)) F ks.1 ks.2
   simp only [gRun] at h
   simpa [winB] using h
 

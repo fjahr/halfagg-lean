@@ -264,6 +264,31 @@ theorem run_sign_eq (pk : X) (sk : ZMod n) {α : Type}
       (loggedSpec := SignSpec n X M) (m₀ := ProbComp)
       ((bip340 (M := M) C challenge ProbComp).sign pk sk) oa []
 
+/-- A run of the forger with the reduction's bookkeeping in the BIP340 game,
+followed by any function `post` of the forgery, the final state and the
+randomizers, is the joint run followed by `post`. -/
+theorem red_run_post_eq {β : Type}
+    (post : X → Explained (ZMod n) (Out n M) (Pts E) → Core n X M → List (ZMod n) → β)
+    (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
+    (simulateQ (appImpl C challenge pk sk) (do
+        let p ← ((simulateQ (redImpl C challenge pk)
+          (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
+        let q ← (tableZs (finalItems C p.1.1 p.1.2)).run p.2
+        pure (post pk p.1.1 p.1.2 q.1))).run [] = (do
+      let p ← ((simulateQ (jImpl C challenge pk sk)
+        (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
+      let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
+        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+      pure (post pk p.1.1 p.1.2 q.1, p.1.2.signed)) := by
+  have h := red_stack C challenge pk sk (F.main (initial C ((C.liftX pk).getD 0)))
+    (Core.init : Core n X M) ∅
+  rw [show (Core.init : Core n X M).signed = [] from rfl] at h
+  simp only [simulateQ_bind, simulateQ_pure, StateT.run_bind, StateT.run_pure]
+  rw [h, bind_map_left]
+  refine bind_congr fun p => ?_
+  unfold tableZs
+  rw [zs_red, bind_map_left]
+
 /-- The reduction's run in the BIP340 game is the joint run followed by extraction. -/
 theorem red_run_eq [Inhabited M] (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
     (simulateQ (appImpl C challenge pk sk) ((reduction C challenge F).main pk)).run [] = (do
@@ -273,15 +298,10 @@ theorem red_run_eq [Inhabited M] (F : AlgForger n E X M) (pk : X) (sk : ZMod n) 
         (jZ (finalItems C p.1.1 p.1.2))).run p.2
       pure (extractForgery C challenge pk (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1
         p.1.2.signed, p.1.2.signed)) := by
-  have h := red_stack C challenge pk sk (F.main (initial C ((C.liftX pk).getD 0)))
-    (Core.init : Core n X M) ∅
-  rw [show (Core.init : Core n X M).signed = [] from rfl] at h
   rw [red_main_eq]
-  simp only [simulateQ_bind, simulateQ_pure, StateT.run_bind, StateT.run_pure]
-  rw [h, bind_map_left]
-  refine bind_congr fun p => ?_
-  unfold tableZs
-  rw [zs_red, bind_map_left]
+  exact red_run_post_eq C challenge
+    (fun pk out st zs =>
+      extractForgery C challenge pk (finalItems C out st) out.value.data.s zs st.signed) F pk sk
 
 /-- The outcome of the BIP340 game as a function of the transcript. -/
 def gameOK [Inhabited M] (t : Transcript n X M) : Bool :=

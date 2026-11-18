@@ -20,6 +20,9 @@ import Halfagg.Proofs.Verifier
 import Halfagg.Proofs.TightBound
 import Halfagg.Proofs.SignQueries
 import Halfagg.Unforgeability
+import Halfagg.SecurityKnowledge
+import Halfagg.Proofs.Knowledge
+import Halfagg.Knowledge
 import Halfagg.Examples
 import Halfagg.Tightness
 import Halfagg.SecurityROM

@@ -4,12 +4,13 @@ Lean checks the proofs. A reviewer checks that the statements say what they shou
 
 ## What to read
 
-About 900 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
+About 1,000 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
 
 1. `Halfagg/Basic.lean`, the definitions before the first theorem. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
 2. `Halfagg/Security.lean`, all of it. The header lists the modelling choices and the limitations.
 3. `Halfagg/Unforgeability.lean`, the theorem statements.
 4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
+5. `Halfagg/SecurityKnowledge.lean` and the statement in `Halfagg/Knowledge.lean`, for the signatures under keys the forger chose.
 
 taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too.
 
@@ -26,6 +27,8 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 **Could the proof do without the algebraic group model?** The two proofs BIP 458 cites do not. BIP 458 derives `zᵢ` from the first `i + 1` items, so that signatures can be added to an aggregate later. Chen and Zhao call this scheme IASchnorr and prove it only in the algebraic group model. The random-oracle proof of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) (Theorem 5) is for the variant that hashes the whole list for every randomizer, and its loss is quadratic. For BIP 458's variant, Chen and Zhao note in Remark 6 that a random-oracle proof would rewind the forger once per item, so its loss would grow exponentially with the number of items.
 
 **Why must the forger explain a point when it first sends it?** The bound needs it. The theorem has no running-time bound, so it also covers a forger that finds the secret key by brute force. Such a forger knows many representations of each point. If it could choose them after seeing the randomizers, it could pick ones for which the extraction fails, and win while the reduction does not. A randomizer request carries the representations of its points, and the reduction keeps the first representation it sees for each x-coordinate (`memoize`). So the representations behind `zᵢ` are fixed before `zᵢ` is drawn, and the extraction fails with probability at most `(q + 1)/n`. This is the convention of Chen and Zhao's model, where the forger explains every group element it outputs or sends to an oracle.
+
+**What does a verifier learn about signatures under other keys?** `halfagg_knowledge` says that whoever produced the aggregate knew a BIP 340 signature for every item. `extractor` runs the forger as `reduction` does and computes an `sᵢ` for every item from the forger's explanations, without the secret key, and asks its signing oracle for nothing the forger did not ask for (`extractor_sign_queries`). If the forger's aggregate verifies with probability `ε`, all of the extractor's signatures verify with probability at least `ε - (q + 1)/n`. They have the nonces of the aggregate. They need not be the signatures that went into `Aggregate`, which an aggregate does not determine (`aggregate_accepts_invalid`).
 
 **Does the reduction cheat?** `reduction` gets a BIP 340 public key and a signing oracle and nothing else. It answers randomizer requests from its own table. `reduction_sign_queries` shows it asks for no signature the forger did not ask for. VCVio's game rejects a forgery on a signed message.
 
@@ -426,6 +429,120 @@ at least `1 - ((n - 1)/n)^q`. -/
 theorem grinder_advantage (q : ℕ) :
     1 - (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q ≤
       aggAdvantage C challenge (erase C (grinder C challenge q))
+```
+
+### Knowledge of the individual signatures
+
+From `Halfagg/SecurityKnowledge.lean` and `Halfagg/Knowledge.lean`. `extractor` has the body of `reduction` with a different last line, and `starRep` is the pair `(α*, β*)` with `Rᵢ + eᵢ⋅Pᵢ = α*⋅G + β*⋅P*`.
+
+```lean
+/-- `VerifyAggregate` accepts the items `(rᵢ, pkᵢ, mᵢ)` and `s` with the
+randomizers `zs`: the first condition of `aggWins`. -/
+def aggVerifies (its : List (Item X M)) (s : ZMod n) (zs : List (ZMod n)) : Bool :=
+  verifyWith C challenge (fun i => zs.getD i 0) ⟨its.map (·.1), s⟩ (its.map (·.2))
+```
+
+```lean
+/-- The game of `aggExperiment` without the condition on the target key: the
+adversary's aggregate passes `VerifyAggregate`. -/
+noncomputable def aggVerifyExperiment (A : AggAdversary n X M) :
+    OracleComp (unifSpec + RandSpec n X M) Bool := do
+  let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec n X M))
+  let (pk, sk) ← alg.keygen
+  let ((its, s), _) ← alg.runWithSigningOracle pk sk (A.main pk)
+  let zs ← (List.range its.length).mapM (zQuery its)
+  return aggVerifies C challenge its s zs
+```
+
+```lean
+/-- The probability that the adversary's aggregate verifies, with a lazily
+sampled random oracle. -/
+noncomputable def aggVerifyAdvantage (A : AggAdversary n X M) : ℝ≥0∞ :=
+  (ProbCompRuntime.rom (RandSpec n X M)).evalDist (aggVerifyExperiment C challenge A) {true}
+```
+
+```lean
+/-- The extractor's `s` for the item `a`: `α*ₐ + β*ₐ⋅x` with `x = (s - α*)/β*`,
+the secret key that `extractForgery` computes, and `x = 0` if `β* = 0`. -/
+def extractSig (items : List (AItem n X M)) (s : ZMod n) (zs : List (ZMod n))
+    (a : AItem n X M) : ZMod n :=
+  let α := isum (fun i b => zs.getD i 0 * (starRep challenge b).1) 0 items
+  let β := isum (fun i b => zs.getD i 0 * (starRep challenge b).2) 0 items
+  (starRep challenge a).1 + (starRep challenge a).2 * ((s - α) / β)
+```
+
+```lean
+/-- The extractor succeeds: the aggregate passes `VerifyAggregate` with the
+randomizers `zs`, and `(rᵢ, sigsᵢ)` passes BIP340 `Verify` for every item
+`(rᵢ, pkᵢ, mᵢ)`. -/
+def extractWins (its : List (Item X M)) (s : ZMod n) (zs sigs : List (ZMod n)) : Bool :=
+  aggVerifies C challenge its s zs &&
+    decide (sigs.length = its.length) &&
+    (its.zip sigs).all fun p => BIP340.verify C challenge p.1.2.1 p.1.2.2 (p.1.1, p.2)
+```
+
+```lean
+/-- **The extractor**: run the forger as `reduction` does, and return its
+aggregate `(items, s)`, the randomizers of its verifier and an `s` for every
+item. -/
+noncomputable def extractor (F : AlgForger n E X M) (pk : X) :
+    OracleComp (unifSpec + SignSpec n X M)
+      (List (Item X M) × ZMod n × List (ZMod n) × List (ZMod n)) := do
+  let impl := coreImpl (E := E) C challenge pk
+    (fun k => liftM (unifSpec.query k))
+    tableRO
+    (fun msg => liftM ((SignSpec n X M).query msg))
+  let ((out, st), table) ← ((simulateQ impl (F.main (initial C ((C.liftX pk).getD 0)))).run
+    Core.init).run ∅
+  let st := memoize C st (out.value.groups ()) (out.coefficients ())
+  let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
+  let (zs, _) ← (tableZs items).run table
+  return (toItems C out.value.data.ms (out.value.groups ()), out.value.data.s, zs,
+    items.map (extractSig challenge items out.value.data.s zs))
+```
+
+```lean
+/-- The extraction experiment: the extractor runs with a BIP340 key and its
+signing oracle. -/
+noncomputable def extractExperiment (F : AlgForger n E X M) : ProbComp Bool := do
+  let alg := bip340 (M := M) C challenge ProbComp
+  let (pk, sk) ← alg.keygen
+  let ((its, s, zs, sigs), _) ← alg.runWithSigningOracle pk sk (extractor C challenge F pk)
+  return extractWins C challenge its s zs sigs
+```
+
+```lean
+/-- The probability that the extractor succeeds. -/
+noncomputable def extractAdvantage (F : AlgForger n E X M) : ℝ≥0∞ :=
+  ProbCompRuntime.probComp.evalDist (extractExperiment C challenge F) {true}
+```
+
+```lean
+/-- **Whoever produces a verifying aggregate knows a BIP340 signature for every
+item**, in the algebraic group model with the randomizer hash as a random oracle
+and for every challenge hash. If the aggregate of an algebraic forger with at
+most `q` randomizer requests passes `VerifyAggregate` with probability `ε` in
+the game, then `extractor F` outputs an aggregate that verifies, together with
+a signature that passes BIP340 `Verify` for every one of its items, with
+probability at least `ε - (q + 1)/n`.
+
+The forger chooses every public key except the target, so this covers items
+under its own keys, which unforgeability does not. `hx0` is the curve
+hypothesis of `halfagg_unforgeable`. -/
+theorem halfagg_knowledge (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M) (q : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
+    aggVerifyAdvantage C challenge (erase C F) ≤
+      extractAdvantage C challenge F + (q + 1 : ℝ≥0∞) / n
+```
+
+```lean
+/-- **The extractor signs what the forger signs.** For every set of messages
+`p`: if the forger makes at most `q` signing requests for messages in `p`, the
+extractor makes at most `q` signing queries for messages in `p`. So it never
+obtains a signature from its oracle that the forger did not ask for. -/
+theorem extractor_sign_queries (F : AlgForger n E X M) (p : M → Bool) (q : ℕ)
+    (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
+    (extractor C challenge F pk).IsQueryBoundP (fun t => isSignQuery p t) q
 ```
 
 ### With the challenge hash as a random oracle
