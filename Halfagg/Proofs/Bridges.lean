@@ -17,11 +17,13 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-- The annotated experiment with a lazily sampled random oracle. -/
-noncomputable def annROM (F : AlgForger n E X M) : ProbComp (Transcript n X M) :=
-  (simulateQ (AnnSpec n X M).romImpl (annExperiment C challenge F)).run' ∅
+noncomputable def annROM (red : H → ZMod n) (F : AlgForger n H E X M) :
+    ProbComp (Transcript n X M) :=
+  (simulateQ (AnnSpec n H X M).romImpl (annExperiment C challenge red F)).run' ∅
 
 end Halfagg.Security

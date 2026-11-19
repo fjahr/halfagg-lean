@@ -20,26 +20,27 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-- The joint handler: bookkeeping with real signatures and the lazily sampled
 annotated oracle, in `StateT cache ProbComp`. It is `annImpl` under `romImpl`. -/
 noncomputable def jImpl (pk : X) (sk : ZMod n) :
-    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
-      (StateT (Core n X M) (StateT (AnnSpec n X M).QueryCache ProbComp)) :=
+    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
+      (StateT (Core n X M) (StateT (AnnSpec n H X M).QueryCache ProbComp)) :=
   coreImpl C challenge pk
-    (fun k => simulateQ (AnnSpec n X M).romImpl
-      (liftM ((unifSpec + AnnSpec n X M).query (.inl k))))
-    (fun l => simulateQ (AnnSpec n X M).romImpl
-      (liftM ((unifSpec + AnnSpec n X M).query (.inr l))))
-    (fun msg => simulateQ (AnnSpec n X M).romImpl
-      ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n X M))).sign pk sk msg))
+    (fun k => simulateQ (AnnSpec n H X M).romImpl
+      (liftM ((unifSpec + AnnSpec n H X M).query (.inl k))))
+    (fun l => simulateQ (AnnSpec n H X M).romImpl
+      (liftM ((unifSpec + AnnSpec n H X M).query (.inr l))))
+    (fun msg => simulateQ (AnnSpec n H X M).romImpl
+      ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).sign pk sk msg))
 
 /-- The reduction's handler. -/
 noncomputable def redImpl (pk : X) :
-    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
-      (StateT (Core n X M) (StateT (AnnSpec n X M).QueryCache
+    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
+      (StateT (Core n X M) (StateT (AnnSpec n H X M).QueryCache
         (OracleComp (unifSpec + SignSpec n X M)))) :=
   coreImpl (E := E) C challenge pk (fun k => liftM (unifSpec.query k)) tableRO
     (fun msg => liftM ((SignSpec n X M).query msg))
@@ -79,60 +80,61 @@ theorem app_sign (pk : X) (sk : ZMod n) (msg : M) (l : List M) :
 
 /-! ## Components of the joint handler -/
 
-theorem rom_unif (k : ℕ) (c : (AnnSpec n X M).QueryCache) :
-    (simulateQ (AnnSpec n X M).romImpl
-      (liftM ((unifSpec + AnnSpec n X M).query (.inl k)))).run c =
+theorem rom_unif (k : ℕ) (c : (AnnSpec n H X M).QueryCache) :
+    (simulateQ (AnnSpec n H X M).romImpl
+      (liftM ((unifSpec + AnnSpec n H X M).query (.inl k)))).run c =
       (fun u => (u, c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
-  simpa using roSim.run_apply_inl (hashSpec := AnnSpec n X M) (AnnSpec n X M).randomOracle k c
+  simpa using roSim.run_apply_inl (hashSpec := AnnSpec n H X M) (AnnSpec n H X M).randomOracle k c
 
-theorem rom_ro (l : List (AItem n X M)) (c : (AnnSpec n X M).QueryCache) :
-    (simulateQ (AnnSpec n X M).romImpl
-      (liftM ((unifSpec + AnnSpec n X M).query (.inr l)))).run c =
-      ((AnnSpec n X M).randomOracle l).run c := by
+theorem rom_ro (l : List (AItem n X M)) (c : (AnnSpec n H X M).QueryCache) :
+    (simulateQ (AnnSpec n H X M).romImpl
+      (liftM ((unifSpec + AnnSpec n H X M).query (.inr l)))).run c =
+      ((AnnSpec n H X M).randomOracle l).run c := by
   simp
 
-theorem rom_sign (pk : X) (sk : ZMod n) (msg : M) (c : (AnnSpec n X M).QueryCache) :
-    (simulateQ (AnnSpec n X M).romImpl
-      ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n X M))).sign pk sk
+theorem rom_sign (pk : X) (sk : ZMod n) (msg : M) (c : (AnnSpec n H X M).QueryCache) :
+    (simulateQ (AnnSpec n H X M).romImpl
+      ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).sign pk sk
         msg)).run c =
       (fun sig => (sig, c)) <$> (bip340 (M := M) C challenge ProbComp).sign pk sk msg := by
   simp only [bip340]
-  rw [show ∀ (x : ProbComp (X × ZMod n)), (monadLift x : OracleComp (unifSpec + AnnSpec n X M) _) =
+  rw [show ∀ (x : ProbComp (X × ZMod n)),
+    (monadLift x : OracleComp (unifSpec + AnnSpec n H X M) _) =
     liftM x from fun _ => rfl, OracleSpec.simulateQ_romImpl_liftM_run]
   rfl
 
 /-! ## One request -/
 
-theorem tableRO_run (K : List (AItem n X M)) (c : (AnnSpec n X M).QueryCache) :
+theorem tableRO_run (K : List (AItem n X M)) (c : (AnnSpec n H X M).QueryCache) :
     (tableRO K).run c =
-      (liftM (((AnnSpec n X M).randomOracle K).run c) :
+      (liftM (((AnnSpec n H X M).randomOracle K).run c) :
         OracleComp (unifSpec + SignSpec n X M) _) := rfl
 
-theorem lift_unif_run (k : ℕ) (c : (AnnSpec n X M).QueryCache) :
+theorem lift_unif_run (k : ℕ) (c : (AnnSpec n H X M).QueryCache) :
     (liftM (unifSpec.query k) :
-        StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run c =
+        StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run c =
       (fun u => (u, c)) <$>
         (liftM (unifSpec.query k) : OracleComp (unifSpec + SignSpec n X M) _) := by
   rw [map_eq_bind_pure_comp]; rfl
 
-theorem lift_sign_run (msg : M) (c : (AnnSpec n X M).QueryCache) :
+theorem lift_sign_run (msg : M) (c : (AnnSpec n H X M).QueryCache) :
     (liftM ((SignSpec n X M).query msg) :
-        StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run c =
+        StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run c =
       (fun u => (u, c)) <$>
         (liftM ((SignSpec n X M).query msg) : OracleComp (unifSpec + SignSpec n X M) _) := by
   rw [map_eq_bind_pure_comp]; rfl
 
-theorem unifFwd_run (k : ℕ) (c : (AnnSpec n X M).QueryCache) :
-    (unifFwdImpl (AnnSpec n X M) k).run c =
+theorem unifFwd_run (k : ℕ) (c : (AnnSpec n H X M).QueryCache) :
+    (unifFwdImpl (AnnSpec n H X M) k).run c =
       (fun u => (u, c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
-  simpa using roSim.run_apply_inl (hashSpec := AnnSpec n X M) (AnnSpec n X M).randomOracle k c
+  simpa using roSim.run_apply_inl (hashSpec := AnnSpec n H X M) (AnnSpec n H X M).randomOracle k c
 
 theorem red_step (pk : X) (sk : ZMod n)
     (t : Explained (ZMod n) (Request X M) (Pts E)) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) :
-    (simulateQ (appImpl C challenge pk sk) (((redImpl C challenge pk t).run st).run c)).run
+    (c : (AnnSpec n H X M).QueryCache) :
+    (simulateQ (appImpl C challenge pk sk) (((redImpl (H := H) C challenge pk t).run st).run c)).run
         st.signed =
-      (fun y => (y, y.1.2.signed)) <$> ((jImpl C challenge pk sk t).run st).run c := by
+      (fun y => (y, y.1.2.signed)) <$> ((jImpl (H := H) C challenge pk sk t).run st).run c := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
   cases data with
   | random k =>
@@ -153,12 +155,12 @@ theorem red_step (pk : X) (sk : ZMod n)
 /-- The reduction's run of the forger inside the BIP340 game, with the signing
 log as state, is the joint run; the log ends as the bookkeeping's `signed`. -/
 theorem red_stack (pk : X) (sk : ZMod n) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
-    (st : Core n X M) (c : (AnnSpec n X M).QueryCache) :
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
+    (st : Core n X M) (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (appImpl C challenge pk sk)
-        (((simulateQ (redImpl C challenge pk) prog).run st).run c)).run st.signed =
+        (((simulateQ (redImpl (H := H) C challenge pk) prog).run st).run c)).run st.signed =
       (fun y => (y, y.1.2.signed)) <$>
-        ((simulateQ (jImpl C challenge pk sk) prog).run st).run c := by
+        ((simulateQ (jImpl (H := H) C challenge pk sk) prog).run st).run c := by
   induction prog using OracleComp.inductionOn generalizing st c with
   | pure x => simp
   | query_bind t next ih =>
@@ -170,12 +172,13 @@ theorem red_stack (pk : X) (sk : ZMod n) {Result : Type}
 /-! ## The verifier's randomizers -/
 
 /-- The verifier's randomizer from the lazily sampled annotated oracle. -/
-noncomputable def jZ (items : List (AItem n X M)) (i : ℕ) :
-    StateT (AnnSpec n X M).QueryCache ProbComp (ZMod n) :=
-  if i = 0 then pure 1 else (AnnSpec n X M).randomOracle (items.take (i + 1))
+noncomputable def jZ (red : H → ZMod n) (items : List (AItem n X M)) (i : ℕ) :
+    StateT (AnnSpec n H X M).QueryCache ProbComp (ZMod n) :=
+  if i = 0 then pure 1 else red <$> (AnnSpec n H X M).randomOracle (items.take (i + 1))
 
 theorem zs_ann (items : List (AItem n X M)) (is : List ℕ) :
-    simulateQ (AnnSpec n X M).romImpl (is.mapM (zQueryAnn items)) = is.mapM (jZ items) := by
+    simulateQ (AnnSpec n H X M).romImpl (is.mapM (zQueryAnn red items)) =
+      is.mapM (jZ red items) := by
   induction is with
   | nil => simp
   | cons i is ih =>
@@ -186,23 +189,24 @@ theorem zs_ann (items : List (AItem n X M)) (is : List ℕ) :
     split_ifs <;> simp
 
 theorem zs_red (pk : X) (sk : ZMod n) (items : List (AItem n X M)) (is : List ℕ)
-    (c : (AnnSpec n X M).QueryCache) (l : List M) :
+    (c : (AnnSpec n H X M).QueryCache) (l : List M) :
     (simulateQ (appImpl C challenge pk sk)
-        ((is.mapM fun i => if i = 0 then pure 1 else tableRO (items.take (i + 1))).run c)).run l =
-      (fun y => (y, l)) <$> (is.mapM (jZ items)).run c := by
+        ((is.mapM fun i => if i = 0 then pure 1 else red <$> tableRO (items.take (i + 1))).run
+          c)).run l =
+      (fun y => (y, l)) <$> (is.mapM (jZ red items)).run c := by
   induction is generalizing c with
   | nil => simp
   | cons i is ih =>
     rw [List.mapM_cons, List.mapM_cons]
     simp only [StateT.run_bind, simulateQ_bind, StateT.run_pure, simulateQ_pure, map_bind]
     have hstep : (simulateQ (appImpl C challenge pk sk)
-        ((if i = 0 then pure 1 else tableRO (items.take (i + 1)) :
-          StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) (ZMod n)).run
-            c)).run l = (fun y => (y, l)) <$> (jZ items i).run c := by
+        ((if i = 0 then pure 1 else red <$> tableRO (items.take (i + 1)) :
+          StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) (ZMod n)).run
+            c)).run l = (fun y => (y, l)) <$> (jZ red items i).run c := by
       unfold jZ
       split_ifs
       · simp
-      · rw [tableRO_run, app_lift]
+      · simp only [StateT.run_map, simulateQ_map, tableRO_run, app_lift, Functor.map_map]
     rw [hstep, bind_map_left]
     refine bind_congr fun y => ?_
     rw [ih, bind_map_left]
@@ -212,43 +216,47 @@ theorem zs_red (pk : X) (sk : ZMod n) (items : List (AItem n X M)) (is : List �
 
 /-- The annotated experiment written out in `ProbComp`, with the lazily sampled
 oracle's cache threaded explicitly. -/
-noncomputable def jExp (F : AlgForger n E X M) : ProbComp (Transcript n X M) := do
+noncomputable def jExp (red : H → ZMod n) (F : AlgForger n H E X M) :
+    ProbComp (Transcript n X M) := do
   let ks ← (bip340 (M := M) C challenge ProbComp).keygen
-  let p ← ((simulateQ (jImpl C challenge ks.1 ks.2)
+  let p ← ((simulateQ (jImpl (H := H) C challenge ks.1 ks.2)
     (F.main (initial C ((C.liftX ks.1).getD 0)))).run Core.init).run ∅
   let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-    (jZ (finalItems C p.1.1 p.1.2))).run p.2
+    (jZ red (finalItems C p.1.1 p.1.2))).run p.2
   return (ks.1, finalItems C p.1.1 p.1.2, p.1.1.value.data.s, q.1, p.1.2.signed)
 
-theorem rom_keygen (c : (AnnSpec n X M).QueryCache) :
-    (simulateQ (AnnSpec n X M).romImpl
-      (bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n X M))).keygen).run c =
+theorem rom_keygen (c : (AnnSpec n H X M).QueryCache) :
+    (simulateQ (AnnSpec n H X M).romImpl
+      (bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).keygen).run c =
       (fun ks => (ks, c)) <$> (bip340 (M := M) C challenge ProbComp).keygen := by
   simp only [bip340]
-  rw [show ∀ (x : ProbComp (X × ZMod n)), (monadLift x : OracleComp (unifSpec + AnnSpec n X M) _) =
+  rw [show ∀ (x : ProbComp (X × ZMod n)),
+    (monadLift x : OracleComp (unifSpec + AnnSpec n H X M) _) =
     liftM x from fun _ => rfl, OracleSpec.simulateQ_romImpl_liftM_run]
   rfl
 
 theorem rom_annImpl (pk : X) (sk : ZMod n) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) :
-    simulateQ (AnnSpec n X M).romImpl ((simulateQ (annImpl C challenge pk sk) prog).run st) =
-      (simulateQ (jImpl C challenge pk sk) prog).run st :=
-  coreImpl_natural C challenge (fun x => simulateQ (AnnSpec n X M).romImpl x)
+    simulateQ (AnnSpec n H X M).romImpl
+        ((simulateQ (annImpl (H := H) C challenge pk sk) prog).run st) =
+      (simulateQ (jImpl (H := H) C challenge pk sk) prog).run st :=
+  coreImpl_natural C challenge (fun x => simulateQ (AnnSpec n H X M).romImpl x)
     (fun a => simulateQ_pure _ a) (fun x f => simulateQ_bind _ x f) pk _ _ _ prog st
 
-theorem annROM_eq (F : AlgForger n E X M) : annROM C challenge F = jExp C challenge F := by
+theorem annROM_eq (F : AlgForger n H E X M) :
+    annROM C challenge red F = jExp C challenge red F := by
   unfold annROM annExperiment annPhase1 jExp
   simp only [simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind, StateT.run_pure,
     rom_keygen, rom_annImpl, zs_ann, map_bind, bind_map_left, bind_assoc, pure_bind, map_pure]
 
 /-! ## The reduction inside the BIP340 game -/
 
-theorem red_main_eq [Inhabited M] (F : AlgForger n E X M) (pk : X) :
-    (reduction C challenge F).main pk = (do
-      let p ← ((simulateQ (redImpl C challenge pk)
+theorem red_main_eq [Inhabited M] (F : AlgForger n H E X M) (pk : X) :
+    (reduction C challenge red F).main pk = (do
+      let p ← ((simulateQ (redImpl (H := H) C challenge pk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
-      let q ← (tableZs (finalItems C p.1.1 p.1.2)).run p.2
+      let q ← (tableZs red (finalItems C p.1.1 p.1.2)).run p.2
       pure (extractForgery C challenge pk (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1
         p.1.2.signed)) := rfl
 
@@ -269,16 +277,16 @@ followed by any function `post` of the forgery, the final state and the
 randomizers, is the joint run followed by `post`. -/
 theorem red_run_post_eq {β : Type}
     (post : X → Explained (ZMod n) (Out n M) (Pts E) → Core n X M → List (ZMod n) → β)
-    (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
+    (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
     (simulateQ (appImpl C challenge pk sk) (do
-        let p ← ((simulateQ (redImpl C challenge pk)
+        let p ← ((simulateQ (redImpl (H := H) C challenge pk)
           (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
-        let q ← (tableZs (finalItems C p.1.1 p.1.2)).run p.2
+        let q ← (tableZs red (finalItems C p.1.1 p.1.2)).run p.2
         pure (post pk p.1.1 p.1.2 q.1))).run [] = (do
-      let p ← ((simulateQ (jImpl C challenge pk sk)
+      let p ← ((simulateQ (jImpl (H := H) C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2
       pure (post pk p.1.1 p.1.2 q.1, p.1.2.signed)) := by
   have h := red_stack C challenge pk sk (F.main (initial C ((C.liftX pk).getD 0)))
     (Core.init : Core n X M) ∅
@@ -290,12 +298,12 @@ theorem red_run_post_eq {β : Type}
   rw [zs_red, bind_map_left]
 
 /-- The reduction's run in the BIP340 game is the joint run followed by extraction. -/
-theorem red_run_eq [Inhabited M] (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
-    (simulateQ (appImpl C challenge pk sk) ((reduction C challenge F).main pk)).run [] = (do
-      let p ← ((simulateQ (jImpl C challenge pk sk)
+theorem red_run_eq [Inhabited M] (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
+    (simulateQ (appImpl C challenge pk sk) ((reduction C challenge red F).main pk)).run [] = (do
+      let p ← ((simulateQ (jImpl (H := H) C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2
       pure (extractForgery C challenge pk (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1
         p.1.2.signed, p.1.2.signed)) := by
   rw [red_main_eq]
@@ -316,13 +324,13 @@ theorem gameOK_iff [Inhabited M] (t : Transcript n X M) :
 
 /-- **The BIP340 game of the reduction is the joint experiment followed by
 extraction.** -/
-theorem red_experiment_eq [Inhabited M] (F : AlgForger n E X M) :
-    SignatureAlg.unforgeableExperiment (reduction C challenge F) =
-      gameOK C challenge <$> jExp C challenge F := by
-  have hexp : SignatureAlg.unforgeableExperiment (reduction C challenge F) = (do
+theorem red_experiment_eq [Inhabited M] (F : AlgForger n H E X M) :
+    SignatureAlg.unforgeableExperiment (reduction C challenge red F) =
+      gameOK C challenge <$> jExp C challenge red F := by
+  have hexp : SignatureAlg.unforgeableExperiment (reduction C challenge red F) = (do
       let ks ← (bip340 (M := M) C challenge ProbComp).keygen
       let z ← (bip340 (M := M) C challenge ProbComp).runWithSigningOracle ks.1 ks.2
-        ((reduction C challenge F).main ks.1)
+        ((reduction C challenge red F).main ks.1)
       let v ← (bip340 (M := M) C challenge ProbComp).verify ks.1 z.1.1 z.1.2
       pure (!z.2.wasQueried z.1.1 && v)) := by
     unfold SignatureAlg.unforgeableExperiment
@@ -335,10 +343,10 @@ theorem red_experiment_eq [Inhabited M] (F : AlgForger n E X M) :
     congr!
   have key : ∀ pk sk, (do
       let z ← (bip340 (M := M) C challenge ProbComp).runWithSigningOracle pk sk
-        ((reduction C challenge F).main pk)
+        ((reduction C challenge red F).main pk)
       let v ← (bip340 (M := M) C challenge ProbComp).verify pk z.1.1 z.1.2
       pure (!z.2.wasQueried z.1.1 && v)) = (do
-      let w ← (simulateQ (appImpl C challenge pk sk) ((reduction C challenge F).main pk)).run []
+      let w ← (simulateQ (appImpl C challenge pk sk) ((reduction C challenge red F).main pk)).run []
       pure (!decide (w.1.1 ∈ w.2) && BIP340.verify C challenge pk w.1.1 w.1.2)) := by
     intro pk sk
     rw [← run_sign_eq, bind_map_left]
@@ -351,17 +359,17 @@ theorem red_experiment_eq [Inhabited M] (F : AlgForger n E X M) :
 
 /-- **Bridge B.** The annotated experiment's extraction succeeds exactly as often
 as the reduction wins the BIP340 game. -/
-theorem red_advantage_eq [Inhabited M] (F : AlgForger n E X M) :
-    SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge F) =
-      Pr{let t ← annROM C challenge F}[extractOK C challenge t] := by
+theorem red_advantage_eq [Inhabited M] (F : AlgForger n H E X M) :
+    SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) =
+      Pr{let t ← annROM C challenge red F}[extractOK C challenge t] := by
   unfold SignatureAlg.unforgeableAdvantage
   rw [ProbCompRuntime.probComp_evalDist, ← prEvent_eq_evalDist_singleton, red_experiment_eq,
     prEvent_map, annROM_eq]
   exact prEvent_congr_of_support _ _ _ fun t _ => gameOK_iff C challenge t
 
-theorem bridge_reduction [Inhabited M] (F : AlgForger n E X M) :
-    Pr{let t ← annROM C challenge F}[extractOK C challenge t] ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge F) :=
+theorem bridge_reduction [Inhabited M] (F : AlgForger n H E X M) :
+    Pr{let t ← annROM C challenge red F}[extractOK C challenge t] ≤
+      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) :=
   (red_advantage_eq C challenge F).ge
 
 end Halfagg.Security

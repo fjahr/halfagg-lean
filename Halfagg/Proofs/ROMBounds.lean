@@ -19,8 +19,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
+variable [SampleableType H] {red : H → ZMod n}
 
 section Bound
 
@@ -63,15 +64,15 @@ theorem romLift_bound {α : Type} (x : ProbComp α) :
 
 /-- The cost of one oracle call of the forger: `cH` for a challenge query,
 `cS + cH` for a signing request, nothing otherwise. -/
-def callCost (t : (RomForgerSpec n E X M).Domain) : ℕ :=
+def callCost (t : (RomForgerSpec n H E X M).Domain) : ℕ :=
   (if isChalCall t = true then cH else 0) + (if isSignCall t = true then cS + cH else 0)
 
 include hU hH hS in
-theorem romHandler_bound (pk : X) (t : (RomForgerSpec n E X M).Domain) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) :
-    (((romHandler C pk t).run st).run c).IsQueryBoundP p (callCost cH cS t) := by
+theorem romHandler_bound (pk : X) (t : (RomForgerSpec n H E X M).Domain) (st : Core n X M)
+    (c : (AnnSpec n H X M).QueryCache) :
+    (((romHandler (H := H) C pk t).run st).run c).IsQueryBoundP p (callCost cH cS t) := by
   rcases t with key | ⟨⟨data, groups⟩, coeffs⟩
-  · have h : ((romHandler (E := E) C pk (.inl key)).run st).run c =
+  · have h : ((romHandler (H := H) (E := E) C pk (.inl key)).run st).run c =
         (hashQ (n := n) key >>= fun e => pure ((e, st), c)) := by
       simp [romHandler, map_eq_bind_pure_comp]
     rw [h]
@@ -97,11 +98,11 @@ include hU hH hS in
 /-- The forger's run costs `cH` per challenge query and `cS + cH` per signing
 request. -/
 theorem rom_stack_bound (pk : X) {Result : Type}
-    (prog : OracleComp (RomForgerSpec n E X M) Result) (a b : ℕ)
+    (prog : OracleComp (RomForgerSpec n H E X M) Result) (a b : ℕ)
     (ha : prog.IsQueryBoundP (fun t => isChalCall t) a)
     (hb : prog.IsQueryBoundP (fun t => isSignCall t) b)
-    (st : Core n X M) (c : (AnnSpec n X M).QueryCache) :
-    (((simulateQ (romHandler C pk) prog).run st).run c).IsQueryBoundP p
+    (st : Core n X M) (c : (AnnSpec n H X M).QueryCache) :
+    (((simulateQ (romHandler (H := H) C pk) prog).run st).run c).IsQueryBoundP p
       (a * cH + b * (cS + cH)) := by
   induction prog using OracleComp.inductionOn generalizing a b st c with
   | pure x => simp
@@ -129,9 +130,10 @@ end Bound
 /-- Every output of the forger's run under `romHandler` is an output of the
 forger. -/
 theorem rom_support (pk : X) {Result : Type}
-    (prog : OracleComp (RomForgerSpec n E X M) Result) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) :
-    ∀ z ∈ support (((simulateQ (romHandler C pk) prog).run st).run c), z.1.1 ∈ support prog := by
+    (prog : OracleComp (RomForgerSpec n H E X M) Result) (st : Core n X M)
+    (c : (AnnSpec n H X M).QueryCache) :
+    ∀ z ∈ support (((simulateQ (romHandler (H := H) C pk) prog).run st).run c),
+      z.1.1 ∈ support prog := by
   induction prog using OracleComp.inductionOn generalizing st c with
   | pure x =>
     intro z hz
@@ -155,9 +157,9 @@ variable (p : (RomSpec n X M).Domain → Prop) [DecidablePred p] (cH cS : ℕ)
 
 include hU in
 theorem zsRom_bound (items : List (AItem n X M)) (is : List ℕ)
-    (c : (AnnSpec n X M).QueryCache) :
-    ((is.mapM fun i => if i = 0 then pure 1 else romTableRO (items.take (i + 1)) :
-      StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) _).run
+    (c : (AnnSpec n H X M).QueryCache) :
+    ((is.mapM fun i => if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1)) :
+      StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) _).run
         c).IsQueryBoundP p 0 := by
   induction is generalizing c with
   | nil => simp
@@ -168,7 +170,7 @@ theorem zsRom_bound (items : List (AItem n X M)) (is : List ℕ)
       isQueryBoundP_bind (n := 0) (m := 0) (ih y.2) fun _ _ => isQueryBoundP_pure _ _ _
     split_ifs
     · exact isQueryBoundP_pure _ _ _
-    · rw [romTableRO_run]
+    · rw [StateT.run_map, romTableRO_run, isQueryBoundP_map_iff]
       exact romLift_bound p hU _
 
 include hH in
@@ -196,12 +198,13 @@ theorem extractROM_bound [Inhabited M] (pk : X) (items : List (AItem n X M)) (s 
     · exact isQueryBoundP_bind (m := 0) (hashQ_bound p cH hH _)
         fun _ _ => isQueryBoundP_pure _ _ _
 
-theorem reductionROM_main_eq [Inhabited M] (F : RomForger n E X M) (P : Stmt C) :
-    (reductionROM C F).main P = (do
-      let r ← ((simulateQ (romHandler C (C.x P.1))
+theorem reductionROM_main_eq [Inhabited M] (F : RomForger n H E X M) (P : Stmt C) :
+    (reductionROM C red F).main P = (do
+      let r ← ((simulateQ (romHandler (H := H) C (C.x P.1))
         (F.main (initial C ((C.liftX (C.x P.1)).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C r.1.1 r.1.2).length).mapM fun i =>
-        if i = 0 then pure 1 else romTableRO ((finalItems C r.1.1 r.1.2).take (i + 1))).run r.2
+        if i = 0 then pure 1
+        else red <$> romTableRO ((finalItems C r.1.1 r.1.2).take (i + 1))).run r.2
       let es ← (finalItems C r.1.1 r.1.2).mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
       extractROM C (C.x P.1) (finalItems C r.1.1 r.1.2) r.1.1.value.data.s q.1 r.1.2.signed
         es) := rfl
@@ -209,12 +212,12 @@ theorem reductionROM_main_eq [Inhabited M] (F : RomForger n E X M) (P : Stmt C) 
 include hU hH hS in
 /-- The reduction's cost for a forger with at most `qH` challenge queries, `qS`
 signing requests and forgeries of at most `ℓ` items. -/
-theorem reductionROM_cost [Inhabited M] (F : RomForger n E X M) (qH qS ℓ : ℕ)
+theorem reductionROM_cost [Inhabited M] (F : RomForger n H E X M) (qH qS ℓ : ℕ)
     (hFH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hFS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
     (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
     (P : Stmt C) :
-    ((reductionROM C F).main P).IsQueryBoundP p
+    ((reductionROM C red F).main P).IsQueryBoundP p
       (qH * cH + qS * (cS + cH) + (ℓ * cH + cH)) := by
   rw [reductionROM_main_eq]
   refine isQueryBoundP_bind (rom_stack_bound C p cH cS hU hH hS _ _ qH qS (hFH _) (hFS _) _ _)
@@ -232,13 +235,13 @@ end Main
 
 /-- **The oracle reduction's query counts**, in the form
 `Taproot.BIP340Security.euf_cma` asks for. -/
-theorem reductionROM_bound [Inhabited M] (F : RomForger n E X M) (qH qS ℓ : ℕ)
+theorem reductionROM_bound [Inhabited M] (F : RomForger n H E X M) (qH qS ℓ : ℕ)
     (hFH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hFS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
     (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
     (P : Stmt C) :
     FiatShamir.signHashQueryBound (M := M) (Commit := X × X) (Chal := ZMod n)
-      (S' := FSSig n X) (oa := (reductionROM C F).main P) qS (qH + qS + ℓ + 1) := by
+      (S' := FSSig n X) (oa := (reductionROM C red F).main P) qS (qH + qS + ℓ + 1) := by
   refine ⟨?_, ?_⟩
   · refine (reductionROM_cost C _ 0 1 (by simp) (by simp) (by simp) F qH qS ℓ hFH hFS hL P).mono
       (by omega)
@@ -247,7 +250,7 @@ theorem reductionROM_bound [Inhabited M] (F : RomForger n E X M) (qH qS ℓ : �
 
 /-! ## The forger with its challenge queries answered from a table -/
 
-theorem at_queries (F : RomForger n E X M) (q : ℕ)
+theorem at_queries (F : RomForger n H E X M) (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
     (g : M × (X × X) → ZMod n) (input : Message Unit (Pts E)) :
     ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q := by

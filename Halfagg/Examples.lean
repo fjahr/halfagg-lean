@@ -1,5 +1,6 @@
 import Halfagg.Unforgeability
 import Halfagg.SecurityTight
+import Halfagg.Hash256
 
 /-!
 # The theorem is not vacuous
@@ -7,7 +8,8 @@ import Halfagg.SecurityTight
 * `demo`: a concrete algebraic forger that requests a signature, requests a
   randomizer for two items built from the returned nonce point, and outputs a
   two-item forgery that depends on the randomizer. It satisfies the hypotheses
-  of `halfagg_unforgeable` with `q = 1` (`demo_theorem`).
+  of `halfagg_unforgeable` with `q = 1` (`demo_theorem`), in the uniform model
+  where the randomizer hash answers in `ZMod n`.
 * `aggWins_honest`: the game's win predicate holds for an honest BIP340
   signature on a message that was never signed, as a one-item aggregate.
 * `demoRom`: a forger with oracle access to the challenge hash that makes a
@@ -36,15 +38,17 @@ def uvec (L j : ℕ) (c : ZMod n) : Fin L → ZMod n := fun i => if i.val = j th
 /-- A forger: request a signature on `7`, request the randomizer of the items
 `(R, P*)` and `(3⋅G + P*, P*)`, then output a forgery whose second nonce point
 depends on the randomizer `z`. -/
-def demo : AlgForger n E X ℕ where
+def demo : AlgForger n (ZMod n) E X ℕ where
   main input :=
     let b0 := input.groups
-    OracleComp.queryBind (spec := explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n X ℕ))
+    OracleComp.queryBind
+      (spec := explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n (ZMod n) X ℕ))
       (Explained.ofVectors b0 (Request.sign 7) (fun _ => [])) fun rep =>
     let b1 := extend b0 rep.groups
     let pts : (s : Unit) → List (Fin (b1 s).length → ZMod n) := fun _ =>
       [uvec _ 2 1, uvec _ 1 1, (fun i => uvec _ 0 3 i + uvec _ 1 1 i), uvec _ 1 1]
-    OracleComp.queryBind (spec := explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n X ℕ))
+    OracleComp.queryBind
+      (spec := explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n (ZMod n) X ℕ))
       (Explained.ofVectors b1 (Request.rand [7, 8] []) pts) fun rep2 =>
     let b2 := extend b1 rep2.groups
     let z : ZMod n := rep2.data
@@ -60,10 +64,11 @@ theorem demo_queries : ∀ input, ((demo (n := n) (E := E) (X := X)).main input)
     (fun r => isRand r.value.data) 1 := by
   intro input
   have e : ∀ {α : Type}
-      (t : (explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n X ℕ)).Domain)
-      (k : _ → OracleComp (explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n X ℕ)) α),
+      (t : (explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n (ZMod n) X ℕ)).Domain)
+      (k : _ → OracleComp (explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n (ZMod n) X ℕ)) α),
       OracleComp.queryBind t k =
-        (liftM ((explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n X ℕ)).query t) >>= k) :=
+        (liftM ((explainedSpec (ZMod n) (Pts E) (Request X ℕ) (Reply n (ZMod n) X ℕ)).query t) >>=
+          k) :=
     fun _ _ => rfl
   unfold demo
   simp only [e]
@@ -80,30 +85,30 @@ theorem demo_queries : ∀ input, ((demo (n := n) (E := E) (X := X)).main input)
 /-- The main theorem applies to `demo` with `q = 1`. -/
 theorem demo_theorem [DecidableEq E] [DecidableEq X] (C : Curve n E X)
     (challenge : X → X → ℕ → ZMod n) (hx0 : C.liftX (C.x 0) = none) :
-    aggAdvantage C challenge (erase C demo) ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge demo) +
-        ((1 : ℕ) + 1 : ℝ≥0∞) / n :=
-  halfagg_unforgeable C challenge hx0 demo 1 demo_queries
+    aggAdvantage C challenge id (erase C demo) ≤
+      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
+        (reduction C challenge id demo) + ((1 : ℕ) + 1 : ℝ≥0∞) * (n : ℝ≥0∞)⁻¹ :=
+  halfagg_unforgeable C challenge id hx0 demo 1 demo_queries _ (id_bound n)
 
 end Forger
 
 section RomForger
 
-variable {n : ℕ} [Fact n.Prime] {E X : Type} [AddCommGroup E] (C : Curve n E X)
+variable {n : ℕ} [Fact n.Prime] {H E X : Type} [AddCommGroup E] (C : Curve n E X)
 
 /-- A forger with oracle access to the challenge hash that explains its nonce:
 it sends the point `3⋅G + P*` in a randomizer request for the empty list, asks
 for the challenge of the message `8` with that point's x-coordinate as nonce,
 and outputs a one-item forgery with the challenge as `s`. -/
-def demoRom : RomForger n E X ℕ where
+def demoRom : RomForger n H E X ℕ where
   main input :=
     let b0 := input.groups
     let req : Explained (ZMod n) (Request X ℕ) (Pts E) :=
       Explained.ofVectors b0 (Request.rand [] []) (fun _ => [fun i => uvec _ 0 3 i + uvec _ 1 1 i])
-    OracleComp.queryBind (spec := RomForgerSpec n E X ℕ) (.inr req) fun rep =>
+    OracleComp.queryBind (spec := RomForgerSpec n H E X ℕ) (.inr req) fun rep =>
     let b1 := extend b0 rep.groups
     let r : X := C.x ((req.value.groups ()).headD 0)
-    OracleComp.queryBind (spec := RomForgerSpec n E X ℕ) (.inl (8, (r, r))) fun e =>
+    OracleComp.queryBind (spec := RomForgerSpec n H E X ℕ) (.inl (8, (r, r))) fun e =>
     pure (Explained.ofVectors b1 (⟨[8], e⟩ : Out n ℕ) (fun _ =>
       [(fun i => uvec _ 0 3 i + uvec _ 1 1 i), uvec _ 1 1]))
   algebraic _ _ :=
@@ -111,7 +116,7 @@ def demoRom : RomForger n E X ℕ where
 
 /-- `demoRom` explains the nonce of its challenge query. -/
 theorem demoRom_explains [DecidableEq X] (input : Message Unit (Pts E)) :
-    ExplainsNonces C ((demoRom (n := n) C).main input) [] :=
+    ExplainsNonces C ((demoRom (n := n) (H := H) C).main input) [] :=
   fun _ => ⟨by simp [Explained.ofVectors, isRand], fun _ => trivial⟩
 
 end RomForger

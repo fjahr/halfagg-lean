@@ -29,8 +29,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
+variable [SampleableType H] {red : H → ZMod n}
 
 
 /-! ## The event: the challenge of the target item cancels its coefficient -/
@@ -46,7 +47,7 @@ def hitI (ch : X → X → M → ZMod n) (pk : X) (items : List (AItem n X M)) (
 /-- If the signature machine's event occurs, the challenge of the target item
 cancels the coefficient of `P*` in its nonce point. -/
 theorem repB_hit (ch : X → X → M → ZMod n) (hx0 : C.liftX (C.x 0) = none)
-    (F : AlgForger n E X M)
+    (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C ch F)) (zs : List (ZMod n))
     (hR : repB C ch
@@ -112,15 +113,15 @@ noncomputable def hitFin (pk : X) (out : Explained (ZMod n) (Out n M) (Pts E))
         decide (a.repR.2 + e = 0))
 
 /-- The analysis machine: the forger's run as in `romMachine`, then `hitFin`. -/
-noncomputable def hitProg (F : RomForger n E X M) (P : Stmt C) :
+noncomputable def hitProg (F : RomForger n H E X M) (P : Stmt C) :
     OracleComp (RomSpec n X M) Bool := do
-  let r ← ((simulateQ (romHandler C (C.x P.1))
+  let r ← ((simulateQ (romHandler (H := H) C (C.x P.1))
     (F.main (initial C ((C.liftX (C.x P.1)).getD 0)))).run Core.init).run ∅
   hitFin C (C.x P.1) r.1.1 r.1.2
 
 /-- The analysis machine inside the Fiat-Shamir game's oracles, with the
 challenge hash as an oracle. -/
-noncomputable def hitExp (F : RomForger n E X M) :
+noncomputable def hitExp (F : RomForger n H E X M) :
     OracleComp (unifSpec + ChalSpec n X M) Bool := do
   let k ← (monadLift ($ᵗ (NonzeroScalar n) : ProbComp _) :
     OracleComp (unifSpec + ChalSpec n X M) _)
@@ -144,10 +145,10 @@ theorem hitFin_table (P : Stmt C) (w : ZMod n) (pk : X)
 
 /-- Against a fixed table, the analysis machine is the joint run followed by
 the event. -/
-theorem hitExp_table (F : RomForger n E X M) :
+theorem hitExp_table (F : RomForger n H E X M) :
     simulateQ (tableImpl g) (hitExp C F) = (do
       let k ← $ᵗ (NonzeroScalar n)
-      let p ← ((simulateQ (jImpl C (hOf g) (C.x (C.mulG k.1)) k.1)
+      let p ← ((simulateQ (jImpl (H := H) C (hOf g) (C.x (C.mulG k.1)) k.1)
         ((F.at g).main (initial C ((C.liftX (C.x (C.mulG k.1))).getD 0)))).run Core.init).run ∅
       pure (hitI C (hOf g) (C.x (C.mulG k.1)) (finalItems C p.1.1 p.1.2) p.1.2.signed)) := by
   unfold hitExp
@@ -168,9 +169,9 @@ theorem hitExp_table (F : RomForger n E X M) :
 end Table
 
 /-- The forger's run with a key is a run of `annPhase1`. -/
-theorem phase_support (ch : X → X → M → ZMod n) (F : AlgForger n E X M) (k : NonzeroScalar n)
-    (p : (Explained (ZMod n) (Out n M) (Pts E) × Core n X M) × (AnnSpec n X M).QueryCache)
-    (hp : p ∈ support (((simulateQ (jImpl C ch (C.x (C.mulG k.1)) k.1)
+theorem phase_support (ch : X → X → M → ZMod n) (F : AlgForger n H E X M) (k : NonzeroScalar n)
+    (p : (Explained (ZMod n) (Out n M) (Pts E) × Core n X M) × (AnnSpec n H X M).QueryCache)
+    (hp : p ∈ support (((simulateQ (jImpl (H := H) C ch (C.x (C.mulG k.1)) k.1)
       (F.main (initial C ((C.liftX (C.x (C.mulG k.1))).getD 0)))).run Core.init).run ∅)) :
     (C.x (C.mulG k.1), p.1.1, p.1.2) ∈ support (annPhase1 C ch F) := by
   unfold annPhase1
@@ -178,23 +179,23 @@ theorem phase_support (ch : X → X → M → ZMod n) (F : AlgForger n E X M) (k
   refine ⟨(C.x (C.mulG k.1), k.1), ?_, ?_⟩
   · simp only [bip340]
     rw [show ∀ (x : ProbComp (X × ZMod n)),
-      (monadLift x : OracleComp (unifSpec + AnnSpec n X M) _) =
-        liftComp x (unifSpec + AnnSpec n X M) from fun _ => (liftComp_eq_liftM _).symm,
+      (monadLift x : OracleComp (unifSpec + AnnSpec n H X M) _) =
+        liftComp x (unifSpec + AnnSpec n H X M) from fun _ => (liftComp_eq_liftM _).symm,
       support_liftComp]
     simp only [support_bind, support_pure, Set.mem_iUnion, Set.mem_singleton_iff]
     exact ⟨k, by simp, rfl⟩
   · rw [mem_support_bind_iff]
     refine ⟨p.1, ?_, by simp⟩
-    refine support_simulateQ_run'_subset (AnnSpec n X M).romImpl _ ∅ ?_
+    refine support_simulateQ_run'_subset (AnnSpec n H X M).romImpl _ ∅ ?_
     rw [StateT.run'_eq, support_map, rom_annImpl]
     exact ⟨p, hp, rfl⟩
 
 /-- The signature machine's event implies the analysis machine's, table by
 table, and the analysis machine can sample its table lazily. -/
 theorem repB_le_lazy [Finite M] [Finite X] [SampleableType (M × (X × X) → ZMod n)]
-    (hx0 : C.liftX (C.x 0) = none) (F : RomForger n E X M) :
+    (hx0 : C.liftX (C.x 0) = none) (F : RomForger n H E X M) :
     Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
-        repB C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] ≤
+        repB C (hOf g) <$> jExp C (hOf g) red (F.at g))}[b = true] ≤
       Pr{let b ← (simulateQ (ChalSpec n X M).romImpl (hitExp C F)).run' ∅}[b = true] := by
   rw [rom_eq_table]
   simp only [hitExp_table]
@@ -203,10 +204,10 @@ theorem repB_le_lazy [Finite M] [Finite X] [SampleableType (M × (X × X) → ZM
   refine prEvent_bind_mono _ _ _ _ _ fun k => ?_
   unfold jRun
   have h := prEvent_bind_le_prEvent_add_of_support
-    (((simulateQ (jImpl C (hOf g) (C.x (C.mulG k.1)) k.1)
+    (((simulateQ (jImpl (H := H) C (hOf g) (C.x (C.mulG k.1)) k.1)
       ((F.at g).main (initial C ((C.liftX (C.x (C.mulG k.1))).getD 0)))).run Core.init).run ∅)
     (fun p => ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2 >>= fun q =>
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2 >>= fun q =>
       pure (C.x (C.mulG k.1), finalItems C p.1.1 p.1.2, p.1.1.value.data.s, q.1, p.1.2.signed))
     (fun p => hitI C (hOf g) (C.x (C.mulG k.1)) (finalItems C p.1.1 p.1.2) p.1.2.signed = true)
     (fun t : Transcript n X M => repB C (hOf g) t = true) (ε := 0) fun p hp hno => by
@@ -356,14 +357,14 @@ theorem prEvent_bind_le_of_forall {α β : Type} (mx : ProbComp α) (f : α → 
   rwa [prEvent_eq_zero_of_forall_mem_support _ _ (fun _ _ hf => hf), zero_add] at h'
 
 theorem explains_chal {α : Type} (key : M × (X × X))
-    (next : ZMod n → OracleComp (RomForgerSpec n E X M) α) (seen : List X) :
-    ExplainsNonces C (liftM ((RomForgerSpec n E X M).query (.inl key)) >>= next) seen ↔
+    (next : ZMod n → OracleComp (RomForgerSpec n H E X M) α) (seen : List X) :
+    ExplainsNonces C (liftM ((RomForgerSpec n H E X M).query (.inl key)) >>= next) seen ↔
       key.2.1 ∈ seen ∧ ∀ e, ExplainsNonces C (next e) seen := Iff.rfl
 
 theorem explains_request {α : Type} (q : Explained (ZMod n) (Request X M) (Pts E))
-    (next : Message (Reply n X M q.value.data) (Pts E) → OracleComp (RomForgerSpec n E X M) α)
+    (next : Message (Reply n H X M q.value.data) (Pts E) → OracleComp (RomForgerSpec n H E X M) α)
     (seen : List X) :
-    ExplainsNonces C (liftM ((RomForgerSpec n E X M).query (.inr q)) >>= next) seen ↔
+    ExplainsNonces C (liftM ((RomForgerSpec n H E X M).query (.inr q)) >>= next) seen ↔
       ∀ rep, ExplainsNonces C (next rep)
         (if isRand q.value.data then (q.value.groups ()).map C.x ++ seen else seen) := Iff.rfl
 
@@ -373,9 +374,9 @@ def Seen (st : Core n X M) (seen : List X) : Prop := ∀ x ∈ seen, (st.memo x)
 /-- A request of the forger keeps the invariant, and a randomizer request
 records a representation for each of its points. -/
 theorem step_request (t : Explained (ZMod n) (Request X M) (Pts E)) (st : Core n X M)
-    (cA : (AnnSpec n X M).QueryCache) (l : List M) (cH : (ChalSpec n X M).QueryCache)
+    (cA : (AnnSpec n H X M).QueryCache) (l : List M) (cH : (ChalSpec n X M).QueryCache)
     (seen : List X) (h : HInv st cH) (hs : Seen st seen) :
-    ∀ z ∈ support (lzRun C P w (((romHandler C (C.x P.1) (.inr t)).run st).run cA) l cH),
+    ∀ z ∈ support (lzRun C P w (((romHandler (H := H) C (C.x P.1) (.inr t)).run st).run cA) l cH),
       HInv z.1.1.1.2 z.2 ∧ Seen z.1.1.1.2
         (if isRand t.value.data then (t.value.groups ()).map C.x ++ seen else seen) := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
@@ -433,22 +434,22 @@ theorem uniform_eq_le (c : ZMod n) :
   rw [SampleableType.prEvent_uniformSample_eq_singleton, ZMod.card]
 
 /-- A challenge query of the forger is one lazily sampled query. -/
-theorem chal_run (key : M × (X × X)) (st : Core n X M) (cA : (AnnSpec n X M).QueryCache)
+theorem chal_run (key : M × (X × X)) (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache)
     (l : List M) (cH : (ChalSpec n X M).QueryCache) :
-    lzRun C P w (((romHandler (E := E) C (C.x P.1) (.inl key)).run st).run cA) l cH =
+    lzRun C P w (((romHandler (H := H) (E := E) C (C.x P.1) (.inl key)).run st).run cA) l cH =
       (fun q => ((((q.1, st), cA), l), q.2)) <$>
         ((ChalSpec n X M).randomOracle key).run cH := by
-  have hraw : ((romHandler (E := E) C (C.x P.1) (.inl key)).run st).run cA =
+  have hraw : ((romHandler (H := H) (E := E) C (C.x P.1) (.inl key)).run st).run cA =
       (fun e => ((e, st), cA)) <$> hashQ (n := n) key := by
     simp [romHandler]
   rw [hraw, lz_map, lz_hash, Functor.map_map]
 
 /-- A challenge query on an explained nonce breaks the invariant with
 probability at most `1/n`. -/
-theorem step_chal (key : M × (X × X)) (st : Core n X M) (cA : (AnnSpec n X M).QueryCache)
+theorem step_chal (key : M × (X × X)) (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache)
     (l : List M) (cH : (ChalSpec n X M).QueryCache) (h : HInv st cH) {ρ : Rep n}
     (hρ : st.memo key.2.1 = some ρ) :
-    Pr{let z ← lzRun C P w (((romHandler (E := E) C (C.x P.1) (.inl key)).run st).run cA)
+    Pr{let z ← lzRun C P w (((romHandler (H := H) (E := E) C (C.x P.1) (.inl key)).run st).run cA)
         l cH}[¬ HInv z.1.1.1.2 z.2] ≤ (n : ℝ≥0∞)⁻¹ := by
   rw [chal_run, prEvent_map, randomOracle.run_eq]
   rcases hc : cH key with _ | u
@@ -466,12 +467,12 @@ theorem step_chal (key : M × (X × X)) (st : Core n X M) (cA : (AnnSpec n X M).
 
 /-- **The forger's run keeps the invariant**, except with probability `1/n` per
 challenge query. -/
-theorem forger_inv {α : Type} (prog : OracleComp (RomForgerSpec n E X M) α) (Q : ℕ)
+theorem forger_inv {α : Type} (prog : OracleComp (RomForgerSpec n H E X M) α) (Q : ℕ)
     (hQ : prog.IsQueryBoundP (fun t => isChalCall t) Q) (seen : List X)
     (hE : ExplainsNonces C prog seen) (st : Core n X M)
-    (cA : (AnnSpec n X M).QueryCache) (l : List M) (cH : (ChalSpec n X M).QueryCache)
+    (cA : (AnnSpec n H X M).QueryCache) (l : List M) (cH : (ChalSpec n X M).QueryCache)
     (h : HInv st cH) (hs : Seen st seen) :
-    Pr{let z ← lzRun C P w (((simulateQ (romHandler C (C.x P.1)) prog).run st).run cA)
+    Pr{let z ← lzRun C P w (((simulateQ (romHandler (H := H) C (C.x P.1)) prog).run st).run cA)
         l cH}[¬ HInv z.1.1.1.2 z.2] ≤ Q * (n : ℝ≥0∞)⁻¹ := by
   induction prog using OracleComp.inductionOn generalizing Q seen st cA l cH with
   | pure a =>
@@ -571,7 +572,7 @@ end Lazy
 /-- **The analysis machine reports a cancellation with probability at most
 `(qH + 1)/n`**, for a forger with `qH` challenge queries that explains their
 nonces. -/
-theorem hit_lazy (F : RomForger n E X M) (qH : ℕ)
+theorem hit_lazy (F : RomForger n H E X M) (qH : ℕ)
     (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hE : ∀ input, ExplainsNonces C (F.main input) []) :
     Pr{let b ← (simulateQ (ChalSpec n X M).romImpl (hitExp C F)).run' ∅}[b = true] ≤

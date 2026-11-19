@@ -22,20 +22,20 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 
 ### Security
 
-`Halfagg/Unforgeability.lean`, `Halfagg/Knowledge.lean`, `Halfagg/Tightness.lean`, `Halfagg/UnforgeabilityROM.lean` and `Halfagg/UnforgeabilityTight.lean`. The forger is algebraic, the randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries.
+`Halfagg/Unforgeability.lean`, `Halfagg/Knowledge.lean`, `Halfagg/Tightness.lean`, `Halfagg/UnforgeabilityROM.lean` and `Halfagg/UnforgeabilityTight.lean`. The forger is algebraic, the randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. The oracle returns hash outputs of a type `H`, and the scheme reduces them to scalars with `red`. `μ` bounds the probability that a uniform output reduces to a given scalar. For BIP 458's 256-bit hash reduced mod `n`, `μ = 2/2^256` (`Halfagg/Hash256.lean`), and the secp256k1 forms of the theorems are stated with it.
 
 | Theorem | Statement |
 |---|---|
-| `halfagg_unforgeable` | Half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, for every challenge hash. An explicit reduction turns a forger of the standard aggregate chosen-key game into a BIP 340 forger and loses at most `(q + 1)/n`. |
-| `grinder_advantage` | The loss is tight up to one query: a forger with `q` randomizer queries and no signing query wins with probability at least `1 - ((n - 1)/n)^q`. |
-| `halfagg_knowledge` | Whoever produces a verifying aggregate knows a BIP 340 signature for every item, also under keys it chose itself. If the aggregate verifies with probability `ε`, an extractor outputs all of them with probability at least `ε - (q + 1)/n`. |
+| `halfagg_unforgeable` | Half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, for every challenge hash. An explicit reduction turns a forger of the standard aggregate chosen-key game into a BIP 340 forger and loses at most `(q + 1)·μ`. |
+| `grinder_advantage` | The loss is tight up to one query. With a randomizer hash that is uniform in `ZMod n`, where `μ = 1/n`, a forger with `q` randomizer queries and no signing query wins with probability at least `1 - ((n - 1)/n)^q`. |
+| `halfagg_knowledge` | Whoever produces a verifying aggregate knows a BIP 340 signature for every item, also under keys it chose itself. If the aggregate verifies with probability `ε`, an extractor outputs all of them with probability at least `ε - (q + 1)·μ`. |
 | `reduction_sign_queries`, `extractor_sign_queries` | The reduction and the extractor make no signing query the forger did not make. |
 | `game_verifier` | The game's verifier is `verifyAggregate`. |
 | `halfagg_unforgeable_rom`, `halfagg_dlog` | The first theorem with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. |
 | `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
 | `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
 
-With `Q = qH + qS + ℓ + 1`, where `ℓ` bounds the forgery's length, and `ε = Pr[forger wins] - (q + 1)/n - qS·(qS + Q)·2/(n - 1)`, the solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
+With `Q = qH + qS + ℓ + 1`, where `ℓ` bounds the forgery's length, and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`, the solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
 
 ### Bytes
 
@@ -61,7 +61,7 @@ The proofs of the security theorems are under `Halfagg/Proofs/`:
 | `Algebra.lean` | Representations and the extraction (`extract_or_bad`). |
 | `Invariant.lean`, `Scheme.lean` | The reduction's bookkeeping stays valid (`core_inv`). |
 | `LoggedRun.lean`, `Annotated.lean`, `Trace.lean`, `BadBound.lean` | The annotated experiment, its bad event and the forger's query count. |
-| `Transcript.lean`, `Verifier.lean`, `TightBound.lean` | The bad-event bound `(q + 1)/n` (`annROM_bad`): `q/n` for the forger's own queries, `1/n` for the verifier's draws. |
+| `Transcript.lean`, `Verifier.lean`, `TightBound.lean` | The bad-event bound `(q + 1)·μ` (`annROM_bad`): `q·μ` for the forger's own queries, `μ` for the verifier's draws. |
 | `Natural.lean`, `BridgeReduction.lean` | The reduction's BIP 340 game equals the annotated experiment followed by extraction (`red_advantage_eq`). |
 | `SignQueries.lean` | The reduction's signing queries (`reduction_sign_bound`). |
 | `Projection.lean`, `BridgeGame.lean` | The standard game equals the annotated experiment followed by the win check (`bridge_game`). |

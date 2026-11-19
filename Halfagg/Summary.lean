@@ -150,6 +150,10 @@ info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Security.halfagg_unforgeable
 
+/-- info: 'Halfagg.Security.secp256k1_redBound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.secp256k1_redBound
+
 /-- info: 'Halfagg.Security.reduction_sign_queries' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.reduction_sign_queries

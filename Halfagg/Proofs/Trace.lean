@@ -19,8 +19,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-! ## Items of a forgery -/
 
@@ -115,7 +116,7 @@ theorem finalItems_ok (hx0 : C.liftX (C.x 0) = none) (d : ZMod n) {recv : List E
 
 /-- After key generation and the forger's run, the bookkeeping is valid for the
 normalized secret key `d`. -/
-theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
+theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) :
     ∃ d : ZMod n, d ≠ 0 ∧ C.hasEvenY (C.mulG d) = true ∧ r.1 = C.x (C.mulG d) ∧
@@ -133,7 +134,7 @@ theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
   simp only [hP] at hr'
   refine ⟨C.evenScalar sk, C.evenScalar_ne_zero hne, C.hasEvenY_evenScalar hne,
     (C.x_evenScalar sk).symm, ?_, ?_⟩
-  · refine support_simulateQ_run'_subset (annImpl C challenge (C.x (C.mulG sk)) sk)
+  · refine support_simulateQ_run'_subset (annImpl (H := H) C challenge (C.x (C.mulG sk)) sk)
       (F.main (initial C (C.mulG (C.evenScalar sk)))) (Core.init : Core n X M) ?_
     rw [StateT.run'_eq, support_map]
     exact ⟨r', hr', rfl⟩

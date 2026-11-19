@@ -23,8 +23,9 @@ namespace Halfagg.Security
 
 open Taproot
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-- Every item of `L` before the first one that fails `lift_x` has recorded
 representations. -/
@@ -109,33 +110,33 @@ theorem annotate_inj (memo : X → Option (Rep n)) {L L' : List (Item X M)}
   rwa [map_strip_annotate C, map_strip_annotate C] at this
 
 /-- The plain cache read from the annotated cache through `memo`. -/
-def plainOf (memo : X → Option (Rep n)) (cA : (AnnSpec n X M).QueryCache) :
-    (RandSpec n X M).QueryCache :=
+def plainOf (memo : X → Option (Rep n)) (cA : (AnnSpec n H X M).QueryCache) :
+    (RandSpec H X M).QueryCache :=
   QueryCache.ofFn fun L => if covered C memo L then cA (annotate C memo L) else none
 
-theorem plainOf_apply (memo : X → Option (Rep n)) (cA : (AnnSpec n X M).QueryCache)
+theorem plainOf_apply (memo : X → Option (Rep n)) (cA : (AnnSpec n H X M).QueryCache)
     (L : List (Item X M)) :
     plainOf C memo cA L = if covered C memo L then cA (annotate C memo L) else none := rfl
 
 theorem plainOf_empty (memo : X → Option (Rep n)) :
-    plainOf C memo (∅ : (AnnSpec n X M).QueryCache) = ∅ := by
+    plainOf C memo (∅ : (AnnSpec n H X M).QueryCache) = ∅ := by
   apply QueryCache.ext; intro L; simp [plainOf_apply]
 
 /-- Every cached key is the annotation of its plain list. -/
-def CacheInv (memo : X → Option (Rep n)) (cA : (AnnSpec n X M).QueryCache) : Prop :=
+def CacheInv (memo : X → Option (Rep n)) (cA : (AnnSpec n H X M).QueryCache) : Prop :=
   ∀ K z, cA K = some z → covered C memo (K.map strip) ∧ annotate C memo (K.map strip) = K
 
 theorem cacheInv_empty (memo : X → Option (Rep n)) :
-    CacheInv C memo (∅ : (AnnSpec n X M).QueryCache) := by
+    CacheInv C memo (∅ : (AnnSpec n H X M).QueryCache) := by
   intro K z h; simp at h
 
-theorem cacheInv_ext {memo memo' : X → Option (Rep n)} {cA : (AnnSpec n X M).QueryCache}
+theorem cacheInv_ext {memo memo' : X → Option (Rep n)} {cA : (AnnSpec n H X M).QueryCache}
     (hinv : CacheInv C memo cA) (h : MemoExt memo memo') : CacheInv C memo' cA := by
   intro K z hK
   obtain ⟨hc, ha⟩ := hinv K z hK
   exact ⟨covered_ext C h hc, (annotate_ext C h hc).trans ha⟩
 
-theorem plainOf_ext {memo memo' : X → Option (Rep n)} {cA : (AnnSpec n X M).QueryCache}
+theorem plainOf_ext {memo memo' : X → Option (Rep n)} {cA : (AnnSpec n H X M).QueryCache}
     (hinv : CacheInv C memo cA) (h : MemoExt memo memo') :
     plainOf C memo' cA = plainOf C memo cA := by
   apply QueryCache.ext
@@ -153,8 +154,8 @@ theorem plainOf_ext {memo memo' : X → Option (Rep n)} {cA : (AnnSpec n X M).Qu
         exact absurd hcov hc
     · rfl
 
-theorem plainOf_cacheQuery {memo : X → Option (Rep n)} (cA : (AnnSpec n X M).QueryCache)
-    {L : List (Item X M)} (hc : covered C memo L) (u : ZMod n) :
+theorem plainOf_cacheQuery {memo : X → Option (Rep n)} (cA : (AnnSpec n H X M).QueryCache)
+    {L : List (Item X M)} (hc : covered C memo L) (u : H) :
     plainOf C memo (cA.cacheQuery (annotate C memo L) u) = (plainOf C memo cA).cacheQuery L u := by
   apply QueryCache.ext
   intro L'
@@ -168,8 +169,8 @@ theorem plainOf_cacheQuery {memo : X → Option (Rep n)} (cA : (AnnSpec n X M).Q
     · rw [QueryCache.cacheQuery_of_ne _ _ fun h => hL (annotate_inj C memo h)]
     · rfl
 
-theorem cacheInv_cacheQuery {memo : X → Option (Rep n)} {cA : (AnnSpec n X M).QueryCache}
-    (hinv : CacheInv C memo cA) {L : List (Item X M)} (hc : covered C memo L) (u : ZMod n) :
+theorem cacheInv_cacheQuery {memo : X → Option (Rep n)} {cA : (AnnSpec n H X M).QueryCache}
+    (hinv : CacheInv C memo cA) {L : List (Item X M)} (hc : covered C memo L) (u : H) :
     CacheInv C memo (cA.cacheQuery (annotate C memo L) u) := by
   intro K z hK
   by_cases hKL : K = annotate C memo L
@@ -181,20 +182,20 @@ theorem cacheInv_cacheQuery {memo : X → Option (Rep n)} {cA : (AnnSpec n X M).
 
 /-- **One lazily sampled query projects**: a query at `annotate C memo L` on the
 annotated cache projects to a query at `L` on the projected cache. -/
-theorem ro_step {memo : X → Option (Rep n)} (cA : (AnnSpec n X M).QueryCache)
+theorem ro_step {memo : X → Option (Rep n)} (cA : (AnnSpec n H X M).QueryCache)
     {L : List (Item X M)} (hc : covered C memo L) :
-    ((RandSpec n X M).randomOracle L).run (plainOf C memo cA) =
+    ((RandSpec H X M).randomOracle L).run (plainOf C memo cA) =
       (fun p => (p.1, plainOf C memo p.2)) <$>
-        ((AnnSpec n X M).randomOracle (annotate C memo L)).run cA := by
+        ((AnnSpec n H X M).randomOracle (annotate C memo L)).run cA := by
   rw [randomOracle.run_eq, randomOracle.run_eq, plainOf_apply]
   simp only [hc, ↓reduceIte]
   rcases cA (annotate C memo L) with _ | z
   · simp [plainOf_cacheQuery C cA hc]
   · simp
 
-theorem ro_step_inv {memo : X → Option (Rep n)} {cA : (AnnSpec n X M).QueryCache}
+theorem ro_step_inv {memo : X → Option (Rep n)} {cA : (AnnSpec n H X M).QueryCache}
     (hinv : CacheInv C memo cA) {L : List (Item X M)} (hc : covered C memo L) :
-    ∀ p ∈ support (((AnnSpec n X M).randomOracle (annotate C memo L)).run cA),
+    ∀ p ∈ support (((AnnSpec n H X M).randomOracle (annotate C memo L)).run cA),
       CacheInv C memo p.2 := by
   intro p hp
   rw [randomOracle.run_eq] at hp

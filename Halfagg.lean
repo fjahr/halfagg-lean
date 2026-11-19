@@ -2,6 +2,7 @@ import Halfagg.Basic
 import Halfagg.Vectors
 import Halfagg.Encoding
 import Halfagg.Security
+import Halfagg.Hash256
 import Halfagg.Proofs.Algebra
 import Halfagg.Proofs.Invariant
 import Halfagg.Proofs.Secp256k1

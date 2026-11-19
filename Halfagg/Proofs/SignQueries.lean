@@ -18,8 +18,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-- Lifted sampling makes no signing queries. -/
 theorem lift_sign_zero (p : M → Bool) {β : Type} (oa : ProbComp β) :
@@ -57,8 +58,8 @@ theorem signQuery_bound (p : M → Bool) (msg : M) :
 /-- One request costs one signing query if it is a signing request, else none. -/
 theorem red_step_sign (p : M → Bool) (pk : X)
     (t : Explained (ZMod n) (Request X M) (Pts E)) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) :
-    (((redImpl C challenge pk t).run st).run c).IsQueryBoundP (fun t => isSignQuery p t)
+    (c : (AnnSpec n H X M).QueryCache) :
+    (((redImpl (H := H) C challenge pk t).run st).run c).IsQueryBoundP (fun t => isSignQuery p t)
       (if isSign p t.value.data = true then 1 else 0) := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
   cases data with
@@ -82,10 +83,10 @@ theorem red_step_sign (p : M → Bool) (pk : X)
       fun _ _ => isQueryBoundP_pure _ _ _
 
 theorem red_stack_sign (p : M → Bool) (pk : X) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (q : ℕ) (h : prog.IsQueryBoundP (fun r => isSign p r.value.data) q)
-    (st : Core n X M) (c : (AnnSpec n X M).QueryCache) :
-    (((simulateQ (redImpl C challenge pk) prog).run st).run c).IsQueryBoundP
+    (st : Core n X M) (c : (AnnSpec n H X M).QueryCache) :
+    (((simulateQ (redImpl (H := H) C challenge pk) prog).run st).run c).IsQueryBoundP
       (fun t => isSignQuery p t) q := by
   induction prog using OracleComp.inductionOn generalizing q st c with
   | pure x => simp
@@ -104,9 +105,9 @@ theorem red_stack_sign (p : M → Bool) (pk : X) {Result : Type}
 
 /-- Drawing the verifier's randomizers makes no signing queries. -/
 theorem tableZs_sign (p : M → Bool) (items : List (AItem n X M)) (is : List ℕ)
-    (c : (AnnSpec n X M).QueryCache) :
-    ((is.mapM fun i => if i = 0 then pure 1 else tableRO (items.take (i + 1)) :
-      StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run
+    (c : (AnnSpec n H X M).QueryCache) :
+    ((is.mapM fun i => if i = 0 then pure 1 else red <$> tableRO (items.take (i + 1)) :
+      StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) _).run
         c).IsQueryBoundP (fun t => isSignQuery p t) 0 := by
   induction is generalizing c with
   | nil => simp
@@ -117,12 +118,12 @@ theorem tableZs_sign (p : M → Bool) (items : List (AItem n X M)) (is : List �
       isQueryBoundP_bind (n := 0) (m := 0) (ih y.2) fun _ _ => isQueryBoundP_pure _ _ _
     split_ifs
     · exact isQueryBoundP_pure _ _ _
-    · rw [tableRO_run]
+    · rw [StateT.run_map, tableRO_run, isQueryBoundP_map_iff]
       exact lift_sign_zero p _
 
-theorem reduction_sign_bound [Inhabited M] (F : AlgForger n E X M) (p : M → Bool) (q : ℕ)
+theorem reduction_sign_bound [Inhabited M] (F : AlgForger n H E X M) (p : M → Bool) (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
-    ((reduction C challenge F).main pk).IsQueryBoundP (fun t => isSignQuery p t) q := by
+    ((reduction C challenge red F).main pk).IsQueryBoundP (fun t => isSignQuery p t) q := by
   rw [red_main_eq]
   refine (isQueryBoundP_bind (n := q) (m := 0)
     (red_stack_sign C challenge p pk _ q (h _) Core.init ∅) fun y _ =>

@@ -18,16 +18,17 @@ open Taproot Taproot.Curve
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 theorem coreImpl_natural {m m' : Type → Type} [Monad m] [Monad m'] [LawfulMonad m]
     [LawfulMonad m'] (ρ : ∀ {α : Type}, m α → m' α)
     (hpure : ∀ {α : Type} (a : α), ρ (pure a) = pure a)
     (hbind : ∀ {α β : Type} (x : m α) (f : α → m β), ρ (x >>= f) = ρ x >>= fun a => ρ (f a))
-    (pk : X) (unif : (k : ℕ) → m (Fin (k + 1))) (ro : List (AItem n X M) → m (ZMod n))
+    (pk : X) (unif : (k : ℕ) → m (Fin (k + 1))) (ro : List (AItem n X M) → m H)
     (sg : M → m (X × ZMod n)) {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)) Result)
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) :
     ρ ((simulateQ (coreImpl C challenge pk unif ro sg) prog).run st) =
       (simulateQ (coreImpl C challenge pk (fun k => ρ (unif k)) (fun l => ρ (ro l))
@@ -54,7 +55,7 @@ theorem coreImpl_natural {m m' : Type → Type} [Monad m] [Monad m'] [LawfulMona
 section Run
 
 variable {m : Type → Type} [Monad m] (pk : X) (unif : (k : ℕ) → m (Fin (k + 1)))
-  (ro : List (AItem n X M) → m (ZMod n)) (sg : M → m (X × ZMod n))
+  (ro : List (AItem n X M) → m H) (sg : M → m (X × ZMod n))
   (groups : Groups (Pts E)) (coeffs : Unit → List (List (ZMod n))) (st : Core n X M)
 
 theorem coreImpl_run_random (k : ℕ) :

@@ -24,8 +24,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n} {μ : ℝ≥0∞}
 
 /-! ## Algebra -/
 
@@ -97,7 +98,7 @@ def extB (t : Transcript n X M) : Bool :=
 
 /-- A verifying aggregate whose extraction fails means that the randomized sum
 of the coefficients vanishes while some coefficient is nonzero. -/
-theorem fail_sum_all (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
+theorem fail_sum_all (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) (zs : List (ZMod n))
     (hver : verB C challenge
@@ -121,32 +122,33 @@ theorem fail_sum_all (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M)
   · exact h
 
 /-- **A verifying aggregate with a failed extraction is unlikely.** -/
-theorem know_bad (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M) (q : ℕ)
+theorem know_bad (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
+    (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    Pr{let t ← annROM C challenge F}[verB C challenge t = true ∧ ¬ extB C challenge t = true] ≤
-      (q + 1 : ℝ≥0∞) / n :=
-  annROM_sum_bound C challenge F q hq _
+    Pr{let t ← annROM C challenge red F}[verB C challenge t = true ∧ ¬ extB C challenge t = true] ≤
+      (q + 1 : ℝ≥0∞) * μ :=
+  annROM_sum_bound C challenge hμ F q hq _
     fun r hr zs h => fail_sum_all C challenge hx0 F r hr zs h.1 h.2
 
 /-! ## The verification game -/
 
-theorem verify_experiment_eq (F : AlgForger n E X M) :
-    (simulateQ (RandSpec n X M).romImpl (aggVerifyExperiment C challenge (erase C F))).run' ∅ =
-      verB C challenge <$> jExp C challenge F := by
-  have hexp : aggVerifyExperiment C challenge (erase C F) = (do
-      let ks ← (bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec n X M))).keygen
+theorem verify_experiment_eq (F : AlgForger n H E X M) :
+    (simulateQ (RandSpec H X M).romImpl (aggVerifyExperiment C challenge red (erase C F))).run' ∅ =
+      verB C challenge <$> jExp C challenge red F := by
+  have hexp : aggVerifyExperiment C challenge red (erase C F) = (do
+      let ks ← (bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).keygen
       let z ← (bip340 (M := M) C challenge
-        (OracleComp (unifSpec + RandSpec n X M))).runWithSigningOracle ks.1 ks.2
+        (OracleComp (unifSpec + RandSpec H X M))).runWithSigningOracle ks.1 ks.2
           ((erase C F).main ks.1)
-      let zs ← (List.range z.1.1.length).mapM (zQuery z.1.1)
+      let zs ← (List.range z.1.1.length).mapM (zQuery red z.1.1)
       pure (aggVerifies C challenge z.1.1 z.1.2 zs)) := rfl
   have key : ∀ pk sk, (do
       let z ← (bip340 (M := M) C challenge
-        (OracleComp (unifSpec + RandSpec n X M))).runWithSigningOracle pk sk ((erase C F).main pk)
-      let zs ← (List.range z.1.1.length).mapM (zQuery (n := n) z.1.1)
+        (OracleComp (unifSpec + RandSpec H X M))).runWithSigningOracle pk sk ((erase C F).main pk)
+      let zs ← (List.range z.1.1.length).mapM (zQuery red (n := n) z.1.1)
       pure (aggVerifies C challenge z.1.1 z.1.2 zs)) = (do
       let w ← (simulateQ (gApp C challenge pk sk) ((erase C F).main pk)).run []
-      let zs ← (List.range w.1.1.length).mapM (zQuery (n := n) w.1.1)
+      let zs ← (List.range w.1.1.length).mapM (zQuery red (n := n) w.1.1)
       pure (aggVerifies C challenge w.1.1 w.1.2 zs)) := by
     intro pk sk
     rw [← run_sign_eq_game, bind_map_left]
@@ -155,34 +157,34 @@ theorem verify_experiment_eq (F : AlgForger n E X M) :
   simp only [key, simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind,
     StateT.run_pure, rom_keygenR, map_bind, bind_map_left, map_pure]
   refine bind_congr fun ks => ?_
-  have h := game_run_eq C challenge
+  have h := game_run_eq C challenge (red := red)
     (fun _ its s zs _ => aggVerifies C challenge its s zs) F ks.1 ks.2
   simp only [gRun] at h
   simpa [verB] using h
 
 /-- The aggregate of the erased forger verifies in the game exactly as often as
 the transcript's aggregate does. -/
-theorem verify_advantage_eq (F : AlgForger n E X M) :
-    aggVerifyAdvantage C challenge (erase C F) =
-      Pr{let t ← annROM C challenge F}[verB C challenge t = true] := by
+theorem verify_advantage_eq (F : AlgForger n H E X M) :
+    aggVerifyAdvantage C challenge red (erase C F) =
+      Pr{let t ← annROM C challenge red F}[verB C challenge t = true] := by
   unfold aggVerifyAdvantage
   rw [ProbCompRuntime.rom_evalDist, ← prEvent_eq_evalDist_singleton, verify_experiment_eq,
     prEvent_map, annROM_eq]
 
 /-! ## The extractor -/
 
-theorem extractor_main_eq (F : AlgForger n E X M) (pk : X) :
-    extractor C challenge F pk = (do
-      let p ← ((simulateQ (redImpl C challenge pk)
+theorem extractor_main_eq (F : AlgForger n H E X M) (pk : X) :
+    extractor C challenge red F pk = (do
+      let p ← ((simulateQ (redImpl (H := H) C challenge pk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
-      let q ← (tableZs (finalItems C p.1.1 p.1.2)).run p.2
+      let q ← (tableZs red (finalItems C p.1.1 p.1.2)).run p.2
       pure (toItems C p.1.1.value.data.ms (p.1.1.value.groups ()), p.1.1.value.data.s, q.1,
         (finalItems C p.1.1 p.1.2).map
           (extractSig challenge (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1))) := rfl
 
-theorem extractor_sign_bound (F : AlgForger n E X M) (p : M → Bool) (q : ℕ)
+theorem extractor_sign_bound (F : AlgForger n H E X M) (p : M → Bool) (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
-    (extractor C challenge F pk).IsQueryBoundP (fun t => isSignQuery p t) q := by
+    (extractor C challenge red F pk).IsQueryBoundP (fun t => isSignQuery p t) q := by
   rw [extractor_main_eq]
   refine (isQueryBoundP_bind (n := q) (m := 0)
     (red_stack_sign C challenge p pk _ q (h _) Core.init ∅) fun y _ =>
@@ -190,12 +192,12 @@ theorem extractor_sign_bound (F : AlgForger n E X M) (p : M → Bool) (q : ℕ)
         (by omega)
   exact tableZs_sign p _ _ y.2
 
-theorem extractor_run_eq (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
-    (simulateQ (appImpl C challenge pk sk) (extractor C challenge F pk)).run [] = (do
-      let p ← ((simulateQ (jImpl C challenge pk sk)
+theorem extractor_run_eq (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
+    (simulateQ (appImpl C challenge pk sk) (extractor C challenge red F pk)).run [] = (do
+      let p ← ((simulateQ (jImpl (H := H) C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2
       pure ((toItems C p.1.1.value.data.ms (p.1.1.value.groups ()), p.1.1.value.data.s, q.1,
         (finalItems C p.1.1 p.1.2).map
           (extractSig challenge (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1)),
@@ -205,18 +207,18 @@ theorem extractor_run_eq (F : AlgForger n E X M) (pk : X) (sk : ZMod n) :
       (finalItems C out st).map (extractSig challenge (finalItems C out st) out.value.data.s zs)))
     F pk sk
 
-theorem extract_experiment_eq (F : AlgForger n E X M) :
-    extractExperiment C challenge F = extB C challenge <$> jExp C challenge F := by
-  have hexp : extractExperiment C challenge F = (do
+theorem extract_experiment_eq (F : AlgForger n H E X M) :
+    extractExperiment C challenge red F = extB C challenge <$> jExp C challenge red F := by
+  have hexp : extractExperiment C challenge red F = (do
       let ks ← (bip340 (M := M) C challenge ProbComp).keygen
       let z ← (bip340 (M := M) C challenge ProbComp).runWithSigningOracle ks.1 ks.2
-        (extractor C challenge F ks.1)
+        (extractor C challenge red F ks.1)
       pure (extractWins C challenge z.1.1 z.1.2.1 z.1.2.2.1 z.1.2.2.2)) := rfl
   have key : ∀ pk sk, (do
       let z ← (bip340 (M := M) C challenge ProbComp).runWithSigningOracle pk sk
-        (extractor C challenge F pk)
+        (extractor C challenge red F pk)
       pure (extractWins C challenge z.1.1 z.1.2.1 z.1.2.2.1 z.1.2.2.2)) = (do
-      let w ← (simulateQ (appImpl C challenge pk sk) (extractor C challenge F pk)).run []
+      let w ← (simulateQ (appImpl C challenge pk sk) (extractor C challenge red F pk)).run []
       pure (extractWins C challenge w.1.1 w.1.2.1 w.1.2.2.1 w.1.2.2.2)) := by
     intro pk sk
     rw [← run_sign_eq, bind_map_left]
@@ -226,9 +228,9 @@ theorem extract_experiment_eq (F : AlgForger n E X M) :
   simp [extB, finalItems, map_strip_annotate]
 
 /-- The extractor succeeds exactly as often as it does on the transcript. -/
-theorem extract_advantage_eq (F : AlgForger n E X M) :
-    extractAdvantage C challenge F =
-      Pr{let t ← annROM C challenge F}[extB C challenge t = true] := by
+theorem extract_advantage_eq (F : AlgForger n H E X M) :
+    extractAdvantage C challenge red F =
+      Pr{let t ← annROM C challenge red F}[extB C challenge t = true] := by
   unfold extractAdvantage
   rw [ProbCompRuntime.probComp_evalDist, ← prEvent_eq_evalDist_singleton,
     extract_experiment_eq, prEvent_map, annROM_eq]

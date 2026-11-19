@@ -22,8 +22,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (g : M × (X × X) → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-! ## The Fiat-Shamir scheme with its hash answered from the table -/
 
@@ -200,11 +201,11 @@ theorem sign_eq (msg : M) :
   simp [BIP340.sign, hd, k.2, hOf, C.x_evenScalar]
 
 theorem rom_chal (pk : X) (key : M × (X × X)) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) (l : List M) :
+    (c : (AnnSpec n H X M).QueryCache) (l : List M) :
     (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
-      (((romHandler (E := E) C pk (.inl key)).run st).run c)).run l =
+      (((romHandler (H := H) (E := E) C pk (.inl key)).run st).run c)).run l =
       pure (((g key, st), c), l) := by
-  have h : ((romHandler (E := E) C pk (.inl key)).run st).run c =
+  have h : ((romHandler (H := H) (E := E) C pk (.inl key)).run st).run c =
       (fun e => ((e, st), c)) <$> hashQ (n := n) key := by
     simp [romHandler]
   rw [h, simulateQ_map, StateT.run_map, fs_hashQ]
@@ -213,23 +214,23 @@ theorem rom_chal (pk : X) (key : M × (X × X)) (st : Core n X M)
 section Runs
 
 variable (pk : X) (groups : Groups (Pts E)) (coeffs : Unit → List (List (ZMod n)))
-  (st : Core n X M) (c : (AnnSpec n X M).QueryCache)
+  (st : Core n X M) (c : (AnnSpec n H X M).QueryCache)
 
 theorem rom_run_random (k : ℕ) :
-    ((romHandler C pk (.inr ⟨⟨.random k, groups⟩, coeffs⟩)).run st).run c =
+    ((romHandler (H := H) C pk (.inr ⟨⟨.random k, groups⟩, coeffs⟩)).run st).run c =
       ((liftM ((RomSpec n X M).query (.inl (.inl k))) : OracleComp (RomSpec n X M) _) >>=
         fun u => pure ((⟨u, fun _ => []⟩, st), c)) := rfl
 
 theorem rom_run_rand (ms : List M) (tail : List (Item X M)) :
-    ((romHandler C pk (.inr ⟨⟨.rand ms tail, groups⟩, coeffs⟩)).run st).run c =
-      ((liftM (((AnnSpec n X M).randomOracle
+    ((romHandler (H := H) C pk (.inr ⟨⟨.rand ms tail, groups⟩, coeffs⟩)).run st).run c =
+      ((liftM (((AnnSpec n H X M).randomOracle
           (annotate C (memoize C st (groups ()) (coeffs ())).memo
             (toItems C ms (groups ()) ++ rawTail C tail))).run c) :
           OracleComp (RomSpec n X M) _) >>=
         fun p => pure ((⟨p.1, fun _ => []⟩, memoize C st (groups ()) (coeffs ())), p.2)) := rfl
 
 theorem rom_run_sign (msg : M) :
-    ((romHandler C pk (.inr ⟨⟨.sign msg, groups⟩, coeffs⟩)).run st).run c =
+    ((romHandler (H := H) C pk (.inr ⟨⟨.sign msg, groups⟩, coeffs⟩)).run st).run c =
       ((liftM ((RomSpec n X M).query (.inr msg)) : OracleComp (RomSpec n X M) _) >>= fun sig =>
         hashQ (n := n) (msg, (sig.1.1, pk)) >>= fun e =>
           pure ((⟨sig.2, fun _ => [(C.liftX sig.1.1).getD 0]⟩,
@@ -242,11 +243,11 @@ include hd in
 /-- **One request**: the oracle reduction's handling under the game's oracles is
 the joint handler's. -/
 theorem rom_step (t : Explained (ZMod n) (Request X M) (Pts E)) (st : Core n X M)
-    (c : (AnnSpec n X M).QueryCache) :
+    (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
-      (((romHandler C (C.x (C.mulG d)) (.inr t)).run st).run c)).run st.signed =
+      (((romHandler (H := H) C (C.x (C.mulG d)) (.inr t)).run st).run c)).run st.signed =
       (fun y => (y, y.1.2.signed)) <$>
-        ((jImpl C (hOf g) (C.x (C.mulG d)) d t).run st).run c := by
+        ((jImpl (H := H) C (hOf g) (C.x (C.mulG d)) d t).run st).run c := by
   obtain ⟨⟨data, groups⟩, coeffs⟩ := t
   cases data with
   | random k =>
@@ -267,12 +268,12 @@ include hd in
 /-- **The forger's run**: the oracle reduction's run of the forger under the game's
 oracles is the joint run of the forger with its challenge queries answered from
 the table. -/
-theorem rom_stack {Result : Type} (prog : OracleComp (RomForgerSpec n E X M) Result)
-    (st : Core n X M) (c : (AnnSpec n X M).QueryCache) :
+theorem rom_stack {Result : Type} (prog : OracleComp (RomForgerSpec n H E X M) Result)
+    (st : Core n X M) (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
-        (((simulateQ (romHandler C (C.x (C.mulG d))) prog).run st).run c)).run st.signed =
+        (((simulateQ (romHandler (H := H) C (C.x (C.mulG d))) prog).run st).run c)).run st.signed =
       (fun y => (y, y.1.2.signed)) <$>
-        ((simulateQ (jImpl C (hOf g) (C.x (C.mulG d)) d)
+        ((simulateQ (jImpl (H := H) C (hOf g) (C.x (C.mulG d)) d)
           (simulateQ (answerChal g) prog)).run st).run c := by
   induction prog using OracleComp.inductionOn generalizing st c with
   | pure x => simp
@@ -293,29 +294,29 @@ section Final
 
 variable (P : Stmt C) (w : ZMod n)
 
-theorem romTableRO_run (K : List (AItem n X M)) (c : (AnnSpec n X M).QueryCache) :
+theorem romTableRO_run (K : List (AItem n X M)) (c : (AnnSpec n H X M).QueryCache) :
     (romTableRO K).run c =
-      (liftM (((AnnSpec n X M).randomOracle K).run c) : OracleComp (RomSpec n X M) _) := rfl
+      (liftM (((AnnSpec n H X M).randomOracle K).run c) : OracleComp (RomSpec n X M) _) := rfl
 
-theorem zs_rom (items : List (AItem n X M)) (is : List ℕ) (c : (AnnSpec n X M).QueryCache)
+theorem zs_rom (items : List (AItem n X M)) (is : List ℕ) (c : (AnnSpec n H X M).QueryCache)
     (l : List M) :
     (simulateQ (fsImpl C g P w)
         ((is.mapM fun i =>
-          if i = 0 then pure 1 else romTableRO (items.take (i + 1))).run c)).run l =
-      (fun y => (y, l)) <$> (is.mapM (jZ items)).run c := by
+          if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1))).run c)).run l =
+      (fun y => (y, l)) <$> (is.mapM (jZ red items)).run c := by
   induction is generalizing c with
   | nil => simp
   | cons i is ih =>
     rw [List.mapM_cons, List.mapM_cons]
     simp only [StateT.run_bind, simulateQ_bind, StateT.run_pure, simulateQ_pure, map_bind]
     have hstep : (simulateQ (fsImpl C g P w)
-        ((if i = 0 then pure 1 else romTableRO (items.take (i + 1)) :
-          StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) (ZMod n)).run
-            c)).run l = (fun y => (y, l)) <$> (jZ items i).run c := by
+        ((if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1)) :
+          StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) (ZMod n)).run
+            c)).run l = (fun y => (y, l)) <$> (jZ red items i).run c := by
       unfold jZ
       split_ifs
       · simp
-      · rw [romTableRO_run, fs_lift]
+      · simp only [StateT.run_map, simulateQ_map, romTableRO_run, fs_lift, Functor.map_map]
     rw [hstep, bind_map_left]
     refine bind_congr fun y => ?_
     rw [ih, bind_map_left]
@@ -404,13 +405,13 @@ variable {d : ZMod n} (hd : d ≠ 0)
 include hd in
 /-- The oracle reduction's run in the Fiat-Shamir game, with the hash answered
 from the table, is the joint run followed by `extractForgery`. -/
-theorem rom_run_eq [Inhabited M] (F : RomForger n E X M) :
+theorem rom_run_eq [Inhabited M] (F : RomForger n H E X M) :
     (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
-        ((reductionROM C F).main (keyOf C d))).run [] = (do
-      let p ← ((simulateQ (jImpl C (hOf g) (C.x (C.mulG d)) d)
+        ((reductionROM C red F).main (keyOf C d))).run [] = (do
+      let p ← ((simulateQ (jImpl (H := H) C (hOf g) (C.x (C.mulG d)) d)
         ((F.at g).main (initial C ((C.liftX (C.x (C.mulG d))).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2
       pure (toFS (C.x (C.mulG d)) (extractForgery C (hOf g) (C.x (C.mulG d))
         (finalItems C p.1.1 p.1.2) p.1.1.value.data.s q.1 p.1.2.signed), p.1.2.signed)) := by
   have hpk : C.x (keyOf C d).1 = C.x (C.mulG d) := C.x_evenScalar d
@@ -437,32 +438,32 @@ theorem verify_fs (msg : M) (r : X) (s : ZMod n) :
 
 include hd in
 /-- The game after key generation with secret key `d`. -/
-theorem rom_game_key [Inhabited M] (F : RomForger n E X M) :
+theorem rom_game_key [Inhabited M] (F : RomForger n H E X M) :
     (do
       let z ← simulateQ (tableImpl g)
         ((FiatShamir.inROM (sigma C) (keyGen C) M).runWithSigningOracle (keyOf C d)
-          (C.evenScalar d) ((reductionROM C F).main (keyOf C d)))
+          (C.evenScalar d) ((reductionROM C red F).main (keyOf C d)))
       let v ← simulateQ (tableImpl g)
         ((FiatShamir.inROM (sigma C) (keyGen C) M).verify (keyOf C d) z.1.1 z.1.2)
       pure (!z.2.wasQueried z.1.1 && v)) = (do
-      let p ← ((simulateQ (jImpl C (hOf g) (C.x (C.mulG d)) d)
+      let p ← ((simulateQ (jImpl (H := H) C (hOf g) (C.x (C.mulG d)) d)
         ((F.at g).main (initial C ((C.liftX (C.x (C.mulG d))).getD 0)))).run Core.init).run ∅
       let q ← ((List.range (finalItems C p.1.1 p.1.2).length).mapM
-        (jZ (finalItems C p.1.1 p.1.2))).run p.2
+        (jZ red (finalItems C p.1.1 p.1.2))).run p.2
       pure (gameOK C (hOf g) (C.x (C.mulG d), finalItems C p.1.1 p.1.2, p.1.1.value.data.s, q.1,
         p.1.2.signed))) := by
-  have hrun := rom_run_eq C g hd F
+  have hrun := rom_run_eq C g (red := red) hd F
   rw [← fs_stack, ← run_sign_eq_fs, simulateQ_map] at hrun
   have key : (do
       let z ← simulateQ (tableImpl g)
         ((FiatShamir.inROM (sigma C) (keyGen C) M).runWithSigningOracle (keyOf C d)
-          (C.evenScalar d) ((reductionROM C F).main (keyOf C d)))
+          (C.evenScalar d) ((reductionROM C red F).main (keyOf C d)))
       let v ← simulateQ (tableImpl g)
         ((FiatShamir.inROM (sigma C) (keyGen C) M).verify (keyOf C d) z.1.1 z.1.2)
       pure (!z.2.wasQueried z.1.1 && v)) = (do
       let w ← (fun z => (z.1, z.2.map (fun e => e.1))) <$> simulateQ (tableImpl g)
         ((FiatShamir.inROM (sigma C) (keyGen C) M).runWithSigningOracle (keyOf C d)
-          (C.evenScalar d) ((reductionROM C F).main (keyOf C d)))
+          (C.evenScalar d) ((reductionROM C red F).main (keyOf C d)))
       pure (!decide (w.1.1 ∈ w.2) &&
         (sigma C).verify (keyOf C d) w.1.2.1 (g (w.1.1, w.1.2.1)) w.1.2.2)) := by
     rw [bind_map_left]
@@ -477,13 +478,13 @@ theorem rom_game_key [Inhabited M] (F : RomForger n E X M) :
 /-- **The oracle reduction against a fixed table.** With every hash query
 answered from `g`, the Fiat-Shamir game of `reductionROM F` is the joint
 experiment for the challenge function `hOf g`, followed by extraction. -/
-theorem rom_experiment_eq [Inhabited M] (F : RomForger n E X M) :
-    simulateQ (tableImpl g) (SignatureAlg.unforgeableExperiment (reductionROM C F)) =
-      gameOK C (hOf g) <$> jExp C (hOf g) (F.at g) := by
-  have hexp : SignatureAlg.unforgeableExperiment (reductionROM C F) = (do
+theorem rom_experiment_eq [Inhabited M] (F : RomForger n H E X M) :
+    simulateQ (tableImpl g) (SignatureAlg.unforgeableExperiment (reductionROM C red F)) =
+      gameOK C (hOf g) <$> jExp C (hOf g) red (F.at g) := by
+  have hexp : SignatureAlg.unforgeableExperiment (reductionROM C red F) = (do
       let ks ← (FiatShamir.inROM (sigma C) (keyGen C) M).keygen
       let z ← (FiatShamir.inROM (sigma C) (keyGen C) M).runWithSigningOracle ks.1 ks.2
-        ((reductionROM C F).main ks.1)
+        ((reductionROM C red F).main ks.1)
       let v ← (FiatShamir.inROM (sigma C) (keyGen C) M).verify ks.1 z.1.1 z.1.2
       pure (!z.2.wasQueried z.1.1 && v)) := by
     unfold SignatureAlg.unforgeableExperiment

@@ -28,8 +28,9 @@ namespace Halfagg.Security
 
 open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] (red : H → ZMod n)
 
 attribute [local instance] smulVal
 
@@ -42,18 +43,18 @@ def aggVerifies (its : List (Item X M)) (s : ZMod n) (zs : List (ZMod n)) : Bool
 
 /-- The game of `aggExperiment` without the condition on the target key: the
 adversary's aggregate passes `VerifyAggregate`. -/
-noncomputable def aggVerifyExperiment (A : AggAdversary n X M) :
-    OracleComp (unifSpec + RandSpec n X M) Bool := do
-  let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec n X M))
+noncomputable def aggVerifyExperiment (A : AggAdversary n H X M) :
+    OracleComp (unifSpec + RandSpec H X M) Bool := do
+  let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))
   let (pk, sk) ← alg.keygen
   let ((its, s), _) ← alg.runWithSigningOracle pk sk (A.main pk)
-  let zs ← (List.range its.length).mapM (zQuery its)
+  let zs ← (List.range its.length).mapM (zQuery red its)
   return aggVerifies C challenge its s zs
 
 /-- The probability that the adversary's aggregate verifies, with a lazily
 sampled random oracle. -/
-noncomputable def aggVerifyAdvantage (A : AggAdversary n X M) : ℝ≥0∞ :=
-  (ProbCompRuntime.rom (RandSpec n X M)).evalDist (aggVerifyExperiment C challenge A) {true}
+noncomputable def aggVerifyAdvantage (A : AggAdversary n H X M) : ℝ≥0∞ :=
+  (ProbCompRuntime.rom (RandSpec H X M)).evalDist (aggVerifyExperiment C challenge red A) {true}
 
 /-! ## The extractor -/
 
@@ -76,7 +77,7 @@ def extractWins (its : List (Item X M)) (s : ZMod n) (zs sigs : List (ZMod n)) :
 /-- **The extractor**: run the forger as `reduction` does, and return its
 aggregate `(items, s)`, the randomizers of its verifier and an `s` for every
 item. -/
-noncomputable def extractor (F : AlgForger n E X M) (pk : X) :
+noncomputable def extractor (F : AlgForger n H E X M) (pk : X) :
     OracleComp (unifSpec + SignSpec n X M)
       (List (Item X M) × ZMod n × List (ZMod n) × List (ZMod n)) := do
   let impl := coreImpl (E := E) C challenge pk
@@ -87,20 +88,20 @@ noncomputable def extractor (F : AlgForger n E X M) (pk : X) :
     Core.init).run ∅
   let st := memoize C st (out.value.groups ()) (out.coefficients ())
   let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
-  let (zs, _) ← (tableZs items).run table
+  let (zs, _) ← (tableZs red items).run table
   return (toItems C out.value.data.ms (out.value.groups ()), out.value.data.s, zs,
     items.map (extractSig challenge items out.value.data.s zs))
 
 /-- The extraction experiment: the extractor runs with a BIP340 key and its
 signing oracle. -/
-noncomputable def extractExperiment (F : AlgForger n E X M) : ProbComp Bool := do
+noncomputable def extractExperiment (F : AlgForger n H E X M) : ProbComp Bool := do
   let alg := bip340 (M := M) C challenge ProbComp
   let (pk, sk) ← alg.keygen
-  let ((its, s, zs, sigs), _) ← alg.runWithSigningOracle pk sk (extractor C challenge F pk)
+  let ((its, s, zs, sigs), _) ← alg.runWithSigningOracle pk sk (extractor C challenge red F pk)
   return extractWins C challenge its s zs sigs
 
 /-- The probability that the extractor succeeds. -/
-noncomputable def extractAdvantage (F : AlgForger n E X M) : ℝ≥0∞ :=
-  ProbCompRuntime.probComp.evalDist (extractExperiment C challenge F) {true}
+noncomputable def extractAdvantage (F : AlgForger n H E X M) : ℝ≥0∞ :=
+  ProbCompRuntime.probComp.evalDist (extractExperiment C challenge red F) {true}
 
 end Halfagg.Security

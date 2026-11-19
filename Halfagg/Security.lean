@@ -14,9 +14,9 @@ Signatures with Tight Reductions* (ESORICS 2022, eprint 2022/222), for BIP458's
 scheme (their `IASchnorr`): in the algebraic group model (AGM), with the
 randomizer hash as a random oracle, `reduction F` turns an algebraic
 half-aggregate forger `F` into a BIP340 forger with the same signing queries that
-wins with probability at least `ε - (q + 1)/n`, as in Chen and Zhao. Here `ε` is
-`F`'s success probability in the standard game and `q` bounds its randomizer
-queries.
+wins with probability at least `ε - (q + 1)⋅μ`. Here `ε` is `F`'s success
+probability in the standard game, `q` bounds its randomizer queries, and `μ` is
+`1/n` for a randomizer hash that is uniform in `ZMod n`, as in Chen and Zhao.
 
 ## The game
 
@@ -50,7 +50,11 @@ explanations, so the theorem is about the standard game.
   challenge hash as an oracle of the game. That variant chains with
   `Taproot.BIP340Security.euf_cma` (`halfagg_dlog`).
 * **Randomizer hash.** `hash_BIP0458/randomizer` is a random oracle with uniform
-  answers in `ZMod n`, ignoring the bias of reducing a 256-bit hash modulo `n`.
+  answers in a type `H` of hash outputs, and the scheme reduces an answer to a
+  scalar with `red : H → ZMod n`. The theorems hold for every `H` and `red` and
+  lose `μ` per randomizer, where `μ` bounds the probability that `red` of a
+  uniform hash output is a given scalar. For BIP458, `H` is the 256-bit strings
+  and `red` is `int(⋅) mod n` (`Halfagg/Hash256.lean`).
 * **BIP340** (`bip340`). Secret keys and nonces are uniform nonzero scalars;
   `BIP340.sign` normalizes them as BIP340 does. Real BIP340 derives nonces by
   hashing. The reduction is a VCVio `SignatureAlg.UnforgeableAdversary` and is
@@ -105,28 +109,36 @@ end BIP340
 
 section Game
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+  (red : H → ZMod n)
 
-/-- The randomizer hash as a random oracle on lists of `(r, pk, m)` items. -/
-abbrev RandSpec (n : ℕ) (X M : Type) := List (Item X M) →ₒ ZMod n
+/-- The randomizer hash as a random oracle on lists of `(r, pk, m)` items. Its
+outputs have type `H`, for BIP458 the 256-bit strings. -/
+abbrev RandSpec (H X M : Type) := List (Item X M) →ₒ H
 
 /-- The signing oracle: a message to a BIP340 signature `(r, s)`. -/
 abbrev SignSpec (n : ℕ) (X M : Type) := M →ₒ (X × ZMod n)
 
 /-- The adversary's oracles: uniform sampling, the randomizer hash and signing. -/
-abbrev GameSpec (n : ℕ) (X M : Type) := (unifSpec + RandSpec n X M) + SignSpec n X M
+abbrev GameSpec (n : ℕ) (H X M : Type) := (unifSpec + RandSpec H X M) + SignSpec n X M
 
 /-- An adversary of the standard game: given the target public key, it outputs
 `(r, pk, m)` items and `s`, i.e. the aggregate signature `r₀ ‖ … ‖ bytes(s)` for
 the pairs `(pkᵢ, mᵢ)`. -/
-structure AggAdversary (n : ℕ) (X M : Type) where
-  main (pk : X) : OracleComp (GameSpec n X M) (List (Item X M) × ZMod n)
+structure AggAdversary (n : ℕ) (H X M : Type) where
+  main (pk : X) : OracleComp (GameSpec n H X M) (List (Item X M) × ZMod n)
 
 /-- The verifier's randomizer `zᵢ`: `1` for `i = 0`, otherwise the randomizer
-hash of the first `i + 1` items. -/
-def zQuery (its : List (Item X M)) (i : ℕ) : OracleComp (unifSpec + RandSpec n X M) (ZMod n) :=
-  if i = 0 then pure 1 else HasQuery.query (spec := RandSpec n X M) (its.take (i + 1))
+hash of the first `i + 1` items, reduced to a scalar by `red`. For BIP458, `red`
+is `int(⋅) mod n`. -/
+def zQuery (its : List (Item X M)) (i : ℕ) : OracleComp (unifSpec + RandSpec H X M) (ZMod n) :=
+  if i = 0 then pure 1 else red <$> HasQuery.query (spec := RandSpec H X M) (its.take (i + 1))
+
+/-- `red` of a uniform hash output is any given scalar with probability at most
+`μ`. -/
+def RedBound [SampleableType H] (μ : ℝ≥0∞) : Prop :=
+  ∀ c : ZMod n, Pr{let h ← $ᵗ H}[red h = c] ≤ μ
 
 /-- The adversary wins if `VerifyAggregate` accepts with the randomizers `zs` and
 some item has the target public key and a message that was never signed. -/
@@ -137,17 +149,17 @@ def aggWins (pk : X) (its : List (Item X M)) (s : ZMod n) (zs : List (ZMod n))
 
 /-- The aggregate chosen-key unforgeability game (CK-AEUF-CMA) with the
 randomizer hash as a random oracle. -/
-noncomputable def aggExperiment (A : AggAdversary n X M) :
-    OracleComp (unifSpec + RandSpec n X M) Bool := do
-  let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec n X M))
+noncomputable def aggExperiment (A : AggAdversary n H X M) :
+    OracleComp (unifSpec + RandSpec H X M) Bool := do
+  let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))
   let (pk, sk) ← alg.keygen
   let ((its, s), log) ← alg.runWithSigningOracle pk sk (A.main pk)
-  let zs ← (List.range its.length).mapM (zQuery its)
+  let zs ← (List.range its.length).mapM (zQuery red its)
   return aggWins C challenge pk its s zs log.wasQueried
 
 /-- The adversary's success probability, with a lazily sampled random oracle. -/
-noncomputable def aggAdvantage (A : AggAdversary n X M) : ℝ≥0∞ :=
-  (ProbCompRuntime.rom (RandSpec n X M)).evalDist (aggExperiment C challenge A) {true}
+noncomputable def aggAdvantage [SampleableType H] (A : AggAdversary n H X M) : ℝ≥0∞ :=
+  (ProbCompRuntime.rom (RandSpec H X M)).evalDist (aggExperiment C challenge red A) {true}
 
 end Game
 
@@ -155,7 +167,7 @@ end Game
 
 section Forger
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
 
 /-- Points form the single group sort of the AGM interface. -/
@@ -178,11 +190,11 @@ inductive Request (X M : Type) where
   /-- A BIP340 signature on a message under the target key. -/
   | sign (m : M)
 
-/-- Replies: a sample, a randomizer, or the `s` of a signature (its nonce point
-`lift_x(r)` is the reply's group argument). -/
-def Reply (n : ℕ) (X M : Type) : Request X M → Type
+/-- Replies: a sample, a randomizer hash, or the `s` of a signature (its nonce
+point `lift_x(r)` is the reply's group argument). -/
+def Reply (n : ℕ) (H X M : Type) : Request X M → Type
   | .random k => Fin (k + 1)
-  | .rand _ _ => ZMod n
+  | .rand _ _ => H
   | .sign _ => ZMod n
 
 /-- A forgery: the messages `[m₀, …]` and `s`, with the points `R₀, P₀, …` as
@@ -192,8 +204,8 @@ structure Out (n : ℕ) (M : Type) where
   s : ZMod n
 
 /-- An algebraic half-aggregation forger in `agm-lean`'s interface. -/
-abbrev AlgForger (n : ℕ) (E X M : Type) [AddCommGroup E] :=
-  AlgebraicGroupModel.Interaction.Adversary (ZMod n) (Pts E) Unit (Request X M) (Reply n X M)
+abbrev AlgForger (n : ℕ) (H E X M : Type) [AddCommGroup E] :=
+  AlgebraicGroupModel.Interaction.Adversary (ZMod n) (Pts E) Unit (Request X M) (Reply n H X M)
     (Out n M)
 
 /-- The forger's initial inputs `[G, P*]`. -/
@@ -219,21 +231,21 @@ def rawTail : List (Item X M) → List (Item X M)
 /-- Forward a request to the game's oracles. A signing reply's point is the
 lifted nonce `lift_x(r)`. -/
 noncomputable def eraseImpl {n : ℕ} :
-    QueryImpl (plainSpec (Pts E) (Request X M) (Reply n X M)) (OracleComp (GameSpec n X M))
+    QueryImpl (plainSpec (Pts E) (Request X M) (Reply n H X M)) (OracleComp (GameSpec n H X M))
   | ⟨.random k, _⟩ => do
-      let u ← (liftM ((GameSpec n X M).query (.inl (.inl k))) : OracleComp (GameSpec n X M) _)
+      let u ← (liftM ((GameSpec n H X M).query (.inl (.inl k))) : OracleComp (GameSpec n H X M) _)
       pure ⟨u, fun _ => []⟩
   | ⟨.rand ms tail, groups⟩ => do
-      let z ← (liftM ((GameSpec n X M).query
+      let z ← (liftM ((GameSpec n H X M).query
         (.inl (.inr (toItems C ms (groups ()) ++ rawTail C tail)))) :
-        OracleComp (GameSpec n X M) _)
+        OracleComp (GameSpec n H X M) _)
       pure ⟨z, fun _ => []⟩
   | ⟨.sign m, _⟩ => do
-      let sig ← (liftM ((GameSpec n X M).query (.inr m)) : OracleComp (GameSpec n X M) _)
+      let sig ← (liftM ((GameSpec n H X M).query (.inr m)) : OracleComp (GameSpec n H X M) _)
       pure ⟨sig.2, fun _ => [(C.liftX sig.1).getD 0]⟩
 
 /-- The standard-game adversary that runs `F` and drops its explanations. -/
-noncomputable def erase (F : AlgForger n E X M) : AggAdversary n X M where
+noncomputable def erase (F : AlgForger n H E X M) : AggAdversary n H X M where
   main pk := (fun out => (toItems C out.value.data.ms (out.value.groups ()), out.value.data.s)) <$>
     simulateQ (fun q => eraseImpl C q.value) (F.main (initial C ((C.liftX pk).getD 0)))
 
@@ -243,8 +255,9 @@ end Forger
 
 section Reduction
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+  (red : H → ZMod n)
 
 attribute [local instance] smulVal
 
@@ -319,8 +332,8 @@ are obtained. Before a randomizer is drawn, the representations of the request's
 points are recorded; every signature adds its nonce point `lift_x(r) = s⋅G - e⋅P*`
 to the received basis. -/
 def coreImpl {m : Type → Type} [Monad m] (pk : X) (unif : (k : ℕ) → m (Fin (k + 1)))
-    (ro : List (AItem n X M) → m (ZMod n)) (sg : M → m (X × ZMod n)) :
-    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
+    (ro : List (AItem n X M) → m H) (sg : M → m (X × ZMod n)) :
+    QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
       (StateT (Core n X M) m)
   | ⟨⟨.random k, _⟩, _⟩ => fun st => do
       let u ← unif k
@@ -360,19 +373,19 @@ def extractForgery [Inhabited M] (pk : X) (items : List (AItem n X M)) (s : ZMod
       (a.m, (BIP340.sign C challenge (fun _ _ _ => 1) ((s - α) / β) a.m).getD (a.r, 0))
 
 /-- The reduction's randomizer oracle: a random oracle on annotated lists. -/
-abbrev AnnSpec (n : ℕ) (X M : Type) := List (AItem n X M) →ₒ ZMod n
+abbrev AnnSpec (n : ℕ) (H X M : Type) := List (AItem n X M) →ₒ H
 
 /-- Look up or sample a randomizer in the reduction's table, which is VCVio's
 lazily sampled random oracle run inside the reduction. -/
-noncomputable def tableRO (l : List (AItem n X M)) :
-    StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) (ZMod n) :=
-  fun c => liftM (((AnnSpec n X M).randomOracle l).run c)
+noncomputable def tableRO [SampleableType H] (l : List (AItem n X M)) :
+    StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) H :=
+  fun c => liftM (((AnnSpec n H X M).randomOracle l).run c)
 
 /-- The reduction's randomizers for its final items, from the same table. -/
-noncomputable def tableZs (items : List (AItem n X M)) :
-    StateT (AnnSpec n X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) (List (ZMod n)) :=
+noncomputable def tableZs [SampleableType H] (items : List (AItem n X M)) :
+    StateT (AnnSpec n H X M).QueryCache (OracleComp (unifSpec + SignSpec n X M)) (List (ZMod n)) :=
   (List.range items.length).mapM fun i =>
-    if i = 0 then pure 1 else tableRO (items.take (i + 1))
+    if i = 0 then pure 1 else red <$> tableRO (items.take (i + 1))
 
 /-- **The reduction**: run the forger with `coreImpl`, forwarding uniform
 sampling and signing to its own oracles and answering randomizer requests from
@@ -380,7 +393,7 @@ its table; then record the forgery's representations, draw the randomizers the
 verifier needs, and extract a BIP340 forgery. It makes one signing query per
 signing request of the forger (`reduction_sign_queries`). Its running time is
 not formalized. -/
-noncomputable def reduction [Inhabited M] (F : AlgForger n E X M) :
+noncomputable def reduction [SampleableType H] [Inhabited M] (F : AlgForger n H E X M) :
     SignatureAlg.UnforgeableAdversary (bip340 (M := M) C challenge ProbComp) where
   main pk := do
     let impl := coreImpl (E := E) C challenge pk
@@ -391,7 +404,7 @@ noncomputable def reduction [Inhabited M] (F : AlgForger n E X M) :
       Core.init).run ∅
     let st := memoize C st (out.value.groups ()) (out.coefficients ())
     let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
-    let (zs, _) ← (tableZs items).run table
+    let (zs, _) ← (tableZs red items).run table
     return extractForgery C challenge pk items out.value.data.s zs st.signed
 
 end Reduction

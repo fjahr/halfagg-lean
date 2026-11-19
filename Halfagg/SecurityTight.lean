@@ -36,8 +36,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
+variable [SampleableType H] (red : H → ZMod n)
 
 /-! ## Oracle machines -/
 
@@ -49,16 +50,16 @@ abbrev FinalStep (n : ℕ) (E X M : Type) [AddCommGroup E] [Fact n.Prime] (C : C
     OracleComp (RomSpec n X M) (M × FSSig n X)
 
 /-- `reductionROM` with its last step replaced by `fin`. -/
-noncomputable def romMachine (F : RomForger n E X M) (fin : FinalStep n E X M C) :
+noncomputable def romMachine (F : RomForger n H E X M) (fin : FinalStep n E X M C) :
     SignatureAlg.UnforgeableAdversary (FiatShamir.inROM (sigma C) (keyGen C) M) where
   main P := do
     let pk := C.x P.1
-    let ((out, st), table) ← ((simulateQ (romHandler C pk)
+    let ((out, st), table) ← ((simulateQ (romHandler (H := H) C pk)
       (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
     let st := memoize C st (out.value.groups ()) (out.coefficients ())
     let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
     let (zs, _) ← ((List.range items.length).mapM fun i =>
-      if i = 0 then pure 1 else romTableRO (items.take (i + 1))).run table
+      if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1))).run table
     let es ← items.mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
     fin P items out.value.data.s zs st.signed es
 
@@ -114,27 +115,28 @@ noncomputable def repFin [Inhabited M] : FinalStep n E X M C :=
 
 /-- An oracle machine up to its final step: the forgery's annotated items, `s`,
 the randomizers, the signed messages and the challenges of the items. -/
-noncomputable def romPrefix (F : RomForger n E X M) (P : Stmt C) :
+noncomputable def romPrefix (F : RomForger n H E X M) (P : Stmt C) :
     OracleComp (RomSpec n X M)
       (List (AItem n X M) × ZMod n × List (ZMod n) × List M × List (ZMod n)) := do
-  let r ← ((simulateQ (romHandler C (C.x P.1))
+  let r ← ((simulateQ (romHandler (H := H) C (C.x P.1))
     (F.main (initial C ((C.liftX (C.x P.1)).getD 0)))).run Core.init).run ∅
   let q ← ((List.range (finalItems C r.1.1 r.1.2).length).mapM fun i =>
-    if i = 0 then pure 1 else romTableRO ((finalItems C r.1.1 r.1.2).take (i + 1))).run r.2
+    if i = 0 then pure 1
+    else red <$> romTableRO ((finalItems C r.1.1 r.1.2).take (i + 1))).run r.2
   let es ← (finalItems C r.1.1 r.1.2).mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
   pure (finalItems C r.1.1 r.1.2, r.1.1.value.data.s, q.1, r.1.2.signed, es)
 
 /-- **The discrete-log solver.** Run the forger's bookkeeping with VCVio's
 simulated signing oracle (`simulatedNmaImpl`, which needs no secret key) and a
 lazily sampled challenge hash (`Fork.roImpl`), and output the candidate key. -/
-noncomputable def keySolver (F : RomForger n E X M) (P : Stmt C) : ProbComp (ZMod n) :=
+noncomputable def keySolver (F : RomForger n H E X M) (P : Stmt C) : ProbComp (ZMod n) :=
   simulateQ (QueryImpl.ofLift unifSpec ProbComp + uniformSampleImpl (spec := (Unit →ₒ ZMod n)))
     ((fun w => candKey (knownChal w.1.1.1 w.1.1.2.2.2.2) (C.x P.1) w.1.1.1 w.1.1.2.1
         w.1.1.2.2.1 w.1.1.2.2.2.1) <$>
       StateT.run (simulateQ (FiatShamir.Fork.unifForward M (X × X) (ZMod n) +
           FiatShamir.Fork.roImpl M (X × X) (ZMod n))
         ((simulateQ (FiatShamir.simulatedNmaImpl (M := M) (Commit := X × X) (Chal := ZMod n)
-          (Resp := ZMod n) (simTranscript C) P) (romPrefix C F P)).run ∅)) (∅, []))
+          (Resp := ZMod n) (simTranscript C) P) (romPrefix C red F P)).run ∅)) (∅, []))
 
 /-! ## Forgers that explain the nonces they hash -/
 
@@ -142,7 +144,7 @@ noncomputable def keySolver (F : RomForger n E X M) (P : Stmt C) : ProbComp (ZMo
 query on `(m, (r, pk))` is the x-coordinate of a point that an earlier
 randomizer request of the forger carried, and so explained. `seen` lists the
 x-coordinates explained so far. -/
-def ExplainsNonces {α : Type} (prog : OracleComp (RomForgerSpec n E X M) α) : List X → Prop :=
+def ExplainsNonces {α : Type} (prog : OracleComp (RomForgerSpec n H E X M) α) : List X → Prop :=
   OracleComp.recOn (motive := fun _ => List X → Prop) prog
     (fun _ _ => True)
     (fun t _ next seen =>

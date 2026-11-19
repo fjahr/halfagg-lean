@@ -15,8 +15,9 @@ namespace Halfagg.Security
 
 open OracleSpec OracleComp Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 /-- The signing equation of a BIP340 signature, over the normalized key. -/
 theorem sign_rep {d k : ZMod n} (hd : d ≠ 0) (hk : k ≠ 0) (msg : M) :

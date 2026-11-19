@@ -17,8 +17,9 @@ open OracleSpec OracleComp Taproot Taproot.Curve Taproot.BIP340 AlgebraicGroupMo
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X) (challenge : X → X → M → ZMod n)
+variable [SampleableType H] {red : H → ZMod n}
 
 theorem extend_nil (recv : List E) :
     extend (G := Pts E) (fun _ => recv) (fun _ => []) = fun _ => recv := by
@@ -42,12 +43,12 @@ explanations are valid over them. -/
 theorem core_inv {ι' : Type} {spec' : OracleSpec ι'} (hx0 : C.liftX (C.x 0) = none)
     (d : ZMod n) (pk : X)
     (unif : (k : ℕ) → OracleComp spec' (Fin (k + 1)))
-    (ro : List (AItem n X M) → OracleComp spec' (ZMod n))
+    (ro : List (AItem n X M) → OracleComp spec' H)
     (sg : M → OracleComp spec' (X × ZMod n))
     (hsg : ∀ msg, ∀ sig ∈ support (sg msg),
       C.liftX sig.1 = some (repPoint C d (sig.2, -challenge sig.1 pk msg)))
     {Result : Type}
-    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M))
+    (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
       (Explained (ZMod n) Result (Pts E)))
     (recv : List E) (hprog : IsAlgebraic (fun _ => recv) prog)
     (st : Core n X M) (hst : CoreOK C d recv st)

@@ -1,11 +1,11 @@
 import Halfagg.Proofs.BridgeReduction
 
 /-!
-# The verifier's randomizers: a weighted sum hits a target with probability `1/n`
+# The verifier's randomizers: a weighted sum hits a target with probability `μ`
 
 The verifier draws the randomizers `z₁, z₂, …` of the forgery's prefixes from the
 lazily sampled oracle. For weights `w`, the sum `Σ zᵢ⋅wᵢ` over the drawn
-randomizers hits a fixed target with probability at most `1/n` as soon as one
+randomizers hits a fixed target with probability at most `μ` as soon as one
 prefix with a nonzero weight is not yet in the oracle's cache (`seq_bound`). If
 every prefix with a nonzero weight is cached, the sum is determined by the cache
 (`seq_det`).
@@ -18,7 +18,8 @@ open scoped ENNReal
 
 namespace Halfagg.Security
 
-variable {n : ℕ} [Fact n.Prime] {X M : Type} [DecidableEq X] [DecidableEq M]
+variable {n : ℕ} [Fact n.Prime] {H X M : Type} [DecidableEq X] [DecidableEq M]
+variable [SampleableType H] {red : H → ZMod n} {μ : ℝ≥0∞}
 
 /-- Two indexed sums agree if their summands agree at every position. -/
 theorem isum_congr_idx {α β : Type*} [AddCommMonoid β] {f g : ℕ → α → β} {k : ℕ} {l : List α}
@@ -38,31 +39,33 @@ theorem isum_congr_idx {α β : Type*} [AddCommMonoid β] {f g : ℕ → α → 
 
 section Step
 
-variable (items : List (AItem n X M)) {i : ℕ} (hi : i ≠ 0) (c : (AnnSpec n X M).QueryCache)
+variable (items : List (AItem n X M)) {i : ℕ} (hi : i ≠ 0) (c : (AnnSpec n H X M).QueryCache)
 
 include hi in
 theorem jZ_run_none (h : c (items.take (i + 1)) = none) :
-    (jZ items i).run c = (do
-      let u ← $ᵗ (ZMod n)
-      pure (u, c.cacheQuery (items.take (i + 1)) u)) := by
+    (jZ red items i).run c = (do
+      let u ← $ᵗ H
+      pure (red u, c.cacheQuery (items.take (i + 1)) u)) := by
   unfold jZ
   simp only [hi, ↓reduceIte]
-  rw [randomOracle.run_eq, h]
+  rw [StateT.run_map, randomOracle.run_eq, h]
+  simp
 
 include hi in
-theorem jZ_run_some {u : ZMod n} (h : c (items.take (i + 1)) = some u) :
-    (jZ items i).run c = pure (u, c) := by
+theorem jZ_run_some {u : H} (h : c (items.take (i + 1)) = some u) :
+    (jZ red items i).run c = pure (red u, c) := by
   unfold jZ
   simp only [hi, ↓reduceIte]
-  rw [randomOracle.run_eq, h]
+  rw [StateT.run_map, randomOracle.run_eq, h]
+  simp
 
 include hi in
 /-- One draw keeps every cached answer, changes the cache at most at its own
 key, and returns the cached answer if there is one. -/
-theorem jZ_support : ∀ p ∈ support ((jZ items i).run c),
+theorem jZ_support : ∀ p ∈ support ((jZ red items i).run c),
     (∀ K u, c K = some u → p.2 K = some u) ∧
     (∀ K, K ≠ items.take (i + 1) → p.2 K = c K) ∧
-    (∀ u, c (items.take (i + 1)) = some u → p.1 = u) := by
+    (∀ u, c (items.take (i + 1)) = some u → p.1 = red u) := by
   intro p hp
   rcases h : c (items.take (i + 1)) with _ | u
   · rw [jZ_run_none items hi c h] at hp
@@ -75,22 +78,23 @@ theorem jZ_support : ∀ p ∈ support ((jZ items i).run c),
   · rw [jZ_run_some items hi c h] at hp
     simp only [support_pure, Set.mem_singleton_iff] at hp
     subst hp
-    exact ⟨fun K v hK => hK, fun K _ => rfl, fun v hv => by rw [Option.some.injEq] at hv; exact hv⟩
+    exact ⟨fun K v hK => hK, fun K _ => rfl, fun v hv => by rw [Option.some.injEq] at hv; rw [hv]⟩
 
 end Step
 
-/-- The cached answer at a key, or `0`. -/
-def cval (c : (AnnSpec n X M).QueryCache) (K : List (AItem n X M)) : ZMod n :=
+/-- The cached answer at a key as a scalar, or `0`. -/
+def cval (red : H → ZMod n) (c : (AnnSpec n H X M).QueryCache) (K : List (AItem n X M)) :
+    ZMod n :=
   match c K with
-  | some u => u
+  | some u => red u
   | none => 0
 
-theorem cval_some {c : (AnnSpec n X M).QueryCache} {K : List (AItem n X M)} {u : ZMod n}
-    (h : c K = some u) : cval c K = u := by
+theorem cval_some {c : (AnnSpec n H X M).QueryCache} {K : List (AItem n X M)} {u : H}
+    (h : c K = some u) : cval red c K = red u := by
   simp [cval, h]
 
-theorem cval_congr {c c' : (AnnSpec n X M).QueryCache} {K : List (AItem n X M)}
-    (h : c' K = c K) : cval c' K = cval c K := by
+theorem cval_congr {c c' : (AnnSpec n H X M).QueryCache} {K : List (AItem n X M)}
+    (h : c' K = c K) : cval red c' K = cval red c K := by
   simp [cval, h]
 
 section Seq
@@ -104,10 +108,10 @@ theorem take_ne {i j : ℕ} (hij : i ≠ j) (hi : i < items.length) (hj : j < it
   simp only [List.length_take] at this
   omega
 
-theorem mapM_range'_succ (k m : ℕ) (c : (AnnSpec n X M).QueryCache) :
-    ((List.range' k (m + 1)).mapM (jZ items)).run c =
-      ((jZ items k).run c >>= fun p =>
-        ((List.range' (k + 1) m).mapM (jZ items)).run p.2 >>= fun q =>
+theorem mapM_range'_succ (k m : ℕ) (c : (AnnSpec n H X M).QueryCache) :
+    ((List.range' k (m + 1)).mapM (jZ red items)).run c =
+      ((jZ red items k).run c >>= fun p =>
+        ((List.range' (k + 1) m).mapM (jZ red items)).run p.2 >>= fun q =>
           pure (p.1 :: q.1, q.2)) := by
   rw [List.range'_succ, List.mapM_cons]
   simp [StateT.run_bind]
@@ -125,12 +129,12 @@ theorem isum_cons_getD (z : ZMod n) (zs : List (ZMod n)) (k : ℕ) (b : AItem n 
 /-- If every prefix with a nonzero weight is cached, the drawn sum is the cached
 sum. -/
 theorem seq_det (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
-    (hlen : k + its.length ≤ items.length) (c : (AnnSpec n X M).QueryCache)
+    (hlen : k + its.length ≤ items.length) (c : (AnnSpec n H X M).QueryCache)
     (hall : ∀ idx (h : idx < its.length),
       w its[idx] = 0 ∨ c (items.take (k + idx + 1)) ≠ none) :
-    ∀ y ∈ support (((List.range' k its.length).mapM (jZ items)).run c),
+    ∀ y ∈ support (((List.range' k its.length).mapM (jZ red items)).run c),
       isum (fun i b => y.1.getD (i - k) 0 * w b) k its =
-        isum (fun i b => cval c (items.take (i + 1)) * w b) k its := by
+        isum (fun i b => cval red c (items.take (i + 1)) * w b) k its := by
   induction its generalizing k c with
   | nil => intro y _; rfl
   | cons b rest ih =>
@@ -168,13 +172,13 @@ theorem seq_det (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
       · rw [cval_congr (hother _ (take_ne items (by omega) (by omega) (by omega)))]
 
 /-- If some prefix with a nonzero weight is not cached, the drawn sum hits a
-target with probability at most `1/n`. -/
-theorem seq_bound (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
-    (hlen : k + its.length ≤ items.length) (c : (AnnSpec n X M).QueryCache) (τ : ZMod n)
+target with probability at most `μ`. -/
+theorem seq_bound (hμ : RedBound red μ) (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
+    (hlen : k + its.length ≤ items.length) (c : (AnnSpec n H X M).QueryCache) (τ : ZMod n)
     (hex : ∃ idx, ∃ h : idx < its.length,
       w its[idx] ≠ 0 ∧ c (items.take (k + idx + 1)) = none) :
-    Pr{let y ← ((List.range' k its.length).mapM (jZ items)).run c}[
-      isum (fun i b => y.1.getD (i - k) 0 * w b) k its = τ] ≤ (n : ℝ≥0∞)⁻¹ := by
+    Pr{let y ← ((List.range' k its.length).mapM (jZ red items)).run c}[
+      isum (fun i b => y.1.getD (i - k) 0 * w b) k its = τ] ≤ μ := by
   induction its generalizing k c τ with
   | nil => obtain ⟨idx, h, -⟩ := hex; simp at h
   | cons b rest ih =>
@@ -187,7 +191,7 @@ theorem seq_bound (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
       refine prEvent_bind_le_of_forall_le_of_support _ _ _ fun p hp => ?_
       obtain ⟨-, hother, -⟩ := jZ_support items hk0 c p hp
       rw [bind_pure_comp, prEvent_map]
-      have hiff : ∀ q : List (ZMod n) × (AnnSpec n X M).QueryCache,
+      have hiff : ∀ q : List (ZMod n) × (AnnSpec n H X M).QueryCache,
           isum (fun i a => (p.1 :: q.1).getD (i - k) 0 * w a) k (b :: rest) = τ ↔
             isum (fun i a => q.1.getD (i - (k + 1)) 0 * w a) (k + 1) rest = τ - p.1 * w b := by
         intro q
@@ -220,7 +224,8 @@ theorem seq_bound (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
       rw [jZ_run_none items hk0 c hc', bind_assoc]
       simp only [pure_bind]
       refine (prEvent_bind_le_prEvent_mul_of_forall_le _ _
-        (fun u => u = (τ - isum (fun i a => cval c (items.take (i + 1)) * w a) (k + 1) rest) / w b)
+        (fun u => red u =
+          (τ - isum (fun i a => cval red c (items.take (i + 1)) * w a) (k + 1) rest) / w b)
         _ (ε := 1) (fun u _ => prEvent_le_one _) (fun u hu => ?_)).trans ?_
       · refine prEvent_eq_zero_of_forall_mem_support _ _ fun y hy hsum => hu ?_
         rw [mem_support_bind_iff] at hy
@@ -228,19 +233,20 @@ theorem seq_bound (its : List (AItem n X M)) (k : ℕ) (hk : 1 ≤ k)
         simp only [support_pure, Set.mem_singleton_iff] at hy
         subst hy
         have hdet := seq_det items w rest (k + 1) (by omega) (by omega) _ (hall u) q hq
-        have hS : isum (fun i a => cval (c.cacheQuery (items.take (k + 1)) u)
+        have hS : isum (fun i a => cval red (c.cacheQuery (items.take (k + 1)) u)
             (items.take (i + 1)) * w a) (k + 1) rest =
-            isum (fun i a => cval c (items.take (i + 1)) * w a) (k + 1) rest := by
+            isum (fun i a => cval red c (items.take (i + 1)) * w a) (k + 1) rest := by
           refine isum_congr_idx fun idx hi => ?_
           rw [cval_congr (QueryCache.cacheQuery_of_ne _ _
             (take_ne items (by omega) (by omega) (by omega)))]
         rw [isum_cons_getD, hdet, hS] at hsum
         rw [eq_div_iff hw']
         linear_combination hsum
-      · rw [mul_one, SampleableType.prEvent_uniformSample_eq_singleton, ZMod.card]
+      · rw [mul_one]
+        exact hμ _
 
-theorem cval_eq (c : (AnnSpec n X M).QueryCache) (K : List (AItem n X M)) :
-    cval c K = (c K : Option (ZMod n)).getD 0 := by
+theorem cval_eq (c : (AnnSpec n H X M).QueryCache) (K : List (AItem n X M)) :
+    cval red c K = ((c K).map red).getD 0 := by
   unfold cval
   rcases c K with _ | u <;> rfl
 
@@ -255,12 +261,11 @@ def Dcfg (v : List (AItem n X M) → Option (ZMod n)) : Prop :=
 
 /-- **The verifier's draws.** Unless the cache already holds a completed bad
 configuration, the weighted sum of the verifier's randomizers vanishes with
-probability at most `1/n`. -/
-theorem verifier_bound (c : (AnnSpec n X M).QueryCache)
-    (hD : ¬ Dcfg items w (fun K => c K)) :
-    Pr{let q ← ((List.range items.length).mapM (jZ items)).run c}[
-      (∃ b ∈ items, w b ≠ 0) ∧ isum (fun i b => q.1.getD i 0 * w b) 0 items = 0] ≤
-      (n : ℝ≥0∞)⁻¹ := by
+probability at most `μ`. -/
+theorem verifier_bound (hμ : RedBound red μ) (c : (AnnSpec n H X M).QueryCache)
+    (hD : ¬ Dcfg items w (fun K => (c K).map red)) :
+    Pr{let q ← ((List.range items.length).mapM (jZ red items)).run c}[
+      (∃ b ∈ items, w b ≠ 0) ∧ isum (fun i b => q.1.getD i 0 * w b) 0 items = 0] ≤ μ := by
   by_cases hne : ∃ b ∈ items, w b ≠ 0
   swap
   · rw [prEvent_eq_zero_of_forall_mem_support _ _ fun q _ h => hne h.1]
@@ -269,8 +274,8 @@ theorem verifier_bound (c : (AnnSpec n X M).QueryCache)
   · rw [hitems] at hne
     obtain ⟨b, hb, -⟩ := hne
     cases hb
-  have hrun : ((List.range (b0 :: its).length).mapM (jZ (b0 :: its))).run c =
-      (((List.range' 1 its.length).mapM (jZ (b0 :: its))).run c >>= fun q =>
+  have hrun : ((List.range (b0 :: its).length).mapM (jZ red (b0 :: its))).run c =
+      (((List.range' 1 its.length).mapM (jZ red (b0 :: its))).run c >>= fun q =>
         pure (1 :: q.1, q.2)) := by
     rw [List.length_cons, List.range_eq_range', List.range'_succ, List.mapM_cons]
     simp [jZ]
@@ -285,7 +290,7 @@ theorem verifier_bound (c : (AnnSpec n X M).QueryCache)
       w its[idx] ≠ 0 ∧ c ((b0 :: its).take (1 + idx + 1)) = none
   · refine (prEvent_mono_of_support _ _
       (fun q => isum (fun i a => q.1.getD (i - 1) 0 * w a) 1 its = -w b0) fun q _ hq => ?_).trans
-      (seq_bound (b0 :: its) w its 1 le_rfl (by simp only [List.length_cons]; omega) c _ hunc)
+      (seq_bound (b0 :: its) w hμ its 1 le_rfl (by simp only [List.length_cons]; omega) c _ hunc)
     have h := hq.2
     rw [hsum] at h
     linear_combination h
@@ -308,7 +313,8 @@ theorem verifier_bound (c : (AnnSpec n X M).QueryCache)
       have hj : j < its.length := by simpa using hidx
       rcases hall j hj with h0 | hc
       · exact absurd (by simpa using h0) hwi
-      · rwa [show j + 1 + 1 = 1 + j + 1 by omega]
+      · rw [show j + 1 + 1 = 1 + j + 1 by omega]
+        simpa using hc
     · refine Eq.trans ?_ h2
       rw [isum_cons]
       simp only [↓reduceIte, one_mul]

@@ -33,8 +33,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
 attribute [local instance] smulVal
 
-variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
+variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
+variable [SampleableType H] (red : H → ZMod n)
 
 /-- The challenge hash as an oracle on `(m, (r, pk))`, the input order of VCVio's
 Fiat-Shamir transform. -/
@@ -44,42 +45,42 @@ abbrev ChalSpec (n : ℕ) (X M : Type) := (M × (X × X)) →ₒ ZMod n
 def hOf (g : M × (X × X) → ZMod n) : X → X → M → ZMod n := fun r pk m => g (m, (r, pk))
 
 /-- A forger's oracles: the challenge hash and the requests of an `AlgForger`. -/
-abbrev RomForgerSpec (n : ℕ) (E X M : Type) :=
-  ChalSpec n X M + explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)
+abbrev RomForgerSpec (n : ℕ) (H E X M : Type) :=
+  ChalSpec n X M + explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)
 
 /-- Answer challenge-hash queries from the table `g` and pass requests on. -/
 def answerChal (g : M × (X × X) → ZMod n) :
-    QueryImpl (RomForgerSpec n E X M)
-      (OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)))
+    QueryImpl (RomForgerSpec n H E X M)
+      (OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)))
   | .inl key => pure (g key)
-  | .inr t => liftM ((explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n X M)).query t)
+  | .inr t => liftM ((explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)).query t)
 
 /-- An algebraic forger with oracle access to the challenge hash. For every
 answer table, the forger with its challenge queries answered from the table is
 algebraic. -/
-structure RomForger (n : ℕ) (E X M : Type) [AddCommGroup E] where
+structure RomForger (n : ℕ) (H E X M : Type) [AddCommGroup E] where
   main : Message Unit (Pts E) →
-    OracleComp (RomForgerSpec n E X M) (Explained (ZMod n) (Out n M) (Pts E))
+    OracleComp (RomForgerSpec n H E X M) (Explained (ZMod n) (Out n M) (Pts E))
   algebraic : ∀ (g : M × (X × X) → ZMod n) input,
     IsAlgebraic input.groups (simulateQ (answerChal g) (main input))
 
 /-- The forger with its challenge queries answered from the table `g`. -/
-def RomForger.at (F : RomForger n E X M) (g : M × (X × X) → ZMod n) : AlgForger n E X M where
+def RomForger.at (F : RomForger n H E X M) (g : M × (X × X) → ZMod n) : AlgForger n H E X M where
   main input := simulateQ (answerChal g) (F.main input)
   algebraic := F.algebraic g
 
 /-- Whether a forger's oracle call is a randomizer request. -/
-def isRandCall : (RomForgerSpec n E X M).Domain → Bool
+def isRandCall : M × (X × X) ⊕ Explained (ZMod n) (Request X M) (Pts E) → Bool
   | .inl _ => false
   | .inr t => isRand t.value.data
 
 /-- Whether a forger's oracle call is a challenge-hash query. -/
-def isChalCall : (RomForgerSpec n E X M).Domain → Bool
+def isChalCall : M × (X × X) ⊕ Explained (ZMod n) (Request X M) (Pts E) → Bool
   | .inl _ => true
   | .inr _ => false
 
 /-- Whether a forger's oracle call is a signing request. -/
-def isSignCall : (RomForgerSpec n E X M).Domain → Bool
+def isSignCall : M × (X × X) ⊕ Explained (ZMod n) (Request X M) (Pts E) → Bool
   | .inl _ => false
   | .inr t => isSign (fun _ => true) t.value.data
 
@@ -87,14 +88,14 @@ def isSignCall : (RomForgerSpec n E X M).Domain → Bool
 hash table, then play the game of `aggExperiment` with it. The randomizer hash is
 a lazily sampled random oracle as before. -/
 noncomputable def aggExperimentROM [SampleableType (M × (X × X) → ZMod n)]
-    (F : RomForger n E X M) : ProbComp Bool := do
+    (F : RomForger n H E X M) : ProbComp Bool := do
   let g ← $ᵗ (M × (X × X) → ZMod n)
-  (simulateQ (RandSpec n X M).romImpl (aggExperiment C (hOf g) (erase C (F.at g)))).run' ∅
+  (simulateQ (RandSpec H X M).romImpl (aggExperiment C (hOf g) red (erase C (F.at g)))).run' ∅
 
 /-- The forger's success probability. -/
 noncomputable def aggAdvantageROM [SampleableType (M × (X × X) → ZMod n)]
-    (F : RomForger n E X M) : ℝ≥0∞ :=
-  Pr{let b ← aggExperimentROM C F}[b = true]
+    (F : RomForger n H E X M) : ℝ≥0∞ :=
+  Pr{let b ← aggExperimentROM C red F}[b = true]
 
 /-! ## The reduction as an oracle machine -/
 
@@ -111,19 +112,19 @@ def hashQ (key : M × (X × X)) : OracleComp (RomSpec n X M) (ZMod n) :=
 
 /-- The reduction's randomizer table, as in `tableRO`. -/
 noncomputable def romTableRO (l : List (AItem n X M)) :
-    StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) (ZMod n) :=
-  fun c => liftM (((AnnSpec n X M).randomOracle l).run c)
+    StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) H :=
+  fun c => liftM (((AnnSpec n H X M).randomOracle l).run c)
 
 /-- The reduction's handling of the forger's oracles. Challenge queries go to the
 challenge oracle. Requests are handled as in `coreImpl`; after a signing reply
 the reduction asks the oracle for the signature's challenge. -/
 noncomputable def romHandler (pk : X) :
-    QueryImpl (RomForgerSpec n E X M)
-      (StateT (Core n X M) (StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M))))
+    QueryImpl (RomForgerSpec n H E X M)
+      (StateT (Core n X M) (StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M))))
   | .inl key => liftM (hashQ (n := n) key)
   | .inr ⟨⟨.random k, _⟩, _⟩ => fun st => do
       let u ← (liftM ((RomSpec n X M).query (.inl (.inl k))) :
-        StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) _)
+        StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) _)
       pure (⟨u, fun _ => []⟩, st)
   | .inr ⟨⟨.rand ms tail, groups⟩, coeffs⟩ => fun st => do
       let st := memoize C st (groups ()) (coeffs ())
@@ -131,9 +132,9 @@ noncomputable def romHandler (pk : X) :
       pure (⟨z, fun _ => []⟩, st)
   | .inr ⟨⟨.sign msg, _⟩, _⟩ => fun st => do
       let sig ← (liftM ((RomSpec n X M).query (.inr msg)) :
-        StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) _)
+        StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) _)
       let e ← (liftM (hashQ (n := n) (msg, (sig.1.1, pk))) :
-        StateT (AnnSpec n X M).QueryCache (OracleComp (RomSpec n X M)) _)
+        StateT (AnnSpec n H X M).QueryCache (OracleComp (RomSpec n X M)) _)
       pure (⟨sig.2, fun _ => [(C.liftX sig.1.1).getD 0]⟩,
         { st with basis := st.basis ++ [(sig.2, -e)]
                   signed := st.signed ++ [msg] })
@@ -166,16 +167,16 @@ noncomputable def extractROM [Inhabited M] (pk : X) (items : List (AItem n X M))
 /-- **The reduction as an oracle machine.** It runs the forger with `romHandler`,
 asks the oracle for the challenges of the forgery's items and then extracts with
 `extractROM`. -/
-noncomputable def reductionROM [Inhabited M] (F : RomForger n E X M) :
+noncomputable def reductionROM [Inhabited M] (F : RomForger n H E X M) :
     SignatureAlg.UnforgeableAdversary (FiatShamir.inROM (sigma C) (keyGen C) M) where
   main P := do
     let pk := C.x P.1
-    let ((out, st), table) ← ((simulateQ (romHandler C pk)
+    let ((out, st), table) ← ((simulateQ (romHandler (H := H) C pk)
       (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
     let st := memoize C st (out.value.groups ()) (out.coefficients ())
     let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
     let (zs, _) ← ((List.range items.length).mapM fun i =>
-      if i = 0 then pure 1 else romTableRO (items.take (i + 1))).run table
+      if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1))).run table
     let es ← items.mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
     extractROM C pk items out.value.data.s zs st.signed es
 
