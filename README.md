@@ -22,7 +22,7 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 
 ### Security
 
-`Halfagg/Unforgeability.lean`, `Halfagg/Knowledge.lean`, `Halfagg/Tightness.lean` and `Halfagg/UnforgeabilityROM.lean`. The forger is algebraic, the randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries.
+`Halfagg/Unforgeability.lean`, `Halfagg/Knowledge.lean`, `Halfagg/Tightness.lean`, `Halfagg/UnforgeabilityROM.lean` and `Halfagg/UnforgeabilityTight.lean`. The forger is algebraic, the randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries.
 
 | Theorem | Statement |
 |---|---|
@@ -32,8 +32,10 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 | `reduction_sign_queries`, `extractor_sign_queries` | The reduction and the extractor make no signing query the forger did not make. |
 | `game_verifier` | The game's verifier is `verifyAggregate`. |
 | `halfagg_unforgeable_rom`, `halfagg_dlog` | The first theorem with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. |
+| `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
+| `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
 
-With `Q = qH + qS + ℓ + 1`, where `ℓ` bounds the forgery's length, and `ε = Pr[forger wins] - (q + 1)/n - qS·(qS + Q)·2/(n - 1)`, the solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof.
+With `Q = qH + qS + ℓ + 1`, where `ℓ` bounds the forgery's length, and `ε = Pr[forger wins] - (q + 1)/n - qS·(qS + Q)·2/(n - 1)`, the solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
 
 ### Bytes
 
@@ -68,8 +70,10 @@ The proofs of the security theorems are under `Halfagg/Proofs/`:
 | `Eager.lean` | A lazily sampled oracle on a finite domain is a uniformly sampled table (`rom_eq_table`). |
 | `ROM.lean` | Against a fixed challenge table, the oracle reduction is the reduction above (`rom_experiment_eq`). |
 | `ROMBounds.lean` | The oracle reduction's hash and signing queries (`reductionROM_bound`). |
+| `Tight.lean` | A win is the event of the key machine or of the signature machine (`tight_split_event`), and the key machine under VCVio's signing simulation solves discrete log (`key_fork_le`). |
+| `Explained.lean` | For a forger that explains its nonces, the signature machine's event has probability at most `(qH + 1)/n` (`hit_lazy`). |
 
-`Halfagg/Examples.lean` has a concrete forger that satisfies the hypotheses of `halfagg_unforgeable`.
+`Halfagg/Examples.lean` has a concrete forger that satisfies the hypotheses of `halfagg_unforgeable`, and one that satisfies `ExplainsNonces`.
 
 ## Test vectors
 

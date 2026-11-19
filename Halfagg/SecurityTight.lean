@@ -16,6 +16,15 @@ replaceable last step, and the two cases become two machines:
   solver `keySolver`.
 * `repFin` outputs the signature read off the explanations, and only if the
   candidate key is wrong.
+
+`repFin` forges only if the challenge of the target item is `-β` for the
+coefficient `β` of `P*` in the forger's explanation of the item's nonce point.
+A `RomForger` hashes x-only encodings without explaining them, so it can choose
+`β` after it has seen the challenge. `ExplainsNonces` rules that out: the forger
+sends a nonce point in a randomizer request, which records its explanation,
+before it asks for a challenge with that nonce. Fuchsbauer, Plouviez and Seurin
+(https://eprint.iacr.org/2019/877) prove Schnorr signatures tightly secure in
+the algebraic group model with a random oracle.
 -/
 
 open OracleSpec OracleComp AlgebraicGroupModel.Interaction
@@ -126,5 +135,20 @@ noncomputable def keySolver (F : RomForger n E X M) (P : Stmt C) : ProbComp (ZMo
           FiatShamir.Fork.roImpl M (X × X) (ZMod n))
         ((simulateQ (FiatShamir.simulatedNmaImpl (M := M) (Commit := X × X) (Chal := ZMod n)
           (Resp := ZMod n) (simTranscript C) P) (romPrefix C F P)).run ∅)) (∅, []))
+
+/-! ## Forgers that explain the nonces they hash -/
+
+/-- **The forger explains the nonce of every challenge-hash query.** The `r` of a
+query on `(m, (r, pk))` is the x-coordinate of a point that an earlier
+randomizer request of the forger carried, and so explained. `seen` lists the
+x-coordinates explained so far. -/
+def ExplainsNonces {α : Type} (prog : OracleComp (RomForgerSpec n E X M) α) : List X → Prop :=
+  OracleComp.recOn (motive := fun _ => List X → Prop) prog
+    (fun _ _ => True)
+    (fun t _ next seen =>
+      match t, next with
+      | .inl key, next => key.2.1 ∈ seen ∧ ∀ e, next e seen
+      | .inr q, next => ∀ rep, next rep
+          (if isRand q.value.data then (q.value.groups ()).map C.x ++ seen else seen))
 
 end Halfagg.Security

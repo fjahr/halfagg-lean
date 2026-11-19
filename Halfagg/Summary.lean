@@ -182,6 +182,10 @@ info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Security.halfagg_key_or_signature
 
+/-- info: 'Halfagg.Security.halfagg_dlog_tight' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.halfagg_dlog_tight
+
 /-- info: 'Halfagg.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.grinder_advantage

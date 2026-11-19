@@ -4,13 +4,14 @@ Lean checks the proofs. A reviewer checks that the statements say what they shou
 
 ## What to read
 
-About 1,000 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
+About 1,200 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
 
 1. `Halfagg/Basic.lean`, the definitions before the first theorem. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
 2. `Halfagg/Security.lean`, all of it. The header lists the modelling choices and the limitations.
 3. `Halfagg/Unforgeability.lean`, the theorem statements.
 4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
 5. `Halfagg/SecurityKnowledge.lean` and the statements in `Halfagg/Knowledge.lean`, for the signatures under keys the forger chose.
+6. `Halfagg/SecurityTight.lean` and the statements in `Halfagg/UnforgeabilityTight.lean`, for the reduction to discrete log without forking.
 
 taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too.
 
@@ -34,7 +35,9 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **Do the random-oracle forger and reduction only query the oracle?** `RomForger.main` and `reductionROM` are oracle programs over a challenge-hash oracle, so they cannot read the table. `reductionROM_bound` counts the reduction's queries: the forger's signing requests, and `qH + qS + ℓ + 1` hash queries for a forger with `qH` hash queries, `qS` signing requests and forgeries of at most `ℓ` items. The game samples the whole table first, which for a finite domain is the same as lazy sampling (`rom_eq_table`).
 
-**Are the theorems vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query.
+**What does `ExplainsNonces` ask of the forger?** That it sends a nonce point in a randomizer request before it asks for a challenge with that nonce. The reduction records explanations from randomizer requests only. So the coefficient `β` of the target key in the nonce point is fixed before the challenge `e` is drawn, and `e = -β` has probability `1/n`. A forger that hashes a raw x-coordinate can choose its explanation of the point after it has seen `e`. Chen and Zhao's forger explains every group element it sends to an oracle, and `ExplainsNonces` applies that rule to the challenge hash. [Fuchsbauer, Plouviez and Seurin](https://eprint.iacr.org/2019/877) prove Schnorr signatures tightly secure in the algebraic group model with a random oracle. The request can be for the empty list and counts toward `q`. `halfagg_key_or_signature` is the statement without this hypothesis.
+
+**Are the theorems vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses, a forger with a challenge query that satisfies `ExplainsNonces`, and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query.
 
 ## BIP 458's claims
 
@@ -43,7 +46,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | BIP 458 | Lean |
 |---|---|
 | Motivation: a verifier that accepts the aggregate "can be sure that the individual signatures would have passed verification". | Not for the signatures given to `Aggregate` (`aggregate_accepts_invalid`). What holds: the owner of an honest key signed its message (`halfagg_unforgeable`), and whoever produced the aggregate knew a BIP 340 signature for every item (`halfagg_knowledge`). |
-| Rationale: Chen and Zhao's tight proof in the random oracle and algebraic group model. | `halfagg_unforgeable`, with loss `(q + 1)/n`. `grinder_advantage` shows the loss is tight. `halfagg_unforgeable_rom` and `halfagg_dlog` have the challenge hash as a random oracle too. |
+| Rationale: Chen and Zhao's tight proof in the random oracle and algebraic group model. | `halfagg_unforgeable`, with loss `(q + 1)/n`. `grinder_advantage` shows the loss is tight. `halfagg_unforgeable_rom` and `halfagg_dlog` have the challenge hash as a random oracle too, and `halfagg_dlog_tight` reaches discrete log with additive losses only. |
 | Rationale: `z₀ = 1` is secure. | The game's verifier uses `z₀ = 1` (`zQuery`), so the theorems are about this choice. With every randomizer `1` the proof fails (first mutant below). |
 | Rationale: signatures can be added to an aggregate later. | `incAggregate_append`, `aggregate_append`: adding in steps gives the same aggregate as aggregating at once. |
 | Rationale: 32-byte messages keep the input of each randomizer hash unambiguous. | `randomizerInput_injective`. |
@@ -56,7 +59,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 
 ## What the theorems do not say
 
-- Only the step from half-aggregation to BIP 340 is tight. `halfagg_dlog` inherits the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability.
+- The reduction to discrete log is tight only for forgers that explain the nonces they hash (`halfagg_dlog_tight`). For other algebraic forgers, `halfagg_dlog` has the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability, and `halfagg_key_or_signature` leaves one term without a bound.
 - The random-oracle version needs a finite message type. BIP 458's 32-byte messages are one.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorems.
@@ -707,4 +710,174 @@ theorem halfagg_dlog [Inhabited M] [Finite M] [Finite X]
       Pr{let x ← (dlogExperiment C (dlogOfKeyRecovery C
         (FiatShamir.cmaReduction (sigma C) (keyGen C) M (simTranscript C) (reductionROM C F)
           (qH + qS + ℓ + 1))))}[x = true]
+```
+
+### A reduction to discrete log without forking
+
+From `Halfagg/SecurityTight.lean` and `Halfagg/UnforgeabilityTight.lean`. `FiatShamir.simulatedNmaImpl` and `FiatShamir.Fork.roImpl` are VCVio's: a signing oracle that needs no secret key, and a lazily sampled challenge hash.
+
+```lean
+/-- The target item of a forgery: the first item with the target key and a
+message that was never signed, as in `extractForgery`. -/
+def target (pk : X) (items : List (AItem n X M)) (signed : List M) : Option (AItem n X M) :=
+  items.find? (fun a => a.pk == pk && !signed.contains a.m)
+```
+
+```lean
+/-- The candidate for the secret key of `pk`, from the target item `a`. Its
+representation `(u, v)` of `P*` satisfies `u + v⋅x = x`, so `x = u/(1 - v)` if
+`v ≠ 1`. If `v = 1`, the candidate is `(s - α*)/β*` as in `extractForgery`. -/
+def candKey (ch : X → X → M → ZMod n) (pk : X) (items : List (AItem n X M)) (s : ZMod n)
+    (zs : List (ZMod n)) (signed : List M) : ZMod n :=
+  let α := isum (fun i b => zs.getD i 0 * (starRep ch b).1) 0 items
+  let β := isum (fun i b => zs.getD i 0 * (starRep ch b).2) 0 items
+  match target pk items signed with
+  | none => 0
+  | some a => if a.repPk.2 = 1 then (s - α) / β else a.repPk.1 / (1 - a.repPk.2)
+```
+
+```lean
+/-- An oracle machine up to its final step: the forgery's annotated items, `s`,
+the randomizers, the signed messages and the challenges of the items. -/
+noncomputable def romPrefix (F : RomForger n E X M) (P : Stmt C) :
+    OracleComp (RomSpec n X M)
+      (List (AItem n X M) × ZMod n × List (ZMod n) × List M × List (ZMod n)) := do
+  let r ← ((simulateQ (romHandler C (C.x P.1))
+    (F.main (initial C ((C.liftX (C.x P.1)).getD 0)))).run Core.init).run ∅
+  let q ← ((List.range (finalItems C r.1.1 r.1.2).length).mapM fun i =>
+    if i = 0 then pure 1 else romTableRO ((finalItems C r.1.1 r.1.2).take (i + 1))).run r.2
+  let es ← (finalItems C r.1.1 r.1.2).mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
+  pure (finalItems C r.1.1 r.1.2, r.1.1.value.data.s, q.1, r.1.2.signed, es)
+```
+
+```lean
+/-- **The discrete-log solver.** Run the forger's bookkeeping with VCVio's
+simulated signing oracle (`simulatedNmaImpl`, which needs no secret key) and a
+lazily sampled challenge hash (`Fork.roImpl`), and output the candidate key. -/
+noncomputable def keySolver (F : RomForger n E X M) (P : Stmt C) : ProbComp (ZMod n) :=
+  simulateQ (QueryImpl.ofLift unifSpec ProbComp + uniformSampleImpl (spec := (Unit →ₒ ZMod n)))
+    ((fun w => candKey (knownChal w.1.1.1 w.1.1.2.2.2.2) (C.x P.1) w.1.1.1 w.1.1.2.1
+        w.1.1.2.2.1 w.1.1.2.2.2.1) <$>
+      StateT.run (simulateQ (FiatShamir.Fork.unifForward M (X × X) (ZMod n) +
+          FiatShamir.Fork.roImpl M (X × X) (ZMod n))
+        ((simulateQ (FiatShamir.simulatedNmaImpl (M := M) (Commit := X × X) (Chal := ZMod n)
+          (Resp := ZMod n) (simTranscript C) P) (romPrefix C F P)).run ∅)) (∅, []))
+```
+
+```lean
+/-- **The forger explains the nonce of every challenge-hash query.** The `r` of a
+query on `(m, (r, pk))` is the x-coordinate of a point that an earlier
+randomizer request of the forger carried, and so explained. `seen` lists the
+x-coordinates explained so far. -/
+def ExplainsNonces {α : Type} (prog : OracleComp (RomForgerSpec n E X M) α) : List X → Prop :=
+  OracleComp.recOn (motive := fun _ => List X → Prop) prog
+    (fun _ _ => True)
+    (fun t _ next seen =>
+      match t, next with
+      | .inl key, next => key.2.1 ∈ seen ∧ ∀ e, next e seen
+      | .inr q, next => ∀ rep, next rep
+          (if isRand q.value.data then (q.value.groups ()).map C.x ++ seen else seen))
+```
+
+```lean
+/-- **A tight reduction to discrete log.** For a forger that explains the nonce
+of every challenge-hash query (`ExplainsNonces`), with at most `q` randomizer
+requests, `qH` challenge queries, `qS` signing requests and forgeries of at
+most `ℓ` items, and `Q = qH + qS + ℓ + 1`:
+
+`Pr[forger wins] ≤ Pr[keySolver solves discrete log] + qS⋅(qS + Q)⋅2/(n - 1) +
+(q + 1)/n + (qH + 1)/n`.
+
+Every loss is additive. The last term bounds the last term of
+`halfagg_key_or_signature`: a challenge drawn after the forger explained the
+nonce is `-β` with probability `1/n`. -/
+theorem halfagg_dlog_tight [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
+    (F : RomForger n E X M) (q qH qS ℓ : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
+    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
+    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
+    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
+    (hE : ∀ input, ExplainsNonces C (F.main input) []) :
+    aggAdvantageROM C F ≤
+      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C (keySolver C F))}[x = true] +
+        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
+        (q + 1 : ℝ≥0∞) / n + (qH + 1 : ℝ≥0∞) / n
+```
+
+```lean
+/-- The final step of an oracle machine: from the public key, the forgery's
+annotated items, `s`, the randomizers, the signed messages and the challenges of
+the items, compute a forgery of the Fiat-Shamir scheme. -/
+abbrev FinalStep (n : ℕ) (E X M : Type) [AddCommGroup E] [Fact n.Prime] (C : Curve n E X) :=
+  Stmt C → List (AItem n X M) → ZMod n → List (ZMod n) → List M → List (ZMod n) →
+    OracleComp (RomSpec n X M) (M × FSSig n X)
+```
+
+```lean
+/-- `reductionROM` with its last step replaced by `fin`. -/
+noncomputable def romMachine (F : RomForger n E X M) (fin : FinalStep n E X M C) :
+    SignatureAlg.UnforgeableAdversary (FiatShamir.inROM (sigma C) (keyGen C) M) where
+  main P := do
+    let pk := C.x P.1
+    let ((out, st), table) ← ((simulateQ (romHandler C pk)
+      (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
+    let st := memoize C st (out.value.groups ()) (out.coefficients ())
+    let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
+    let (zs, _) ← ((List.range items.length).mapM fun i =>
+      if i = 0 then pure 1 else romTableRO (items.take (i + 1))).run table
+    let es ← items.mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
+    fin P items out.value.data.s zs st.signed es
+```
+
+```lean
+/-- A forgery that never verifies: its nonce is the x-coordinate of the point at
+infinity, which does not lift. -/
+def junk [Inhabited M] : M × FSSig n X := (default, ((C.x 0, C.x 0), 0))
+```
+
+```lean
+/-- Output the signature `(r, α*)` of the target item if the forgery wins, the
+item's `β*` is `0` and the candidate key is not the secret key. Otherwise output
+`junk`. -/
+noncomputable def repFin [Inhabited M] : FinalStep n E X M C :=
+  fun P items s zs signed es =>
+    match target (C.x P.1) items signed with
+    | none => pure (junk C)
+    | some a =>
+      if C.mulG (candKey (knownChal items es) (C.x P.1) items s zs signed) = P.1 then
+        pure (junk C)
+      else if aggWins C (knownChal items es) (C.x P.1) (items.map fun a => (a.r, a.pk, a.m))
+          s zs (fun m => signed.contains m) = true ∧ (starRep (knownChal items es) a).2 = 0 then
+        pure (a.m, ((a.r, C.x P.1), (starRep (knownChal items es) a).1))
+      else pure (junk C)
+```
+
+```lean
+/-- **A forger yields the secret key or a signature made without it**, with no
+forking. In the algebraic group model with both hashes as random oracles, for a
+forger with at most `q` randomizer requests, `qH` challenge queries, `qS` signing
+requests and forgeries of at most `ℓ` items, and `Q = qH + qS + ℓ + 1`:
+
+`Pr[forger wins] ≤ Pr[keySolver solves discrete log] + qS⋅(qS + Q)⋅2/(n - 1) +
+(q + 1)/n + Pr[romMachine F repFin forges BIP340]`.
+
+The second term is the loss of VCVio's signing simulation and the third is the
+bad event of `halfagg_unforgeable`. The last term is the success of the machine
+that reads a signature `(r, α*)` off the forger's explanations while its
+candidate key is wrong. This theorem does not bound it, and
+`halfagg_dlog_tight` does for forgers that explain the nonces they hash. -/
+theorem halfagg_key_or_signature [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
+    (F : RomForger n E X M) (q qH qS ℓ : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
+    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
+    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
+    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :
+    aggAdvantageROM C F ≤
+      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C (keySolver C F))}[x = true] +
+        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
+        (q + 1 : ℝ≥0∞) / n +
+        SignatureAlg.unforgeableAdvantage (FiatShamir.runtime (Commit := X × X) (Chal := ZMod n) M)
+          (romMachine C F (repFin C))
 ```

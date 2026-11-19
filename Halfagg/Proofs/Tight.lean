@@ -6,8 +6,9 @@ import Halfagg.UnforgeabilityROM
 
 * `machine_experiment_eq`: against a fixed challenge table, the Fiat-Shamir game
   of an oracle machine is the joint run followed by its final step.
-* `tight_or_bad`, `tight_split`: a winning forger makes the key machine or the
-  signature machine forge, up to the bad event of the unforgeability proof.
+* `tight_or_bad`, `tight_split_event`, `tight_split`: a win is the key machine's
+  event or the signature machine's, up to the bad event of the unforgeability
+  proof, and each machine forges when its event occurs.
 * `keyMachine_to_nma`: VCVio's signing simulation for the key machine.
 * `key_fork_le`: if the simulated key machine's forgery verifies, its candidate
   key is the secret key, so the simulated run solves discrete log.
@@ -467,47 +468,44 @@ theorem tight_table (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n E X M) (q : 
     simp only [Bool.or_eq_true, not_or] at h
     exact tight_fail_sum C ch hx0 F r hr zs h.1 h.2.1 h.2.2
 
-/-- **A forger wins at most as often as the two machines forge, up to the bad
-event.** -/
-theorem tight_split [Inhabited M] [Finite M] [Finite X]
+/-- An event of the joint run that makes a machine's forgery valid is at most as
+likely as the machine forging. -/
+theorem machine_ge [Finite M] [Finite X] [SampleableType (M × (X × X) → ZMod n)]
+    (F : RomForger n E X M) (fin : FinalStep n E X M C)
+    (finG : (M × (X × X) → ZMod n) → ZMod n → Transcript n X M → M × FSSig n X)
+    (hfin : ∀ g (d : ZMod n) (items : List (AItem n X M)) (s : ZMod n) (zs : List (ZMod n))
+      (signed l : List M),
+      (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
+        (fin (keyOf C d) items s zs signed (items.map fun a => g (a.m, (a.r, a.pk))))).run l =
+        pure (finG g d (C.x (C.mulG d), items, s, zs, signed), l))
+    (ev : (M × (X × X) → ZMod n) → Transcript n X M → Bool)
+    (hev : ∀ g (d : ZMod n), d ≠ 0 → ∀ t : Transcript n X M, t.1 = C.x (C.mulG d) →
+      ev g t = true → machineOK C g (finG g) d t = true) :
+    Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
+        ev g <$> jExp C (hOf g) (F.at g))}[b = true] ≤
+      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F fin) := by
+  classical
+  rw [fs_advantage_eq_table]
+  simp only [fun g => machine_experiment_eq C g fin (finG g) (hfin g) F, jExp_eq]
+  refine prEvent_bind_mono _ _ _ _ _ fun g => ?_
+  rw [prEvent_map]
+  refine prEvent_bind_mono _ _ _ _ _ fun k => ?_
+  rw [prEvent_map]
+  exact prEvent_mono_of_support _ _ _ fun t ht h =>
+    hev g k.1 k.2 t (jRun_fst C _ _ _ ht) h
+
+/-- **A forger's win is one of the two events, up to the bad event.** -/
+theorem tight_split_event [Finite M] [Finite X]
     [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
     (F : RomForger n E X M) (q : ℕ)
     (hq : ∀ g input, ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     aggAdvantageROM C F ≤
-      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (keyFin C)) +
-        SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (repFin C)) +
+      Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
+          keyB C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] +
+        Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
+          repB C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] +
         (q + 1 : ℝ≥0∞) / n := by
   classical
-  -- both machines as functions of the joint run
-  have hmach : ∀ (fin : FinalStep n E X M C) (finG : (M × (X × X) → ZMod n) → ZMod n →
-      Transcript n X M → M × FSSig n X)
-      (hfin : ∀ g (d : ZMod n) (items : List (AItem n X M)) (s : ZMod n) (zs : List (ZMod n))
-        (signed l : List M),
-        (simulateQ (fsImpl C g (keyOf C d) (C.evenScalar d))
-          (fin (keyOf C d) items s zs signed (items.map fun a => g (a.m, (a.r, a.pk))))).run l =
-          pure (finG g d (C.x (C.mulG d), items, s, zs, signed), l))
-      (ev : (M × (X × X) → ZMod n) → Transcript n X M → Bool)
-      (hev : ∀ g (d : ZMod n), d ≠ 0 → ∀ t : Transcript n X M, t.1 = C.x (C.mulG d) →
-        ev g t = true → machineOK C g (finG g) d t = true),
-      Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
-          ev g <$> jExp C (hOf g) (F.at g))}[b = true] ≤
-        SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F fin) := by
-    intro fin finG hfin ev hev
-    rw [fs_advantage_eq_table]
-    simp only [fun g => machine_experiment_eq C g fin (finG g) (hfin g) F, jExp_eq]
-    refine prEvent_bind_mono _ _ _ _ _ fun g => ?_
-    rw [prEvent_map]
-    refine prEvent_bind_mono _ _ _ _ _ fun k => ?_
-    rw [prEvent_map]
-    exact prEvent_mono_of_support _ _ _ fun t ht h =>
-      hev g k.1 k.2 t (jRun_fst C _ _ _ ht) h
-  have hK := hmach (keyFin C) (fun g => keyFinG C g) (fun g => keyFin_table C g)
-    (fun g => keyB C (hOf g))
-    fun g d hd t ht h => keyB_machineOK C g hd ht h
-  have hR := hmach (repFin C) (fun g => repFinG C g) (fun g => repFin_table C g)
-    (fun g => repB C (hOf g))
-    fun g d hd t ht h => repB_machineOK C g hd ht h
-  -- the game, table by table
   have hgame : aggAdvantageROM C F ≤
       Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
         (fun t => (keyB C (hOf g) t, repB C (hOf g) t)) <$> jExp C (hOf g) (F.at g))}[
@@ -521,19 +519,47 @@ theorem tight_split [Inhabited M] [Finite M] [Finite X]
     exact h
   refine hgame.trans (add_le_add ?_ le_rfl)
   refine ((prEvent_mono_of_support _ _ (fun b => b.1 = true ∨ b.2 = true)
-    fun b _ h => by simpa using h).trans (prEvent_or_le _ _ _)).trans (add_le_add ?_ ?_)
-  · have h := hK
-    rw [show (fun g => keyB C (hOf g) <$> jExp C (hOf g) (F.at g)) =
+    fun b _ h => by simpa using h).trans (prEvent_or_le _ _ _)).trans (le_of_eq ?_)
+  congr 1
+  · rw [show (fun g => keyB C (hOf g) <$> jExp C (hOf g) (F.at g)) =
       fun g => Prod.fst <$> ((fun t => (keyB C (hOf g) t, repB C (hOf g) t)) <$>
         jExp C (hOf g) (F.at g)) from by funext g; simp [Functor.map_map], ← map_bind,
-      prEvent_map] at h
-    exact h
-  · have h := hR
-    rw [show (fun g => repB C (hOf g) <$> jExp C (hOf g) (F.at g)) =
+      prEvent_map]
+  · rw [show (fun g => repB C (hOf g) <$> jExp C (hOf g) (F.at g)) =
       fun g => Prod.snd <$> ((fun t => (keyB C (hOf g) t, repB C (hOf g) t)) <$>
         jExp C (hOf g) (F.at g)) from by funext g; simp [Functor.map_map], ← map_bind,
-      prEvent_map] at h
-    exact h
+      prEvent_map]
+
+/-- The key machine forges at least as often as its event occurs. -/
+theorem keyEvent_le [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (F : RomForger n E X M) :
+    Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
+        keyB C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] ≤
+      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (keyFin C)) :=
+  machine_ge C F (keyFin C) (fun g => keyFinG C g) (fun g => keyFin_table C g)
+    (fun g => keyB C (hOf g)) fun g _ hd _ ht h => keyB_machineOK C g hd ht h
+
+/-- The signature machine forges at least as often as its event occurs. -/
+theorem repEvent_le [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (F : RomForger n E X M) :
+    Pr{let b ← (($ᵗ (M × (X × X) → ZMod n)) >>= fun g =>
+        repB C (hOf g) <$> jExp C (hOf g) (F.at g))}[b = true] ≤
+      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (repFin C)) :=
+  machine_ge C F (repFin C) (fun g => repFinG C g) (fun g => repFin_table C g)
+    (fun g => repB C (hOf g)) fun g _ hd _ ht h => repB_machineOK C g hd ht h
+
+/-- **A forger wins at most as often as the two machines forge, up to the bad
+event.** -/
+theorem tight_split [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
+    (F : RomForger n E X M) (q : ℕ)
+    (hq : ∀ g input, ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
+    aggAdvantageROM C F ≤
+      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (keyFin C)) +
+        SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (romMachine C F (repFin C)) +
+        (q + 1 : ℝ≥0∞) / n :=
+  (tight_split_event C hx0 F q hq).trans
+    (add_le_add (add_le_add (keyEvent_le C F) (repEvent_le C F)) le_rfl)
 
 /-! ## Query counts of an oracle machine -/
 

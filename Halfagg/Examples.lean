@@ -1,4 +1,5 @@
 import Halfagg.Unforgeability
+import Halfagg.SecurityTight
 
 /-!
 # The theorem is not vacuous
@@ -9,8 +10,11 @@ import Halfagg.Unforgeability
   of `halfagg_unforgeable` with `q = 1` (`demo_theorem`).
 * `aggWins_honest`: the game's win predicate holds for an honest BIP340
   signature on a message that was never signed, as a one-item aggregate.
+* `demoRom`: a forger with oracle access to the challenge hash that makes a
+  challenge query and satisfies `ExplainsNonces` (`demoRom_explains`), the
+  extra hypothesis of `halfagg_dlog_tight`.
 
-Nothing here claims that `demo` wins the game.
+Nothing here claims that `demo` or `demoRom` wins the game.
 -/
 
 open OracleSpec OracleComp AlgebraicGroupModel.Interaction
@@ -82,6 +86,35 @@ theorem demo_theorem [DecidableEq E] [DecidableEq X] (C : Curve n E X)
   halfagg_unforgeable C challenge hx0 demo 1 demo_queries
 
 end Forger
+
+section RomForger
+
+variable {n : ℕ} [Fact n.Prime] {E X : Type} [AddCommGroup E] (C : Curve n E X)
+
+/-- A forger with oracle access to the challenge hash that explains its nonce:
+it sends the point `3⋅G + P*` in a randomizer request for the empty list, asks
+for the challenge of the message `8` with that point's x-coordinate as nonce,
+and outputs a one-item forgery with the challenge as `s`. -/
+def demoRom : RomForger n E X ℕ where
+  main input :=
+    let b0 := input.groups
+    let req : Explained (ZMod n) (Request X ℕ) (Pts E) :=
+      Explained.ofVectors b0 (Request.rand [] []) (fun _ => [fun i => uvec _ 0 3 i + uvec _ 1 1 i])
+    OracleComp.queryBind (spec := RomForgerSpec n E X ℕ) (.inr req) fun rep =>
+    let b1 := extend b0 rep.groups
+    let r : X := C.x ((req.value.groups ()).headD 0)
+    OracleComp.queryBind (spec := RomForgerSpec n E X ℕ) (.inl (8, (r, r))) fun e =>
+    pure (Explained.ofVectors b1 (⟨[8], e⟩ : Out n ℕ) (fun _ =>
+      [(fun i => uvec _ 0 3 i + uvec _ 1 1 i), uvec _ 1 1]))
+  algebraic _ _ :=
+    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
+
+/-- `demoRom` explains the nonce of its challenge query. -/
+theorem demoRom_explains [DecidableEq X] (input : Message Unit (Pts E)) :
+    ExplainsNonces C ((demoRom (n := n) C).main input) [] :=
+  fun _ => ⟨by simp [Explained.ofVectors, isRand], fun _ => trivial⟩
+
+end RomForger
 
 section Win
 
