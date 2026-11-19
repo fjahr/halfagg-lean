@@ -4,7 +4,7 @@ Lean checks the proofs. A reviewer checks that the statements say what they shou
 
 ## What to read
 
-About 1,200 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
+About 1,300 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
 
 1. `Halfagg/Basic.lean`, the definitions before the first theorem. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
 2. `Halfagg/Security.lean`, all of it, and `Halfagg/Hash256.lean`. The header lists the modelling choices and the limitations.
@@ -12,6 +12,7 @@ About 1,200 lines decide whether the results mean anything. [The statements](#th
 4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
 5. `Halfagg/SecurityKnowledge.lean` and the statements in `Halfagg/Knowledge.lean`, for the signatures under keys the forger chose.
 6. `Halfagg/SecurityTight.lean` and the statements in `Halfagg/UnforgeabilityTight.lean`, for the reduction to discrete log without forking.
+7. `Halfagg/SecurityBinding.lean` and the statement in `Halfagg/Binding.lean`, for binding.
 
 taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too.
 
@@ -39,6 +40,8 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **What does `ExplainsNonces` ask of the forger?** That it sends a nonce point in a randomizer request before it asks for a challenge with that nonce. The reduction records explanations from randomizer requests only. So the coefficient `β` of the target key in the nonce point is fixed before the challenge `e` is drawn, and `e = -β` has probability `1/n`. A forger that hashes a raw x-coordinate can choose its explanation of the point after it has seen `e`. Chen and Zhao's forger explains every group element it sends to an oracle, and `ExplainsNonces` applies that rule to the challenge hash. [Fuchsbauer, Plouviez and Seurin](https://eprint.iacr.org/2019/877) prove Schnorr signatures tightly secure in the algebraic group model with a random oracle. The request can be for the empty list and counts toward `q`. `halfagg_key_or_signature` is the statement without this hypothesis.
 
+**What does binding add to unforgeability?** Unforgeability protects one honest key. Binding is about an adversary that chooses every key: `halfagg_binding` says it cannot produce an aggregate that `VerifyAggregate` accepts for two different lists of `(pk, m)` pairs. BIP 458 does not state this. The game has no signing oracle and the bound is statistical, with both hashes as random oracles. The challenge hash has to be one too: a one-signature aggregate has no randomizer, so its binding is BIP 340's own. The two lists must differ in a key or a message. Binding says nothing about which signatures went into the aggregate (`aggregate_accepts_invalid`).
+
 **Are the theorems vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses, a forger with a challenge query that satisfies `ExplainsNonces`, and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query.
 
 ## BIP 458's claims
@@ -63,6 +66,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 
 - The reduction to discrete log is tight only for forgers that explain the nonces they hash (`halfagg_dlog_tight`). For other algebraic forgers, `halfagg_dlog` has the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability, and `halfagg_key_or_signature` leaves one term without a bound.
 - The random-oracle version needs a finite message type. BIP 458's 32-byte messages are one.
+- `halfagg_binding` needs that every point of the curve has order dividing `n`. That holds for secp256k1, but taproot-lean does not prove it, so `secp256k1_halfagg_binding` takes it as a hypothesis, as `verifyMulti_eq` does.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorems.
 - The challenge hash answers uniformly in `ZMod n`, as in taproot-lean's proof of BIP 340. BIP 340 reduces a 256-bit hash mod `n`. For secp256k1 that is about `2^-127.65` from uniform per answer, and the bounds leave this term out. The randomizer hash is modelled as BIP 458 computes it.
@@ -946,4 +950,125 @@ theorem halfagg_key_or_signature [Inhabited M] [Finite M] [Finite X]
         (q + 1 : ℝ≥0∞) * μ +
         SignatureAlg.unforgeableAdvantage (FiatShamir.runtime (Commit := X × X) (Chal := ZMod n) M)
           (romMachine C red F (repFin C))
+```
+
+### Binding
+
+From `Halfagg/SecurityBinding.lean` and `Halfagg/Binding.lean`. `PrimeOrder n E` is taproot-lean's: every point `P` satisfies `n⋅P = 0`.
+
+```lean
+/-- A binding adversary's oracles: uniform sampling, the challenge hash and the
+randomizer hash. -/
+abbrev BindSpec (n : ℕ) (H X M : Type) := (unifSpec + ChalSpec n X M) + RandSpec H X M
+```
+
+```lean
+/-- A binding adversary outputs an aggregate signature and two lists of
+`(pk, m)` pairs. -/
+structure BindAdversary (n : ℕ) (H X M : Type) where
+  main : OracleComp (BindSpec n H X M) (AggSig n X × List (X × M) × List (X × M))
+```
+
+```lean
+/-- Answer challenge-hash queries from the table `g` and pass the rest on. -/
+def answerChalB (g : M × (X × X) → ZMod n) :
+    QueryImpl (BindSpec n H X M) (OracleComp (unifSpec + RandSpec H X M))
+  | .inl (.inl k) => liftM ((unifSpec + RandSpec H X M).query (.inl k))
+  | .inl (.inr key) => pure (g key)
+  | .inr L => liftM ((unifSpec + RandSpec H X M).query (.inr L))
+```
+
+```lean
+/-- The adversary wins if the two lists differ and `VerifyAggregate` accepts the
+aggregate for both, with the randomizers `zs` and `zs'`. -/
+def bindWins (challenge : X → X → M → ZMod n) (agg : AggSig n X) (pm pm' : List (X × M))
+    (zs zs' : List (ZMod n)) : Bool :=
+  decide (pm ≠ pm') && verifyWith C challenge (fun i => zs.getD i 0) agg pm &&
+    verifyWith C challenge (fun i => zs'.getD i 0) agg pm'
+```
+
+```lean
+/-- The binding game for a fixed challenge hash: run the adversary, draw the
+randomizers of both lists from the randomizer hash and check `bindWins`. -/
+noncomputable def bindGame (challenge : X → X → M → ZMod n)
+    (A : OracleComp (unifSpec + RandSpec H X M) (AggSig n X × List (X × M) × List (X × M))) :
+    OracleComp (unifSpec + RandSpec H X M) Bool := do
+  let out ← A
+  let zs ← (List.range out.1.rs.length).mapM (zQuery red (items out.2.1 out.1.rs))
+  let zs' ← (List.range out.1.rs.length).mapM (zQuery red (items out.2.2 out.1.rs))
+  return bindWins C challenge out.1 out.2.1 out.2.2 zs zs'
+```
+
+```lean
+/-- **The binding game** (CK-ASBS of Chalkias, Garillot, Kondi and Nikolaenko,
+for BIP458's scheme), with both hashes as random oracles: sample the challenge
+hash table, then play `bindGame` with a lazily sampled randomizer hash. -/
+noncomputable def bindExperiment [SampleableType (M × (X × X) → ZMod n)]
+    (A : BindAdversary n H X M) : ProbComp Bool := do
+  let g ← $ᵗ (M × (X × X) → ZMod n)
+  (simulateQ (RandSpec H X M).romImpl
+    (bindGame C red (hOf g) (simulateQ (answerChalB g) A.main))).run' ∅
+```
+
+```lean
+/-- The adversary's success probability. -/
+noncomputable def bindAdvantage [SampleableType (M × (X × X) → ZMod n)]
+    (A : BindAdversary n H X M) : ℝ≥0∞ :=
+  Pr{let b ← bindExperiment C red A}[b = true]
+```
+
+```lean
+/-- Whether an oracle call is a challenge-hash query. -/
+def isChalB : (ℕ ⊕ M × (X × X)) ⊕ List (Item X M) → Bool
+  | .inl (.inr _) => true
+  | _ => false
+```
+
+```lean
+/-- Whether an oracle call is a randomizer-hash query. -/
+def isRandB : (ℕ ⊕ M × (X × X)) ⊕ List (Item X M) → Bool
+  | .inr _ => true
+  | _ => false
+```
+
+```lean
+/-- **Half-aggregation is binding** (Chalkias, Garillot, Kondi and Nikolaenko,
+Theorem 6, for BIP458's scheme). With both hashes as random oracles, an
+adversary with at most `qC` challenge-hash queries, `qZ` randomizer-hash queries
+and aggregates of at most `ℓ` signatures outputs an aggregate that
+`VerifyAggregate` accepts for two different lists of `(pk, m)` pairs with
+probability at most
+
+`(qC + 2⋅ℓ)²/n + (qZ + 2⋅ℓ)²⋅μ`,
+
+with `μ` as in `halfagg_unforgeable`. The bound is statistical: it needs no
+algebraic group model and no hardness assumption.
+
+`hord` says that every point has order dividing `n`. On a curve with a cofactor,
+a point of small order would be multiplied by a randomizer to the same point
+more often than `μ`. -/
+theorem halfagg_binding [Finite M] [Finite X] [SampleableType (M × (X × X) → ZMod n)]
+    (hord : PrimeOrder n E) (A : BindAdversary n H X M) (qC qZ ℓ : ℕ)
+    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
+    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
+    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) (μ : ℝ≥0∞) (hμ : RedBound red μ) :
+    bindAdvantage C red A ≤
+      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / n +
+        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * μ
+```
+
+```lean
+/-- The theorem for secp256k1 and BIP458's randomizer hash. That every point of
+secp256k1 has order dividing `n` is a hypothesis, because taproot-lean does not
+prove that the curve has `n` points. -/
+theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
+    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
+    (hord : PrimeOrder Secp256k1.n Secp256k1.Point)
+    (A : BindAdversary Secp256k1.n (Fin (2 ^ 256)) Secp256k1.F M) (qC qZ ℓ : ℕ)
+    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
+    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
+    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
+    bindAdvantage Secp256k1.secp256k1 red256 A ≤
+      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
+        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
