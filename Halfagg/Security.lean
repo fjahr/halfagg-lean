@@ -46,6 +46,9 @@ explanations, so the theorem is about the standard game.
 
 * **Challenge hash.** `challenge` is an arbitrary function, as in Chen and
   Zhao's Theorem 2: the result holds for every `hash_BIP0340/challenge`.
+  `Halfagg/SecurityROM.lean` has the variant of their Remark 2, with the
+  challenge hash as an oracle of the game. That variant chains with
+  `Taproot.BIP340Security.euf_cma` (`halfagg_dlog`).
 * **Randomizer hash.** `hash_BIP0458/randomizer` is a random oracle with uniform
   answers in `ZMod n`, ignoring the bias of reducing a 256-bit hash modulo `n`.
 * **BIP340** (`bip340`). Secret keys and nonces are uniform nonzero scalars;
@@ -63,11 +66,6 @@ explanations, so the theorem is about the standard game.
   arbitrary encodings, because no list with such an item passes
   `VerifyAggregate` (`aggWins_lifts`). A forgery cannot contain such an item,
   and for the same reason that loses nothing.
-* **The challenge hash is a fixed function** in this file, as in Chen and Zhao's
-  Theorem 2. `Halfagg/SecurityROM.lean` has the variant of their Remark 2, with
-  the challenge hash as an oracle of the game. That variant chains with
-  `Taproot.BIP340Security.euf_cma`, in which the challenge hash is a random
-  oracle (`halfagg_dlog`).
 * **Running time is not formalized.** `reduction` is explicit, so its cost can
   be read off, but no theorem bounds it.
 -/
