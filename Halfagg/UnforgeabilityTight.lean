@@ -91,4 +91,20 @@ theorem halfagg_dlog_tight [Inhabited M] [Finite M] [Finite X]
     le_rfl)).trans (le_of_eq ?_)
   ring
 
+/-- The tight reduction to discrete log for secp256k1. -/
+theorem secp256k1_halfagg_dlog_tight {M : Type} [DecidableEq M] [Inhabited M] [Finite M]
+    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
+    (F : RomForger Secp256k1.n Secp256k1.Point Secp256k1.F M) (q qH qS ℓ : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
+    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
+    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
+    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
+    (hE : ∀ input, ExplainsNonces Secp256k1.secp256k1 (F.main input) []) :
+    aggAdvantageROM Secp256k1.secp256k1 F ≤
+      Pr{let x ← dlogExperiment Secp256k1.secp256k1 (dlogOfKeyRecovery Secp256k1.secp256k1
+          (keySolver Secp256k1.secp256k1 F))}[x = true] +
+        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((Secp256k1.n - 1 : ℕ) : ℝ≥0∞)) +
+        (q + 1 : ℝ≥0∞) / Secp256k1.n + (qH + 1 : ℝ≥0∞) / Secp256k1.n :=
+  halfagg_dlog_tight Secp256k1.secp256k1 Halfagg.Secp256k1.liftX_x_zero F q qH qS ℓ hq hH hS hL hE
+
 end Halfagg.Security
