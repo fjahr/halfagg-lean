@@ -4,9 +4,9 @@ Lean checks the proofs. A reviewer checks that the statements say what they shou
 
 ## What to read
 
-About 1,300 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
+About 1,400 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
 
-1. `Halfagg/Basic.lean`, the definitions before the first theorem. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
+1. `Halfagg/Basic.lean`, the definitions. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
 2. `Halfagg/Security.lean`, all of it, and `Halfagg/Hash256.lean`. The header lists the modelling choices and the limitations.
 3. `Halfagg/Unforgeability.lean`, the theorem statements.
 4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
@@ -24,11 +24,11 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **Is the forger class too small?** `AlgForger` is agm-lean's adversary. It must explain every point it sends as a combination of `G`, the target key and the nonce points of the signatures it received. `erase` drops the explanations, so the theorems are about the standard game. The x-coordinates a forger hashes come from points it explained, with one exception: after an item that fails `lift_x`, a randomizer request may contain arbitrary encodings (`rawTail`). That is safe because no list with such an item verifies (`aggWins_lifts`).
 
-**Do the theorems need a curve group of prime order?** Only `verifyMulti_eq` does. `Curve` asks for a point `G` of prime order `n` in a commutative group. Every point the forger explains is a multiple of `G`, and the security proofs need nothing about other points.
+**Do the theorems need a curve group of prime order?** Only `verifyMulti_eq` and `halfagg_binding` do. `Curve` asks for a point `G` of prime order `n` in a commutative group. Every point the forger explains is a multiple of `G`, and the unforgeability and knowledge proofs need nothing about other points.
 
-**Could the proof do without the algebraic group model?** The two proofs BIP 458 cites do not. BIP 458 derives `zᵢ` from the first `i + 1` items, so that signatures can be added to an aggregate later. Chen and Zhao call this scheme IASchnorr and prove it only in the algebraic group model. The random-oracle proof of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) (Theorem 5) is for the variant that hashes the whole list for every randomizer, and its loss is quadratic. For BIP 458's variant, Chen and Zhao note in Remark 6 that a random-oracle proof would rewind the forger once per item, so its loss would grow exponentially with the number of items.
+**Could unforgeability be proven without the algebraic group model?** Neither proof that BIP 458 cites does so for BIP 458's scheme. BIP 458 derives `zᵢ` from the first `i + 1` items, so that signatures can be added to an aggregate later. Chen and Zhao call this scheme IASchnorr and prove it only in the algebraic group model. The random-oracle proof of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) (Theorem 5) is for the variant that hashes the whole list for every randomizer, and its loss is quadratic. For BIP 458's variant, Chen and Zhao note in Remark 6 that a random-oracle proof would rewind the forger once per item, so its loss would grow exponentially with the number of items.
 
-**Why must the forger explain a point when it first sends it?** The bound needs it. The theorem has no running-time bound, so it also covers a forger that finds the secret key by brute force and then knows many representations of each point. If it could choose them after seeing the randomizers, it could pick ones for which the extraction fails. So a randomizer request carries the representations of its points, and the reduction keeps the first one it sees for each x-coordinate (`memoize`). The representations behind `zᵢ` are then fixed before `zᵢ` is drawn. This is the convention of Chen and Zhao's model, where the forger explains every group element it outputs or sends to an oracle.
+**Why must the forger explain a point when it first sends it?** The theorem has no running-time bound, so it also covers a forger that finds the secret key by brute force and then knows many representations of each point. If it could choose them after seeing the randomizers, it could pick ones for which the extraction fails. So a randomizer request carries the representations of its points, and the reduction keeps the first one it sees for each x-coordinate (`memoize`). The representations behind `zᵢ` are then fixed before `zᵢ` is drawn. This is the convention of Chen and Zhao's model, where the forger explains every group element it outputs or sends to an oracle.
 
 **What does a verifier learn about signatures under other keys?** `halfagg_knowledge` says that whoever produced the aggregate knew a BIP 340 signature for every item. `extractor` runs the forger as `reduction` does and computes an `sᵢ` for every item from the forger's explanations. It has no secret key and asks its signing oracle for nothing the forger did not ask for (`extractor_sign_queries`). The signatures have the nonces of the aggregate. They need not be the signatures that went into `Aggregate`, which an aggregate does not determine (`aggregate_accepts_invalid`).
 
@@ -36,11 +36,11 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **Do the random-oracle forger and reduction only query the oracle?** `RomForger.main` and `reductionROM` are oracle programs over a challenge-hash oracle, so they cannot read the table. `reductionROM_bound` counts the reduction's queries: the forger's signing requests, and `qH + qS + ℓ + 1` hash queries for a forger with `qH` hash queries, `qS` signing requests and forgeries of at most `ℓ` items. The game samples the whole table first, which for a finite domain is the same as lazy sampling (`rom_eq_table`).
 
-**How is the randomizer hash reduced mod `n`?** The oracle returns a uniform element of a type `H`, and the game and the reduction turn it into a scalar with `red`. The forger sees the unreduced output. The theorems hold for every `H` and `red` and lose `μ` per randomizer, where `RedBound red μ` says that `red` of a uniform output is a given scalar with probability at most `μ`. For secp256k1, `H` is `Fin (2^256)`, `red256` is `int(⋅) mod n` and `μ = 2/2^256`, because `2^256 ≤ 2n` (`secp256k1_redBound`). `grinder_advantage` and the examples are in the uniform model, `H = ZMod n` with `μ = 1/n`.
+**How is the randomizer hash reduced mod `n`?** The oracle returns a uniform element of a type `H`, and the game and the reduction turn it into a scalar with `red`. The forger sees the unreduced output. The theorems hold for every `H` and `red` and lose `μ` per randomizer, where `RedBound red μ` says that `red` of a uniform output is a given scalar with probability at most `μ`. For secp256k1, `H` is `Fin (2^256)`, `red256` is `int(⋅) mod n` and `μ = 2/2^256`, because `2^256 ≤ 2n` (`secp256k1_redBound`). `grinder_advantage` and `demo` use the uniform model, `H = ZMod n` with `μ = 1/n`.
 
-**What does `ExplainsNonces` ask of the forger?** That it sends a nonce point in a randomizer request before it asks for a challenge with that nonce. The reduction records explanations from randomizer requests only. So the coefficient `β` of the target key in the nonce point is fixed before the challenge `e` is drawn, and `e = -β` has probability `1/n`. A forger that hashes a raw x-coordinate can choose its explanation of the point after it has seen `e`. Chen and Zhao's forger explains every group element it sends to an oracle, and `ExplainsNonces` applies that rule to the challenge hash. [Fuchsbauer, Plouviez and Seurin](https://eprint.iacr.org/2019/877) prove Schnorr signatures tightly secure in the algebraic group model with a random oracle. The request can be for the empty list and counts toward `q`. `halfagg_key_or_signature` is the statement without this hypothesis.
+**What does `ExplainsNonces` ask of the forger?** That it sends a nonce point in a randomizer request before it asks for a challenge with that nonce. The reduction records explanations from randomizer requests only, so this fixes the coefficient `β` of the target key in the nonce point before the challenge `e` is drawn, and `e = -β` has probability `1/n`. Without it, a forger that hashes a raw x-coordinate can choose its explanation after it has seen `e`, and `halfagg_key_or_signature` leaves that probability as a term. The request can be for the empty list and counts toward `q`. For plain Schnorr signatures, [Fuchsbauer, Plouviez and Seurin](https://eprint.iacr.org/2019/877) have a tight reduction in the same model.
 
-**What does binding add to unforgeability?** Unforgeability protects one honest key. Binding is about an adversary that chooses every key: `halfagg_binding` says it cannot produce an aggregate that `VerifyAggregate` accepts for two different lists of `(pk, m)` pairs. BIP 458 does not state this. The game has no signing oracle and the bound is statistical, with both hashes as random oracles. The challenge hash has to be one too: a one-signature aggregate has no randomizer, so its binding is BIP 340's own. The two lists must differ in a key or a message. Binding says nothing about which signatures went into the aggregate (`aggregate_accepts_invalid`).
+**What does binding add to unforgeability?** Unforgeability protects one honest key. `halfagg_binding` is about an adversary that chooses every key: it cannot produce an aggregate that `VerifyAggregate` accepts for two lists that differ in a key or a message. BIP 458 does not state this. The bound is statistical, with both hashes as random oracles. The challenge hash has to be one because a one-signature aggregate has no randomizer, so its binding is BIP 340's own. Binding says nothing about which signatures went into the aggregate (`aggregate_accepts_invalid`).
 
 **Are the theorems vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses, a forger with a challenge query that satisfies `ExplainsNonces`, and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query.
 
@@ -59,14 +59,14 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | `Aggregate`: valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_aggregateBytes` on bytes, `verifyAggregate_aggregate` in the model. |
 | `IncAggregate`: a verifying aggregate and valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_incAggregateBytes` on bytes, `verifyAggregate_incAggregate` in the model. |
 | `Aggregate`, `IncAggregate`: the inverse does not hold. | `aggregate_accepts_invalid`, for invalid triples given to `Aggregate`. No theorem for an invalid aggregate given to `IncAggregate`. |
-| `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. That holds for secp256k1 but is a hypothesis of the theorem. |
+| `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. |
 | The pseudocode of `VerifyAggregate`. | `verifyAggregateBytes_eq`: the verifier on bytes is the parsing and range checks followed by the model's `verifyAggregate`. |
 
 ## What the theorems do not say
 
 - The reduction to discrete log is tight only for forgers that explain the nonces they hash (`halfagg_dlog_tight`). For other algebraic forgers, `halfagg_dlog` has the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability, and `halfagg_key_or_signature` leaves one term without a bound.
-- The random-oracle version needs a finite message type. BIP 458's 32-byte messages are one.
-- `halfagg_binding` needs that every point of the curve has order dividing `n`. That holds for secp256k1, but taproot-lean does not prove it, so `secp256k1_halfagg_binding` takes it as a hypothesis, as `verifyMulti_eq` does.
+- The theorems with the challenge hash as a random oracle need a finite message type. BIP 458's 32-byte messages are one.
+- For secp256k1, `verifyMulti_eq` and `halfagg_binding` rest on a hypothesis: every point has order dividing `n`. That is true, but taproot-lean does not prove that the curve has `n` points.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorems.
 - The challenge hash answers uniformly in `ZMod n`, as in taproot-lean's proof of BIP 340. BIP 340 reduces a 256-bit hash mod `n`. For secp256k1 that is about `2^-127.65` from uniform per answer, and the bounds leave this term out. The randomizer hash is modelled as BIP 458 computes it.
@@ -93,13 +93,13 @@ Mutating the model is a useful test. Each of these four mutants stops the build 
 
 The definitions and theorem statements a reviewer has to agree with, copied from the sources with their comments. Proofs are left out.
 
-Throughout, `n` is a prime, `E` is the group of curve points, `X` is the type of x-only encodings and `M` is the message type. `C : Curve n E X` is taproot-lean's curve interface and `challenge : X → X → M → ZMod n` is the BIP 340 challenge hash.
+Throughout, `n` is a prime, `E` is the group of curve points, `X` is the type of x-only encodings, `M` is the message type and `H` is the type of the randomizer hash's outputs. `C : Curve n E X` is taproot-lean's curve interface, `challenge : X → X → M → ZMod n` is the BIP 340 challenge hash and `red : H → ZMod n` turns a randomizer hash output into a scalar.
 
 Not printed here: the parts of the two reductions (`coreImpl`, `extractForgery`, `romHandler`, `extractROM` and their helpers, in `Halfagg/Security.lean` and `Halfagg/SecurityROM.lean`), the grinding forger (`Halfagg/Tightness.lean`), and the definitions of taproot-lean, VCVio and agm-lean at the commits pinned in `lakefile.toml`.
 
 ### BIP 458's verifier
 
-From `Halfagg/Basic.lean`. `C` is taproot-lean's curve interface, `challenge` the BIP 340 challenge hash and `rand` the randomizer hash.
+From `Halfagg/Basic.lean`. `rand` is the randomizer hash as a function into `ZMod n`.
 
 ```lean
 /-- A half-aggregate signature `r₀ ‖ … ‖ r_{u-1} ‖ bytes(s)`. -/
@@ -240,7 +240,7 @@ noncomputable def aggAdvantage [SampleableType H] (A : AggAdversary n H X M) : �
 
 ### The randomizer hash reduced mod `n`
 
-From `Halfagg/Security.lean`, `Halfagg/Hash256.lean` and `Halfagg/Unforgeability.lean`. The last block is the main theorem for secp256k1 with BIP 458's hash. The other secp256k1 theorems take the same form.
+From `Halfagg/Security.lean` and `Halfagg/Hash256.lean`.
 
 ```lean
 /-- `red` of a uniform hash output is any given scalar with probability at most
@@ -272,18 +272,6 @@ probability at most `2/2^256`. -/
 theorem secp256k1_redBound : RedBound red256 (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
 
-```lean
-/-- The theorem for secp256k1 and BIP458's randomizer hash: the curve hypothesis
-holds, the hash has 256 bits and is reduced modulo `n`. -/
-theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
-    (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
-    (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantage Secp256k1.secp256k1 challenge red256 (erase Secp256k1.secp256k1 F) ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction Secp256k1.secp256k1 challenge red256 F) +
-        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
-```
 ### The game's verifier is `VerifyAggregate`
 
 From `Halfagg/Unforgeability.lean`.
@@ -431,9 +419,9 @@ def isSignQuery (p : M → Bool) : ℕ ⊕ M → Bool
   | .inl _ => false
 ```
 
-### The theorems
+### Unforgeability
 
-From `Halfagg/Security.lean`, `Halfagg/Unforgeability.lean` and `Halfagg/Tightness.lean`. The type of `reduction` makes it a forger in VCVio's BIP 340 game (`unforgeableAdvantage`), with the public key and a signing oracle.
+From `Halfagg/Security.lean`, `Halfagg/Unforgeability.lean` and `Halfagg/Tightness.lean`. The type of `reduction` makes it a forger in VCVio's BIP 340 game (`unforgeableAdvantage`), with the public key and a signing oracle. `secp256k1_halfagg_unforgeable` is the theorem for secp256k1 with BIP 458's hash. The other secp256k1 theorems take the same form.
 
 ```lean
 /-- **The reduction**: run the forger with `coreImpl`, forwarding uniform
@@ -477,6 +465,19 @@ theorem halfagg_unforgeable [Inhabited M] (hx0 : C.liftX (C.x 0) = none)
     aggAdvantage C challenge red (erase C F) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) +
         (q + 1 : ℝ≥0∞) * μ
+```
+
+```lean
+/-- The theorem for secp256k1 and BIP458's randomizer hash: the curve hypothesis
+holds, the hash has 256 bits and is reduced modulo `n`. -/
+theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
+    (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
+    (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
+    aggAdvantage Secp256k1.secp256k1 challenge red256 (erase Secp256k1.secp256k1 F) ≤
+      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
+        (reduction Secp256k1.secp256k1 challenge red256 F) +
+        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
 
 ```lean
@@ -777,7 +778,15 @@ theorem halfagg_dlog [Inhabited M] [Finite M] [Finite X]
 
 ### A reduction to discrete log without forking
 
-From `Halfagg/SecurityTight.lean` and `Halfagg/UnforgeabilityTight.lean`. `FiatShamir.simulatedNmaImpl` and `FiatShamir.Fork.roImpl` are VCVio's: a signing oracle that needs no secret key, and a lazily sampled challenge hash.
+From `Halfagg/SecurityTight.lean` and `Halfagg/UnforgeabilityTight.lean`, with `finalItems` from `Halfagg/Security.lean`. `FiatShamir.simulatedNmaImpl` and `FiatShamir.Fork.roImpl` are VCVio's: a signing oracle that needs no secret key, and a lazily sampled challenge hash.
+
+```lean
+/-- The forgery's annotated items, after recording its representations. -/
+def finalItems (out : Explained (ZMod n) (Out n M) (Pts E)) (st : Core n X M) :
+    List (AItem n X M) :=
+  annotate C (memoize C st (out.value.groups ()) (out.coefficients ())).memo
+    (toItems C out.value.data.ms (out.value.groups ()))
+```
 
 ```lean
 /-- The target item of a forgery: the first item with the target key and a

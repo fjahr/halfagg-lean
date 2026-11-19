@@ -57,12 +57,6 @@ noncomputable def annPhase1 (F : AlgForger n H E X M) :
     (F.main (initial C ((C.liftX ks.1).getD 0)))).run Core.init
   return (ks.1, r.1, r.2)
 
-/-- The forgery's annotated items, after recording its representations. -/
-def finalItems (out : Explained (ZMod n) (Out n M) (Pts E)) (st : Core n X M) :
-    List (AItem n X M) :=
-  annotate C (memoize C st (out.value.groups ()) (out.coefficients ())).memo
-    (toItems C out.value.data.ms (out.value.groups ()))
-
 /-- The annotated experiment. -/
 noncomputable def annExperiment (red : H → ZMod n) (F : AlgForger n H E X M) :
     OracleComp (unifSpec + AnnSpec n H X M) (Transcript n X M) := do

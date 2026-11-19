@@ -2,7 +2,7 @@
 
 Machine-checked proofs, in [Lean 4](https://lean-lang.org) with [Mathlib](https://github.com/leanprover-community/mathlib4), about [BIP 458](https://github.com/bitcoin/bips/blob/master/bip-0458.mediawiki): non-interactive half-aggregation of BIP 340 Schnorr signatures.
 
-The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which provides the curve interface, secp256k1 as a Mathlib elliptic curve, the BIP 340 model and SHA-256. Algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean).
+The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which provides the curve interface, secp256k1 as a Mathlib elliptic curve, the BIP 340 model and SHA-256. Games and random oracles are [VCVio](https://github.com/Verified-zkEVM/VCVio)'s, and algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean).
 
 [REVIEW.md](REVIEW.md) is the guide for checking the statements: what to read, what the theorems leave out, and which theorem stands behind each claim of BIP 458.
 
@@ -22,7 +22,7 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 
 ### Security
 
-`Halfagg/Unforgeability.lean`, `Halfagg/Knowledge.lean`, `Halfagg/Tightness.lean`, `Halfagg/UnforgeabilityROM.lean`, `Halfagg/UnforgeabilityTight.lean` and `Halfagg/Binding.lean`. The forger is algebraic, the randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. The oracle returns hash outputs of a type `H`, and the scheme reduces them to scalars with `red`. `μ` bounds the probability that a uniform output reduces to a given scalar. For BIP 458's 256-bit hash reduced mod `n`, `μ = 2/2^256` (`Halfagg/Hash256.lean`), and the secp256k1 forms of the theorems are stated with it.
+In `Halfagg/`: `Unforgeability.lean`, `Knowledge.lean`, `Tightness.lean`, `UnforgeabilityROM.lean`, `UnforgeabilityTight.lean` and `Binding.lean`. Except for binding, the forger is algebraic. The randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. `μ` bounds the probability that one randomizer is a given scalar. For BIP 458's 256-bit hash reduced mod `n` it is `2/2^256` (`Halfagg/Hash256.lean`), and the secp256k1 forms of the theorems use that value.
 
 | Theorem | Statement |
 |---|---|
@@ -34,9 +34,9 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 | `halfagg_unforgeable_rom`, `halfagg_dlog` | The first theorem with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. |
 | `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
 | `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
-| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs. With both hashes as random oracles, an adversary outputs an aggregate that `VerifyAggregate` accepts for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`, for `qC` challenge queries, `qZ` randomizer queries and at most `ℓ` signatures. This is Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. It needs no algebraic group model and no hardness assumption, but it needs that every point has order dividing `n`. |
+| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs the hypothesis of `verifyMulti_eq` on the order of the points. |
 
-With `Q = qH + qS + ℓ + 1`, where `ℓ` bounds the forgery's length, and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`, the solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. The quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
+For the discrete-log solvers, let `qH` and `qS` bound the forger's challenge queries and signing requests, `ℓ` the length of its forgery, `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`. The solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. Its quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
 
 ### Bytes
 

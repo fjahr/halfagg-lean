@@ -15,8 +15,9 @@ scheme (their `IASchnorr`): in the algebraic group model (AGM), with the
 randomizer hash as a random oracle, `reduction F` turns an algebraic
 half-aggregate forger `F` into a BIP340 forger with the same signing queries that
 wins with probability at least `ε - (q + 1)⋅μ`. Here `ε` is `F`'s success
-probability in the standard game, `q` bounds its randomizer queries, and `μ` is
-`1/n` for a randomizer hash that is uniform in `ZMod n`, as in Chen and Zhao.
+probability in the standard game and `q` bounds its randomizer queries. For `μ`
+see *Randomizer hash* below. It is `1/n` in Chen and Zhao's model, where the
+hash is uniform in `ZMod n`.
 
 ## The game
 
@@ -325,6 +326,12 @@ def annotate (memo : X → Option (Rep n)) : List (Item X M) → List (AItem n X
     if lifts C it then
       ⟨it.1, it.2.1, it.2.2, (memo it.1).getD 0, (memo it.2.1).getD 0⟩ :: annotate memo rest
     else (it :: rest).map fun it => ⟨it.1, it.2.1, it.2.2, 0, 0⟩
+
+/-- The forgery's annotated items, after recording its representations. -/
+def finalItems (out : Explained (ZMod n) (Out n M) (Pts E)) (st : Core n X M) :
+    List (AItem n X M) :=
+  annotate C (memoize C st (out.value.groups ()) (out.coefficients ())).memo
+    (toItems C out.value.data.ms (out.value.groups ()))
 
 /-- The reduction's handling of a forger's requests, generic in how uniform
 samples (`unif`), randomizers of annotated lists (`ro`) and signatures (`sg`)
