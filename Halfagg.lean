@@ -30,4 +30,7 @@ import Halfagg.Proofs.Eager
 import Halfagg.Proofs.ROM
 import Halfagg.Proofs.ROMBounds
 import Halfagg.UnforgeabilityROM
+import Halfagg.SecurityTight
+import Halfagg.Proofs.Tight
+import Halfagg.UnforgeabilityTight
 import Halfagg.Summary

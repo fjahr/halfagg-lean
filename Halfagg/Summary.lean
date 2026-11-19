@@ -6,6 +6,7 @@ import Halfagg.Knowledge
 import Halfagg.Examples
 import Halfagg.Tightness
 import Halfagg.UnforgeabilityROM
+import Halfagg.UnforgeabilityTight
 
 /-!
 # Main results and their axioms
@@ -176,6 +177,10 @@ info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
 /-- info: 'Halfagg.Security.halfagg_dlog' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.halfagg_dlog
+
+/-- info: 'Halfagg.Security.halfagg_key_or_signature' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.halfagg_key_or_signature
 
 /-- info: 'Halfagg.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
