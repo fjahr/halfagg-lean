@@ -1,0 +1,36 @@
+name: Replay dependencies
+
+# Replays in the kernel the modules of VCVio, PolyFun and cslib that the project
+# imports. That takes longer than the rest of CI together, and the result
+# changes only with the pinned commits and the toolchain, so it has its own
+# workflow: on a change to one of those, and once a week.
+on:
+  push:
+    paths:
+      - lake-manifest.json
+      - lakefile.toml
+      - lean-toolchain
+      - scripts/replay.sh
+      - .github/workflows/replay-deps.yml
+  pull_request:
+    paths:
+      - lake-manifest.json
+      - lakefile.toml
+      - lean-toolchain
+      - scripts/replay.sh
+      - .github/workflows/replay-deps.yml
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
+      # runs `lake build`.
+      - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+      - name: Replay the dependencies outside Mathlib in the kernel
+        run: scripts/replay.sh --deps

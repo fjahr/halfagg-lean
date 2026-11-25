@@ -35,7 +35,7 @@ jobs:
       # Also type-checks scripts/Fuzz.lean.
       - name: Differential test against the Python reference
         run: python3 scripts/fuzz.py bips/bip-0458 --cases 300 --seed 1
-      - name: Replay every project module in the kernel
+      - name: Replay the project, taproot-lean and agm-lean in the kernel
         run: scripts/replay.sh
       # Last, because it changes a source file: an axiom that no result uses
       # must fail the build through the inventory in Halfagg/Summary.lean.
