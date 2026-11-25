@@ -2,6 +2,7 @@ import Halfagg.Basic
 import Halfagg.OrderCert
 import Halfagg.OrderG
 import Halfagg.PrimeOrder
+import Halfagg.Attacks
 import Halfagg.Vectors
 import Halfagg.Encoding
 import Halfagg.Security

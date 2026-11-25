@@ -54,7 +54,8 @@ What BIP 458 says about correctness and security, and the theorem for it.
 |---|---|
 | Motivation: a verifier that accepts the aggregate "can be sure that the individual signatures would have passed verification". | Not for the signatures given to `Aggregate` (`aggregate_accepts_invalid`). What holds: the owner of an honest key signed its message (`halfagg_unforgeable`), and whoever produced the aggregate knew a BIP 340 signature for every item (`halfagg_knowledge`). |
 | Rationale: Chen and Zhao's tight proof in the random oracle and algebraic group model. | `halfagg_unforgeable`, with loss `(q + 1)·μ`, which is `(q + 1)·2/2^256` for BIP 458's hash. `grinder_advantage` shows the loss is tight for a hash that is uniform in `ZMod n`. `halfagg_unforgeable_rom` and `halfagg_dlog` have the challenge hash as a random oracle too, and `halfagg_dlog_tight` reaches discrete log with additive losses only. |
-| Rationale: `z₀ = 1` is secure. | The game's verifier uses `z₀ = 1` (`zQuery`), so the theorems are about this choice. With every randomizer `1` the proof fails (first mutant below). |
+| Rationale: the first proposal, which added up the `s` values, had a security flaw. | `forgeOnes_verifies`: an explicit forgery against the verifier with every randomizer `1`. `forgeLate_verifies`: a randomizer must also cover its own item. |
+| Rationale: `z₀ = 1` is secure. | The game's verifier uses `z₀ = 1` (`zQuery`), so the theorems are about this choice. With every randomizer `1` there is a forgery (`forgeOnes_verifies`). |
 | Rationale: signatures can be added to an aggregate later. | `incAggregate_append`, `aggregate_append`: adding in steps gives the same aggregate as aggregating at once. |
 | Rationale: 32-byte messages keep the input of each randomizer hash unambiguous. | `randomizerInput_injective`. |
 | Rationale: implementations should stream the hash input through one hash state. | No theorem. The model hashes every prefix from the start. libsecp256k1 streams, and the differential test compares the two. |
@@ -110,7 +111,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | `VerifyAggregate` on bytes accepts an `s` that is not below `n` | `decodeVerify_some`, `verifyAggregateBytes_encode`, `incAggregateBytes_isSome`, `verifyAggregateBytes_unique` |
 | The randomizer hash does not cover the messages | `aggregate_vectors`, `incAggregate_vectors`, `verifyAggregate_vectors` |
 
-The two randomizer mutants change four definitions in the same way: `zQuery` of the game and `tableZs` of the reduction in `Halfagg/Security.lean`, and `zQueryAnn` and `zOf` of the proof in `Halfagg/Proofs/Annotated.lean`. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.
+For the two randomizer mutants there is more than a proof that fails: `forgeOnes_verifies` and `forgeLate_verifies` are forgeries against these verifiers. The mutants change four definitions in the same way: `zQuery` of the game and `tableZs` of the reduction in `Halfagg/Security.lean`, and `zQueryAnn` and `zOf` of the proof in `Halfagg/Proofs/Annotated.lean`. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.
 
 ## The statements
 
@@ -179,6 +180,87 @@ the randomizer hash `rand`. -/
 def verifyAggregate (C : Curve n E X) (challenge : X → X → M → ZMod n)
     (rand : List (Item X M) → ZMod n) (agg : AggSig n X) (pm : List (X × M)) : Bool :=
   verifyWith C challenge (z rand (items pm agg.rs)) agg pm
+```
+
+### Forgeries against weakened verifiers
+
+From `Halfagg/Attacks.lean`. `verifyWith` is printed above: `VerifyAggregate` with the randomizers as a parameter.
+
+```lean
+/-- The forger's nonce point `w⋅G - c⋅P`. -/
+def rogue (P : E) (c w : ZMod n) : E := C.mulG w - c.val • P
+```
+
+```lean
+/-- The forgery against the verifier with every randomizer `1`, for the public
+key `pk` with point `P` and the message `m`. The forger picks the scalars `k`,
+`a` and `w` and the message `m'`. -/
+def forgeOnes (pk : X) (P : E) (m m' : M) (k a w : ZMod n) : AggSig n X × List (X × M) :=
+  let r₀ := C.x (C.mulG k)
+  let e₀ := challenge r₀ pk m
+  let r₁ := C.x (rogue C P e₀ w)
+  let pk₁ := C.x (C.mulG a)
+  let e₁ := challenge r₁ pk₁ m'
+  (⟨[r₀, r₁], C.evenScalar k + w + e₁ * C.evenScalar a⟩, [(pk, m), (pk₁, m')])
+```
+
+```lean
+/-- **Without randomizers anyone forges.** If the forger's nonce point is not
+`0` and has an even y-coordinate, its aggregate for `(pk, m)` passes the
+verifier with every randomizer `1`. -/
+theorem forgeOnes_verifies {pk : X} {P : E} (hP : C.liftX pk = some P) (m m' : M)
+    {k a : ZMod n} (hk : k ≠ 0) (ha : a ≠ 0) (w : ZMod n)
+    (hQ : rogue C P (challenge (C.x (C.mulG k)) pk m) w ≠ 0)
+    (he : C.hasEvenY (rogue C P (challenge (C.x (C.mulG k)) pk m) w) = true) :
+    verifyWith C challenge (fun _ => 1) (forgeOnes C challenge pk P m m' k a w).1
+      (forgeOnes C challenge pk P m m' k a w).2 = true
+```
+
+```lean
+/-- Randomizers that hash only the items before their own: `zᵢ` is the hash of
+the items `0, …, i - 1`. -/
+def zLate (rand : List (Item X M) → ZMod n) (its : List (Item X M)) (i : ℕ) : ZMod n :=
+  if i = 0 then 1 else rand (its.take i)
+```
+
+```lean
+/-- The forgery against the verifier with the randomizers `zLate`. The forger
+knows `z₁`, the hash of its first item, before it chooses the second item. -/
+def forgeLate (rand : List (Item X M) → ZMod n) (pk : X) (P : E) (m m' : M) (k a w : ZMod n) :
+    AggSig n X × List (X × M) :=
+  let r₀ := C.x (C.mulG k)
+  let e₀ := challenge r₀ pk m
+  let z₁ := rand [(r₀, pk, m)]
+  let r₁ := C.x (rogue C P (z₁⁻¹ * e₀) w)
+  let pk₁ := C.x (C.mulG a)
+  let e₁ := challenge r₁ pk₁ m'
+  (⟨[r₀, r₁], C.evenScalar k + z₁ * (w + e₁ * C.evenScalar a)⟩, [(pk, m), (pk₁, m')])
+```
+
+```lean
+/-- **A randomizer must cover its own item.** If `z₁` is not `0` and the
+forger's nonce point is not `0` and has an even y-coordinate, its aggregate for
+`(pk, m)` passes the verifier with the randomizers `zLate`. `hn` holds for every
+key that is a multiple of `G`. -/
+theorem forgeLate_verifies (rand : List (Item X M) → ZMod n) {pk : X} {P : E}
+    (hP : C.liftX pk = some P) (hn : n • P = 0) (m m' : M) {k a : ZMod n} (hk : k ≠ 0)
+    (ha : a ≠ 0) (w : ZMod n) (hz : rand [(C.x (C.mulG k), pk, m)] ≠ 0)
+    (hQ : rogue C P ((rand [(C.x (C.mulG k), pk, m)])⁻¹ * challenge (C.x (C.mulG k)) pk m) w ≠ 0)
+    (he : C.hasEvenY (rogue C P
+      ((rand [(C.x (C.mulG k), pk, m)])⁻¹ * challenge (C.x (C.mulG k)) pk m) w) = true) :
+    verifyWith C challenge
+      (zLate rand (items (forgeLate C challenge rand pk P m m' k a w).2
+        (forgeLate C challenge rand pk P m m' k a w).1.rs))
+      (forgeLate C challenge rand pk P m m' k a w).1
+      (forgeLate C challenge rand pk P m m' k a w).2 = true
+```
+
+```lean
+/-- **Half of the tries work.** For a key `x⋅G`, the nonce point is not `0` and
+has an even y-coordinate for at least `(n - 1)/2` of the `n` values of `w`. -/
+theorem card_rogue (x c : ZMod n) :
+    n - 1 ≤ 2 * (Finset.univ.filter fun w : ZMod n =>
+      rogue C (C.mulG x) c w ≠ 0 ∧ C.hasEvenY (rogue C (C.mulG x) c w) = true).card
 ```
 
 ### The game
@@ -1246,10 +1328,11 @@ theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
 
 ### Every definition behind the results
 
-The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 140 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
+The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 144 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
 
 **This project**
 
+- `Halfagg/Attacks.lean`: `forgeLate`, `forgeOnes`, `rogue`, `zLate`
 - `Halfagg/Basic.lean`: `AggSig`, `Item`, `aggregate`, `entryItem`, `entryPM`, `incAggregate`, `isum`, `items`, `lifts`, `shiftedPair`, `term`, `verifyAggregate`, `verifyMulti`, `verifyWith`, `z`
 - `Halfagg/Encoding.lean`: `Vectors.Item32`, `Vectors.decodeVerify`, `Vectors.encodeItem`, `Vectors.randomizerInput`
 - `Halfagg/Examples.lean`: `Examples.demo`, `Examples.uvec`

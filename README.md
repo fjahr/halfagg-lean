@@ -20,6 +20,7 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 | `aggregate_accepts_invalid` | An aggregate does not certify the signatures it was made from. Moving `δ ≠ 0` between the `s` values of the first two, weighted by `z₁`, makes the second invalid and leaves the aggregate unchanged. |
 | `verifyMulti_eq`, `secp256k1_verifyMulti_eq` | `VerifyAggregate` can be computed as one sum of scalar multiplications, `s⋅G = Σ zᵢ⋅Rᵢ + (zᵢ⋅eᵢ mod n)⋅Pᵢ`, if `n⋅P = 0` for every point. That holds for secp256k1. |
 | `secp256k1_primeOrder` | secp256k1 has exactly `n` points, so `n⋅P = 0` for every point (`Halfagg/PrimeOrder.lean`). The proof counts no points: there are at most `2⋅p + 1`, the generator has order `n`, and no point has order two. |
+| `forgeOnes_verifies`, `forgeLate_verifies`, `card_rogue` | The randomizers are needed, and each must cover its own item (`Halfagg/Attacks.lean`). With every randomizer `1`, the verifier of the first proposal of half-aggregation, an explicit aggregate for any public key and message verifies without a signature. The same holds if `zᵢ` hashes only the items before item `i`. The forger's nonce point must have an even y-coordinate, and at least `(n - 1)/2` of its `n` choices give one. |
 
 ### Security
 
