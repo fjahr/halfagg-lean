@@ -74,7 +74,8 @@ What BIP 458 says about correctness and security, and the theorem for it.
 ## Machine checks
 
 - `lake build` compiles every proof and fails if the axioms of a main result change (`Halfagg/Summary.lean`).
-- `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`. It also checks that every code block under [The statements](#the-statements) is in the sources word for word.
+- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Halfagg/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's tables.
+- `scripts/check_selftest.sh` changes a copy of the sources in eight ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
 - `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 
 Mutating the model is a useful test. Each of these four mutants stops the build in one theorem:

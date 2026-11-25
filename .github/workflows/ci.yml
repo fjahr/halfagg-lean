@@ -21,12 +21,16 @@ jobs:
           sparse-checkout: bip-0458
       - name: Source checks
         run: scripts/check.sh
+      - name: The source checks fail when they should
+        run: scripts/check_selftest.sh
       - name: Regenerate the test vector data
         run: python3 scripts/gen_vectors.py bips/bip-0458/vectors | diff - Halfagg/VectorData.lean
       # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
       # runs `lake build`. The build fails if the axioms of a main result change
       # (Halfagg/Summary.lean).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+      - name: Regenerate the summary
+        run: python3 scripts/gen_summary.py | diff - Halfagg/Summary.lean
       # Also type-checks scripts/Fuzz.lean.
       - name: Differential test against the Python reference
         run: python3 scripts/fuzz.py bips/bip-0458 --cases 300 --seed 1
