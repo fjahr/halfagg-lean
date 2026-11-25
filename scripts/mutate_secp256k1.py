@@ -4,18 +4,25 @@ Mutation test of libsecp256k1's schnorrsig_halfagg module.
 
 Usage:
     python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0458
-        [--cases N] [--seed S]
+        [--cases N] [--seed S] [--no-exhaustive] [--only NAME,NAME,...]
 
-Exports HEAD of the secp256k1 checkout into a temporary directory and builds it
-there, so the checkout is not touched. For each one-line mutant of
-src/modules/schnorrsig_halfagg/main_impl.h it rebuilds, runs the module's unit
-tests one by one, and runs the cases of scripts/fuzz.py through the driver built
-from scripts/fuzz_secp256k1.c. It prints the tests that fail and the number of
-cases on which the mutant differs from BIP 458's Python reference. A mutant
-with neither is a survivor.
+Exports HEAD of the secp256k1 checkout into a temporary directory, applies
+patches/secp256k1-halfagg-exhaustive-tests.patch and builds there, so the
+checkout is not touched. For each one-line mutant of
+src/modules/schnorrsig_halfagg/main_impl.h it rebuilds and runs three sets of
+tests:
 
-V6 survives by design: accepting an r >= p needs a nonce point whose
-x-coordinate is below 2^256 - p, and nobody can produce a signature with one.
+  tests       the module's unit tests, one by one,
+  cases       the cases of scripts/fuzz.py through the driver built from
+              scripts/fuzz_secp256k1.c, compared with BIP 458's Python reference,
+  exhaustive  the exhaustive tests on the group of order 13, with the patch.
+
+A mutant that none of them notices is a survivor.
+
+On secp256k1 nobody can produce an input for V6: accepting an r >= p needs a
+nonce point whose x-coordinate is below 2^256 - p. The test curve has a point of
+order 3 with the x-coordinate 0, which r = p reduces to, and the exhaustive
+tests try all values of s for that r.
 """
 
 import argparse
@@ -131,8 +138,9 @@ def unit_tests(tree):
     return names
 
 
-def evaluate(tree, tests, driver_src, lines, expected):
-    """The unit tests that fail and the number of cases that differ; None if it does not build."""
+def evaluate(tree, tests, driver_src, lines, expected, exhaustive):
+    """(failed unit tests, cases that differ, exhaustive tests failed); None if it does not
+    build."""
     if run(["cmake", "--build", "build", "-j4"], tree)[0] != 0:
         return None
     failed = [t for t in tests if run(["./build/bin/tests", f"--target={t}"], tree)[0] != 0]
@@ -142,8 +150,11 @@ def evaluate(tree, tests, driver_src, lines, expected):
     code, out = run(["./build/driver"], tree, "\n".join(lines) + "\n")
     got = out.split("\n")[:-1]
     if code != 0 or len(got) != len(lines):
-        return failed, len(lines)
-    return failed, sum(g != "SKIP" and e != g for e, g in zip(expected, got))
+        differ = len(lines)
+    else:
+        differ = sum(g != "SKIP" and e != g for e, g in zip(expected, got))
+    ex = exhaustive and run(["./build/bin/exhaustive_tests", "1"], tree)[0] != 0
+    return failed, differ, ex
 
 
 def main():
@@ -152,8 +163,12 @@ def main():
     ap.add_argument("bip_dir", help="path to bips/bip-0458")
     ap.add_argument("--cases", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--no-exhaustive", action="store_true",
+                    help="do not apply the patch and do not run the exhaustive tests")
+    ap.add_argument("--only", help="comma-separated mutant names")
     args = ap.parse_args()
 
+    root = Path(__file__).resolve().parent.parent
     bip_dir = Path(args.bip_dir).resolve()
     sys.path.insert(0, str(bip_dir))
     sys.path.insert(0, str(bip_dir / "secp256k1lab/src"))
@@ -165,34 +180,52 @@ def main():
     cases = [makers[i % len(makers)]() for i in range(args.cases)]
     expected = [fuzz.reference(ref, c) for c in cases]
     lines = [fuzz.encode(c) for c in cases]
-    driver_src = Path(__file__).resolve().parent / "fuzz_secp256k1.c"
+    driver_src = root / "scripts" / "fuzz_secp256k1.c"
+    exhaustive = not args.no_exhaustive
+    wanted = set(args.only.split(",")) if args.only else None
 
     with tempfile.TemporaryDirectory() as tmp:
         tree = Path(tmp)
         archive = subprocess.run(["git", "-C", args.secp256k1, "archive", "HEAD"],
                                  capture_output=True, check=True).stdout
         subprocess.run(["tar", "-x", "-C", tmp], input=archive, check=True)
-        if run(["cmake", "-S", ".", "-B", "build"] + CMAKE, tree)[0] != 0:
+        cmake = [c for c in CMAKE if "EXHAUSTIVE" not in c]
+        if exhaustive:
+            patch = (root / "patches" / "secp256k1-halfagg-exhaustive-tests.patch").read_bytes()
+            subprocess.run(["patch", "-p1", "-s"], cwd=tmp, input=patch, check=True)
+            cmake.append("-DSECP256K1_BUILD_EXHAUSTIVE_TESTS=ON")
+        else:
+            cmake.append("-DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF")
+        if run(["cmake", "-S", ".", "-B", "build"] + cmake, tree)[0] != 0:
             sys.exit("cmake failed")
         original = (tree / MODULE).read_text()
-        base = evaluate(tree, [], driver_src, lines, expected)
+        if evaluate(tree, [], driver_src, lines, expected, False) is None:
+            sys.exit("the unmutated module does not build")
         tests = unit_tests(tree)
-        base = evaluate(tree, tests, driver_src, lines, expected)
-        if base != ([], 0):
+        base = evaluate(tree, tests, driver_src, lines, expected, exhaustive)
+        if base != ([], 0, False):
             sys.exit(f"the unmutated module fails: {base}")
-        survivors = []
+        print(f"{len(tests)} unit tests, {len(lines)} cases"
+              f"{', exhaustive tests' if exhaustive else ''}", flush=True)
+        survivors, only_ex, total = [], [], 0
         for name, description, edits in MUTANTS:
+            if wanted is not None and name not in wanted:
+                continue
+            total += 1
             (tree / MODULE).write_text(mutate(original, edits))
-            result = evaluate(tree, tests, driver_src, lines, expected)
+            result = evaluate(tree, tests, driver_src, lines, expected, exhaustive)
             if result is None:
                 print(f"{name:4}{description}: does not compile")
                 continue
-            failed, differ = result
+            failed, differ, ex = result
             short = ", ".join(t.replace("test_schnorrsig_", "") for t in failed) or "none"
-            print(f"{name:4}{description}\n      tests: {short}\n      cases: {differ}", flush=True)
+            print(f"{name:4}{description}\n      tests: {short}\n      cases: {differ}"
+                  + (f"\n      exhaustive: {'fails' if ex else 'passes'}" if exhaustive else ""),
+                  flush=True)
             if not failed and not differ:
-                survivors.append(name)
-        print(f"{len(MUTANTS) - len(survivors)} of {len(MUTANTS)} mutants caught, survivors: "
+                (only_ex if ex else survivors).append(name)
+        print(f"only the exhaustive tests catch: {', '.join(only_ex) or 'none'}")
+        print(f"{total - len(survivors)} of {total} mutants caught, survivors: "
               f"{', '.join(survivors) or 'none'}")
 
 

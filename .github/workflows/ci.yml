@@ -66,12 +66,13 @@ jobs:
           repository: bitcoin-core/secp256k1
           ref: c7ed5e0a0dbc69f5f75bc00e516ccd5ee1033e25
           path: secp256k1
-      - name: Build the library with the half-aggregation module
+      - name: Build the library with the half-aggregation module and the exhaustive test
         run: |
+          git -C secp256k1 apply ../patches/secp256k1-halfagg-exhaustive-tests.patch
           cmake -S secp256k1 -B secp256k1/build -DBUILD_SHARED_LIBS=OFF -DSECP256K1_EXPERIMENTAL=ON \
             -DSECP256K1_ENABLE_MODULE_SCHNORRSIG_HALFAGG=ON -DSECP256K1_BUILD_BENCHMARK=OFF \
             -DSECP256K1_BUILD_CTIME_TESTS=OFF -DSECP256K1_BUILD_EXAMPLES=OFF \
-            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF
+            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=ON
           cmake --build secp256k1/build -j4
           cc -O2 -Isecp256k1/include scripts/fuzz_secp256k1.c secp256k1/build/lib/libsecp256k1.a -o fuzz_secp256k1
       - name: Unit tests of the module
@@ -80,3 +81,5 @@ jobs:
         run: >
           python3 scripts/fuzz.py bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp256k1
           --cases 3000 --seed "${{ github.run_id }}"
+      - name: Exhaustive tests on the group of order 13
+        run: secp256k1/build/bin/exhaustive_tests 1

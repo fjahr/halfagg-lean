@@ -1,0 +1,263 @@
+diff --git a/src/modules/schnorrsig_halfagg/Makefile.am.include b/src/modules/schnorrsig_halfagg/Makefile.am.include
+index 09aaf802..25a575a1 100644
+--- a/src/modules/schnorrsig_halfagg/Makefile.am.include
++++ b/src/modules/schnorrsig_halfagg/Makefile.am.include
+@@ -1,5 +1,6 @@
+ include_HEADERS += include/secp256k1_schnorrsig_halfagg.h
+ noinst_HEADERS += src/modules/schnorrsig_halfagg/main_impl.h
+ noinst_HEADERS += src/modules/schnorrsig_halfagg/tests_impl.h
++noinst_HEADERS += src/modules/schnorrsig_halfagg/tests_exhaustive_impl.h
+ noinst_HEADERS += src/modules/schnorrsig_halfagg/vectors.h
+ noinst_HEADERS += src/modules/schnorrsig_halfagg/bench_impl.h
+diff --git a/src/modules/schnorrsig_halfagg/tests_exhaustive_impl.h b/src/modules/schnorrsig_halfagg/tests_exhaustive_impl.h
+new file mode 100644
+index 00000000..1f88bc65
+--- /dev/null
++++ b/src/modules/schnorrsig_halfagg/tests_exhaustive_impl.h
+@@ -0,0 +1,221 @@
++/***********************************************************************
++ * Distributed under the MIT software license, see the accompanying    *
++ * file COPYING or https://www.opensource.org/licenses/mit-license.php.*
++ ***********************************************************************/
++
++#ifndef SECP256K1_MODULE_SCHNORRSIG_HALFAGG_TESTS_EXHAUSTIVE_H
++#define SECP256K1_MODULE_SCHNORRSIG_HALFAGG_TESTS_EXHAUSTIVE_H
++
++#include "../../../include/secp256k1_schnorrsig_halfagg.h"
++#include "main_impl.h"
++
++/* The largest number of signatures in an aggregate of this test. */
++#define HALFAGG_EXHAUSTIVE_MAX 3
++
++/* In the smallest group every candidate s is tried. In larger groups only the
++ * expected value, its successor and the two values that are out of range are,
++ * to keep the running time down. */
++#if EXHAUSTIVE_TEST_ORDER <= 13
++#define HALFAGG_TRY(s, expected) 1
++#else
++#define HALFAGG_TRY(s, expected) ((s) == (unsigned)(expected) || (s) == ((unsigned)(expected) + 1) % EXHAUSTIVE_TEST_ORDER || (s) >= EXHAUSTIVE_TEST_ORDER)
++#endif
++
++/* The randomizer z_i of BIP 458, recomputed from the bytes: 1 for i = 0, and
++ * otherwise the tagged hash of r_0 || pk_0 || m_0 || ... || r_i || pk_i || m_i
++ * reduced modulo the group order. Every prefix is hashed from the start with
++ * the tag, where the module streams one hash state from a midstate. */
++static unsigned test_exhaustive_halfagg_z(const secp256k1_context *ctx, unsigned char (*r)[32], unsigned char (*pk)[32], const unsigned char *msgs32, size_t i) {
++    static const unsigned char tag[] = {'B', 'I', 'P', '0', '4', '5', '8', '/', 'r', 'a', 'n', 'd', 'o', 'm', 'i', 'z', 'e', 'r'};
++    secp256k1_sha256 hash;
++    unsigned char out[32];
++    secp256k1_scalar z;
++    size_t j;
++
++    if (i == 0) return 1;
++    secp256k1_sha256_initialize_tagged(&ctx->hash_ctx, &hash, tag, sizeof(tag));
++    for (j = 0; j <= i; j++) {
++        secp256k1_sha256_write(&ctx->hash_ctx, &hash, r[j], 32);
++        secp256k1_sha256_write(&ctx->hash_ctx, &hash, pk[j], 32);
++        secp256k1_sha256_write(&ctx->hash_ctx, &hash, &msgs32[j * 32], 32);
++    }
++    secp256k1_sha256_finalize(&ctx->hash_ctx, &hash, out);
++    secp256k1_scalar_set_b32(&z, out, NULL);
++    return z;
++}
++
++/* Write the scalar s, which may be out of range, as 32 bytes. */
++static void test_exhaustive_halfagg_put_s(unsigned char *buf32, unsigned s) {
++    memset(buf32, 0, 32);
++    secp256k1_write_be32(buf32 + 28, s);
++}
++
++/* One aggregate of u <= 3 BIP 340 signatures with the secret keys d[i] and the
++ * nonces k[i], all given as discrete logarithms. Every result is compared with
++ * the value computed on the discrete logarithms:
++ *  - Aggregate returns r_0 || ... || r_{u-1} || bytes(s) with
++ *    s = sum z_i * s_i, where s_i = k_i + e_i * d_i for the even-y nonce and key.
++ *  - IncAggregate from every split point returns the same bytes.
++ *  - VerifyAggregate accepts that s and no other value. It rejects the two
++ *    encodings of s that are out of range, also for the empty aggregate.
++ *  - IncAggregate rejects an input aggregate with s out of range, and Aggregate
++ *    a signature with s out of range.
++ *  - If check_nonces is set: VerifyAggregate rejects every s when a nonce is
++ *    not the x-coordinate of a point of the curve or is not below the field
++ *    size. */
++static void test_exhaustive_halfagg_one(const secp256k1_context *ctx, const secp256k1_xonly_pubkey *xonly_pubkeys, unsigned char (*xonly_pubkey_bytes)[32], const int *parities, size_t u, const int *d, const int *k, int check_nonces) {
++    secp256k1_xonly_pubkey pks[HALFAGG_EXHAUSTIVE_MAX];
++    unsigned char r[HALFAGG_EXHAUSTIVE_MAX][32], pk[HALFAGG_EXHAUSTIVE_MAX][32];
++    unsigned char msgs32[HALFAGG_EXHAUSTIVE_MAX * 32], sigs64[HALFAGG_EXHAUSTIVE_MAX * 64 + 1];
++    unsigned char aggsig[32 * (HALFAGG_EXHAUSTIVE_MAX + 1)], aggsig2[32 * (HALFAGG_EXHAUSTIVE_MAX + 1)];
++    unsigned char sbytes[32];
++    secp256k1_scalar expected_s;
++    size_t aggsig_len, i, j;
++    unsigned s, expected = 0;
++    int count_valid = 0;
++
++    for (i = 0; i < u; i++) {
++        secp256k1_scalar e, si;
++        int actual_d = parities[d[i] - 1] ? EXHAUSTIVE_TEST_ORDER - d[i] : d[i];
++        int actual_k = parities[k[i] - 1] ? EXHAUSTIVE_TEST_ORDER - k[i] : k[i];
++        pks[i] = xonly_pubkeys[d[i] - 1];
++        memcpy(pk[i], xonly_pubkey_bytes[d[i] - 1], 32);
++        memcpy(r[i], xonly_pubkey_bytes[k[i] - 1], 32);
++        testrand256(&msgs32[i * 32]);
++        secp256k1_schnorrsig_challenge(&ctx->hash_ctx, &e, r[i], &msgs32[i * 32], 32, pk[i]);
++        si = (actual_k + e * actual_d) % EXHAUSTIVE_TEST_ORDER;
++        memcpy(&sigs64[i * 64], r[i], 32);
++        secp256k1_scalar_get_b32(&sigs64[i * 64 + 32], &si);
++        expected = (expected + test_exhaustive_halfagg_z(ctx, r, pk, msgs32, i) * si) % EXHAUSTIVE_TEST_ORDER;
++    }
++    expected_s = expected;
++    secp256k1_scalar_get_b32(sbytes, &expected_s);
++
++    /* Aggregate */
++    aggsig_len = sizeof(aggsig);
++    CHECK(secp256k1_schnorrsig_aggregate(ctx, aggsig, &aggsig_len, pks, msgs32, sigs64, u));
++    CHECK(aggsig_len == 32 * (u + 1));
++    for (i = 0; i < u; i++) {
++        CHECK(secp256k1_memcmp_var(&aggsig[i * 32], r[i], 32) == 0);
++    }
++    CHECK(secp256k1_memcmp_var(&aggsig[u * 32], sbytes, 32) == 0);
++
++    /* IncAggregate from every split point */
++    for (j = 0; j <= u; j++) {
++        size_t len = sizeof(aggsig2);
++        CHECK(secp256k1_schnorrsig_aggregate(ctx, aggsig2, &len, pks, msgs32, sigs64, j));
++        CHECK(len == 32 * (j + 1));
++        len = sizeof(aggsig2);
++        CHECK(secp256k1_schnorrsig_inc_aggregate(ctx, aggsig2, &len, pks, msgs32, &sigs64[j * 64], j, u - j));
++        CHECK(len == 32 * (u + 1));
++        CHECK(secp256k1_memcmp_var(aggsig, aggsig2, len) == 0);
++    }
++
++    /* VerifyAggregate: s = order and s = order + 1 are out of range. */
++    memcpy(aggsig2, aggsig, 32 * u);
++    for (s = 0; s <= EXHAUSTIVE_TEST_ORDER + 1; s++) {
++        int valid;
++        if (!HALFAGG_TRY(s, expected)) continue;
++        test_exhaustive_halfagg_put_s(&aggsig2[u * 32], s);
++        valid = secp256k1_schnorrsig_aggverify(ctx, pks, msgs32, u, aggsig2, 32 * (u + 1));
++        CHECK(valid == (s == expected));
++        count_valid += valid;
++    }
++    CHECK(count_valid == 1);
++
++    /* An input aggregate with s out of range */
++    {
++        size_t len = sizeof(aggsig2);
++        test_exhaustive_halfagg_put_s(&aggsig2[u * 32], EXHAUSTIVE_TEST_ORDER);
++        CHECK(!secp256k1_schnorrsig_inc_aggregate(ctx, aggsig2, &len, pks, msgs32, &sigs64[u * 64], u, 0));
++    }
++
++    if (u > 0) {
++        /* A signature with s out of range */
++        size_t len = sizeof(aggsig2);
++        unsigned char keep[32];
++        memcpy(keep, &sigs64[(u - 1) * 64 + 32], 32);
++        test_exhaustive_halfagg_put_s(&sigs64[(u - 1) * 64 + 32], EXHAUSTIVE_TEST_ORDER);
++        CHECK(!secp256k1_schnorrsig_aggregate(ctx, aggsig2, &len, pks, msgs32, sigs64, u));
++        memcpy(&sigs64[(u - 1) * 64 + 32], keep, 32);
++    }
++
++    if (u > 0 && check_nonces) {
++        /* A nonce that does not lift: every s is rejected. */
++        for (i = 0; i < NUM_INVALID_KEYS; i++) {
++            secp256k1_fe x;
++            secp256k1_ge ge;
++            /* Some of these encodings are x-coordinates of points of the test
++             * curve outside the group of order EXHAUSTIVE_TEST_ORDER. Such a
++             * nonce lifts, and a randomizer that is a multiple of the point's
++             * order removes it from the equation. secp256k1 has no such
++             * points, so these encodings are skipped. */
++            if (secp256k1_fe_set_b32_limit(&x, invalid_pubkey_bytes[i]) && secp256k1_ge_set_xo_var(&ge, &x, 0)) continue;
++            for (j = 0; j < u; j++) {
++                memcpy(aggsig2, aggsig, 32 * u);
++                memcpy(&aggsig2[j * 32], invalid_pubkey_bytes[i], 32);
++                for (s = 0; s < EXHAUSTIVE_TEST_ORDER; s++) {
++                    test_exhaustive_halfagg_put_s(&aggsig2[u * 32], s);
++                    CHECK(!secp256k1_schnorrsig_aggverify(ctx, pks, msgs32, u, aggsig2, 32 * (u + 1)));
++                }
++            }
++        }
++    }
++}
++
++static void test_exhaustive_schnorrsig_halfagg(const secp256k1_context *ctx) {
++    secp256k1_keypair keypair[EXHAUSTIVE_TEST_ORDER - 1];
++    secp256k1_xonly_pubkey xonly_pubkey[EXHAUSTIVE_TEST_ORDER - 1];
++    int parity[EXHAUSTIVE_TEST_ORDER - 1];
++    unsigned char xonly_pubkey_bytes[EXHAUSTIVE_TEST_ORDER - 1][32];
++    int d[HALFAGG_EXHAUSTIVE_MAX], k[HALFAGG_EXHAUSTIVE_MAX];
++    uint64_t iter = 0;
++    unsigned i;
++
++    /* Construct keypairs and xonly-pubkeys for the entire group. */
++    for (i = 1; i < EXHAUSTIVE_TEST_ORDER; ++i) {
++        secp256k1_scalar scalar_i;
++        unsigned char buf[32];
++        secp256k1_scalar_set_int(&scalar_i, i);
++        secp256k1_scalar_get_b32(buf, &scalar_i);
++        CHECK(secp256k1_keypair_create(ctx, &keypair[i - 1], buf));
++        CHECK(secp256k1_keypair_xonly_pub(ctx, &xonly_pubkey[i - 1], &parity[i - 1], &keypair[i - 1]));
++        CHECK(secp256k1_xonly_pubkey_serialize(ctx, xonly_pubkey_bytes[i - 1], &xonly_pubkey[i - 1]));
++    }
++
++    /* The empty aggregate */
++    test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 0, d, k, 0);
++
++    for (d[0] = 1; d[0] < EXHAUSTIVE_TEST_ORDER; d[0]++) {
++        for (k[0] = 1; k[0] < EXHAUSTIVE_TEST_ORDER; k[0]++) {
++            if (skip_section(&iter)) continue;
++            /* One signature: every key and every nonce */
++            test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 1, d, k, EXHAUSTIVE_TEST_ORDER <= 13);
++#if EXHAUSTIVE_TEST_ORDER <= 13
++            /* Two signatures: every pair of keys and of nonces. Three: a third
++             * signature with the key of the second and the nonce of the first. */
++            for (d[1] = 1; d[1] < EXHAUSTIVE_TEST_ORDER; d[1]++) {
++                for (k[1] = 1; k[1] < EXHAUSTIVE_TEST_ORDER; k[1]++) {
++                    int nonces = d[0] == 1 && d[1] == 1;
++                    test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 2, d, k, nonces);
++                    d[2] = d[1];
++                    k[2] = k[0];
++                    test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 3, d, k, 0);
++                }
++            }
++#else
++            /* Two and three signatures: the second has the negated key and the
++             * same nonce, so the same x-only public key and nonce as the first.
++             * The third has the next key and the negated nonce. */
++            d[1] = EXHAUSTIVE_TEST_ORDER - d[0];
++            k[1] = k[0];
++            test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 2, d, k, 0);
++            d[2] = d[0] % (EXHAUSTIVE_TEST_ORDER - 1) + 1;
++            k[2] = EXHAUSTIVE_TEST_ORDER - k[0];
++            test_exhaustive_halfagg_one(ctx, xonly_pubkey, xonly_pubkey_bytes, parity, 3, d, k, 0);
++#endif
++        }
++    }
++}
++
++#endif
+diff --git a/src/tests_exhaustive.c b/src/tests_exhaustive.c
+index 5c0bce18..1f1d17ab 100644
+--- a/src/tests_exhaustive.c
++++ b/src/tests_exhaustive.c
+@@ -358,6 +358,10 @@ static void test_exhaustive_sign(const secp256k1_context *ctx, const secp256k1_g
+ #include "modules/schnorrsig/tests_exhaustive_impl.h"
+ #endif
+ 
++#ifdef ENABLE_MODULE_SCHNORRSIG_HALFAGG
++#include "modules/schnorrsig_halfagg/tests_exhaustive_impl.h"
++#endif
++
+ #if defined(ENABLE_MODULE_ELLSWIFT) && !EXHAUSTIVE_TEST_CURVE_HAS_EVEN_ORDER
+ #include "modules/ellswift/tests_exhaustive_impl.h"
+ #endif
+@@ -456,6 +460,9 @@ int main(int argc, char** argv) {
+ #ifdef ENABLE_MODULE_SCHNORRSIG
+         test_exhaustive_schnorrsig(ctx);
+ #endif
++#ifdef ENABLE_MODULE_SCHNORRSIG_HALFAGG
++        test_exhaustive_schnorrsig_halfagg(ctx);
++#endif
+ #ifdef ENABLE_MODULE_ELLSWIFT
+     /* The ellswift algorithm does have additional edge cases when operating on
+      * curves of even order, which are not included in the code as secp256k1 is

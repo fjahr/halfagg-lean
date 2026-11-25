@@ -123,18 +123,46 @@ python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
 
-No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit, with a new seed for every run. A second CI job builds libsecp256k1 at the commit above and runs the module's unit tests and 3,000 cases.
+No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit, with a new seed for every run. A second CI job builds libsecp256k1 at the commit above and runs the module's unit tests, 3,000 cases and the exhaustive tests of the next section.
 
-`scripts/mutate_secp256k1.py` measures what these tests can see. It applies 21 one-line mutants to the C module, such as dropping a range check or hashing `z₀`, and runs the module's unit tests and the generated cases against each:
+## Exhaustive test for the C module
+
+`patches/secp256k1-halfagg-exhaustive-tests.patch` adds a test of the `schnorrsig_halfagg` module to libsecp256k1's exhaustive tests, which run the library on a group of order 13 or 199. It applies to the commit named above.
+
+The test makes BIP 340 signatures from secret keys and nonces that it knows as discrete logarithms, aggregates up to three of them, and compares every result with the value computed on the discrete logarithms:
+
+- `Aggregate` returns `r_0 ‖ … ‖ r_{u-1} ‖ bytes(s)` with `s = Σ zᵢ⋅sᵢ`. The test hashes every prefix from the start for `zᵢ`, where the module updates one hash state.
+- `IncAggregate` returns the same bytes from every split of the list.
+- `VerifyAggregate` accepts that `s` and no other value. It rejects `s = n` and `s = n + 1`, also for the empty aggregate.
+- `Aggregate` rejects a signature with `s = n`, and `IncAggregate` an input aggregate with `s = n`.
+- `VerifyAggregate` rejects every `s` if a nonce is not the x-coordinate of a point or is not below the field size.
+
+The second is `aggregate_append` of the Lean model, and the third is `verifyAggregateBytes_aggregateBytes` with `verifyAggregateBytes_unique`. The test checks them on the C code for every input of a small group.
+
+```sh
+git -C path/to/secp256k1 apply path/to/halfagg-lean/patches/secp256k1-halfagg-exhaustive-tests.patch
+cmake -S path/to/secp256k1 -B build -DSECP256K1_EXPERIMENTAL=ON \
+  -DSECP256K1_ENABLE_MODULE_SCHNORRSIG_HALFAGG=ON -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=ON
+cmake --build build
+build/bin/exhaustive_tests
+```
+
+The test passes on the groups of order 13 and 199 and takes about 10 seconds on each. On order 13 it runs every key and nonce of one signature and of two, with all 15 encodings of `s` from 0 to `n + 1`. On order 199 it runs every key and nonce of one signature, derives the second and third from the first, and tries the expected `s`, its successor and the two encodings that are out of range. The order is a compile-time constant of `src/tests_exhaustive.c` (`-DEXHAUSTIVE_TEST_ORDER=199` for that file only), and the rest of the suite is slow on that group.
+
+## Mutation test of the C module
+
+`scripts/mutate_secp256k1.py` measures what these tests can see. It applies 21 one-line mutants to the C module, such as dropping a range check or hashing `z₀`, and runs three sets of tests against each: the module's unit tests, the generated cases, and the exhaustive tests on the group of order 13 with the patch above.
 
 ```sh
 python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0458
 ```
 
-The unit tests catch 19 mutants and the cases 18, together 20.
+The script works on an export of the checkout's `HEAD` in a temporary directory and takes about 6 minutes.
 
-- Only the cases catch the mutant without the check `s < n` in `aggverify`. Such a verifier still rejects an `s ≥ n` whose reduction fails the equation. The one input that tells it apart is the empty aggregate with `s = n`, which the generator produces.
-- No input can catch the mutant that reduces an `r ≥ p` mod `p`, because nobody can produce a signature whose nonce has an x-coordinate below `2^256 - p`.
+The unit tests catch 19 mutants, the cases 18 and the exhaustive tests 18. Together they catch all 21.
+
+- The unit tests miss the mutant without the check `s < n` in `aggverify`. Such a verifier still rejects an `s ≥ n` whose reduction fails the equation. The empty aggregate with `s = n` tells it apart. The generator produces that input and the exhaustive test has it.
+- Only the exhaustive tests catch the mutant that reduces an `r ≥ p` mod `p`. On secp256k1 no input can, because nobody can produce a signature whose nonce has an x-coordinate below `2^256 - p`. The test curve has a point of order 3 with the x-coordinate 0, outside the group. The mutant reduces `r = p` to it, and a randomizer that is a multiple of 3 removes the point from the equation.
 
 ## Building
 
