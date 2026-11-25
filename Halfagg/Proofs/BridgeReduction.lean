@@ -26,7 +26,7 @@ variable [SampleableType H] {red : H → ZMod n}
 
 /-- The joint handler: bookkeeping with real signatures and the lazily sampled
 annotated oracle, in `StateT cache ProbComp`. It is `annImpl` under `romImpl`. -/
-noncomputable def jImpl (pk : X) (sk : ZMod n) :
+noncomputable def jImpl [NonceGen n M] (pk : X) (sk : ZMod n) :
     QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
       (StateT (Core n X M) (StateT (AnnSpec n H X M).QueryCache ProbComp)) :=
   coreImpl C challenge pk
@@ -47,14 +47,14 @@ noncomputable def redImpl (pk : X) :
 
 /-- The BIP340 game's oracles for the reduction, with the signing log kept as a
 list of signed messages. -/
-noncomputable def appImpl (pk : X) (sk : ZMod n) :
+noncomputable def appImpl [NonceGen n M] (pk : X) (sk : ZMod n) :
     QueryImpl (unifSpec + SignSpec n X M) (StateT (List M) ProbComp) :=
   (HasQuery.toQueryImpl (spec := unifSpec) (m := ProbComp)).liftTarget (StateT (List M) ProbComp) +
     QueryImpl.appendInputLog ((bip340 (M := M) C challenge ProbComp).sign pk sk)
 
 /-! ## Components of the reduction's run inside the BIP340 game -/
 
-theorem app_unif (pk : X) (sk : ZMod n) (k : ℕ) (l : List M) :
+theorem app_unif [NonceGen n M] (pk : X) (sk : ZMod n) (k : ℕ) (l : List M) :
     (simulateQ (appImpl C challenge pk sk)
       (liftM (unifSpec.query k) : OracleComp (unifSpec + SignSpec n X M) _)).run l =
       (fun u => (u, l)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
@@ -62,7 +62,7 @@ theorem app_unif (pk : X) (sk : ZMod n) (k : ℕ) (l : List M) :
   rw [QueryImpl.simulateQ_add_liftM_query_left]
   simp
 
-theorem app_lift (pk : X) (sk : ZMod n) {α : Type} (x : ProbComp α) (l : List M) :
+theorem app_lift [NonceGen n M] (pk : X) (sk : ZMod n) {α : Type} (x : ProbComp α) (l : List M) :
     (simulateQ (appImpl C challenge pk sk)
       (liftM x : OracleComp (unifSpec + SignSpec n X M) α)).run l = (fun a => (a, l)) <$> x := by
   unfold appImpl
@@ -70,7 +70,7 @@ theorem app_lift (pk : X) (sk : ZMod n) {α : Type} (x : ProbComp α) (l : List 
     simulateQ_id']
   simp
 
-theorem app_sign (pk : X) (sk : ZMod n) (msg : M) (l : List M) :
+theorem app_sign [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M) (l : List M) :
     (simulateQ (appImpl C challenge pk sk)
       (liftM ((SignSpec n X M).query msg) : OracleComp (unifSpec + SignSpec n X M) _)).run l =
       (fun sig => (sig, l ++ [msg])) <$> (bip340 (M := M) C challenge ProbComp).sign pk sk msg := by
@@ -92,7 +92,8 @@ theorem rom_ro (l : List (AItem n X M)) (c : (AnnSpec n H X M).QueryCache) :
       ((AnnSpec n H X M).randomOracle l).run c := by
   simp
 
-theorem rom_sign (pk : X) (sk : ZMod n) (msg : M) (c : (AnnSpec n H X M).QueryCache) :
+theorem rom_sign [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M)
+    (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (AnnSpec n H X M).romImpl
       ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).sign pk sk
         msg)).run c =
@@ -129,7 +130,7 @@ theorem unifFwd_run (k : ℕ) (c : (AnnSpec n H X M).QueryCache) :
       (fun u => (u, c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   simpa using roSim.run_apply_inl (hashSpec := AnnSpec n H X M) (AnnSpec n H X M).randomOracle k c
 
-theorem red_step (pk : X) (sk : ZMod n)
+theorem red_step [NonceGen n M] (pk : X) (sk : ZMod n)
     (t : Explained (ZMod n) (Request X M) (Pts E)) (st : Core n X M)
     (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (appImpl C challenge pk sk) (((redImpl (H := H) C challenge pk t).run st).run c)).run
@@ -154,7 +155,7 @@ theorem red_step (pk : X) (sk : ZMod n)
 
 /-- The reduction's run of the forger inside the BIP340 game, with the signing
 log as state, is the joint run; the log ends as the bookkeeping's `signed`. -/
-theorem red_stack (pk : X) (sk : ZMod n) {Result : Type}
+theorem red_stack [NonceGen n M] (pk : X) (sk : ZMod n) {Result : Type}
     (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (appImpl C challenge pk sk)
@@ -188,7 +189,7 @@ theorem zs_ann (items : List (AItem n X M)) (is : List ℕ) :
     unfold zQueryAnn jZ
     split_ifs <;> simp
 
-theorem zs_red (pk : X) (sk : ZMod n) (items : List (AItem n X M)) (is : List ℕ)
+theorem zs_red [NonceGen n M] (pk : X) (sk : ZMod n) (items : List (AItem n X M)) (is : List ℕ)
     (c : (AnnSpec n H X M).QueryCache) (l : List M) :
     (simulateQ (appImpl C challenge pk sk)
         ((is.mapM fun i => if i = 0 then pure 1 else red <$> tableRO (items.take (i + 1))).run
@@ -216,7 +217,7 @@ theorem zs_red (pk : X) (sk : ZMod n) (items : List (AItem n X M)) (is : List �
 
 /-- The annotated experiment written out in `ProbComp`, with the lazily sampled
 oracle's cache threaded explicitly. -/
-noncomputable def jExp (red : H → ZMod n) (F : AlgForger n H E X M) :
+noncomputable def jExp [NonceGen n M] (red : H → ZMod n) (F : AlgForger n H E X M) :
     ProbComp (Transcript n X M) := do
   let ks ← (bip340 (M := M) C challenge ProbComp).keygen
   let p ← ((simulateQ (jImpl (H := H) C challenge ks.1 ks.2)
@@ -225,7 +226,7 @@ noncomputable def jExp (red : H → ZMod n) (F : AlgForger n H E X M) :
     (jZ red (finalItems C p.1.1 p.1.2))).run p.2
   return (ks.1, finalItems C p.1.1 p.1.2, p.1.1.value.data.s, q.1, p.1.2.signed)
 
-theorem rom_keygen (c : (AnnSpec n H X M).QueryCache) :
+theorem rom_keygen [NonceGen n M] (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (AnnSpec n H X M).romImpl
       (bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).keygen).run c =
       (fun ks => (ks, c)) <$> (bip340 (M := M) C challenge ProbComp).keygen := by
@@ -235,7 +236,7 @@ theorem rom_keygen (c : (AnnSpec n H X M).QueryCache) :
     liftM x from fun _ => rfl, OracleSpec.simulateQ_romImpl_liftM_run]
   rfl
 
-theorem rom_annImpl (pk : X) (sk : ZMod n) {Result : Type}
+theorem rom_annImpl [NonceGen n M] (pk : X) (sk : ZMod n) {Result : Type}
     (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) :
     simulateQ (AnnSpec n H X M).romImpl
@@ -244,7 +245,7 @@ theorem rom_annImpl (pk : X) (sk : ZMod n) {Result : Type}
   coreImpl_natural C challenge (fun x => simulateQ (AnnSpec n H X M).romImpl x)
     (fun a => simulateQ_pure _ a) (fun x f => simulateQ_bind _ x f) pk _ _ _ prog st
 
-theorem annROM_eq (F : AlgForger n H E X M) :
+theorem annROM_eq [NonceGen n M] (F : AlgForger n H E X M) :
     annROM C challenge red F = jExp C challenge red F := by
   unfold annROM annExperiment annPhase1 jExp
   simp only [simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind, StateT.run_pure,
@@ -252,7 +253,7 @@ theorem annROM_eq (F : AlgForger n H E X M) :
 
 /-! ## The reduction inside the BIP340 game -/
 
-theorem red_main_eq [Inhabited M] (F : AlgForger n H E X M) (pk : X) :
+theorem red_main_eq [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) (pk : X) :
     (reduction C challenge red F).main pk = (do
       let p ← ((simulateQ (redImpl (H := H) C challenge pk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
@@ -261,7 +262,7 @@ theorem red_main_eq [Inhabited M] (F : AlgForger n H E X M) (pk : X) :
         p.1.2.signed)) := rfl
 
 /-- The signing log of the BIP340 game, kept as the list of signed messages. -/
-theorem run_sign_eq (pk : X) (sk : ZMod n) {α : Type}
+theorem run_sign_eq [NonceGen n M] (pk : X) (sk : ZMod n) {α : Type}
     (oa : OracleComp (unifSpec + SignSpec n X M) α) :
     (fun z => (z.1, z.2.map (fun e => e.1))) <$>
         (bip340 (M := M) C challenge ProbComp).runWithSigningOracle pk sk oa =
@@ -275,7 +276,7 @@ theorem run_sign_eq (pk : X) (sk : ZMod n) {α : Type}
 /-- A run of the forger with the reduction's bookkeeping in the BIP340 game,
 followed by any function `post` of the forgery, the final state and the
 randomizers, is the joint run followed by `post`. -/
-theorem red_run_post_eq {β : Type}
+theorem red_run_post_eq [NonceGen n M] {β : Type}
     (post : X → Explained (ZMod n) (Out n M) (Pts E) → Core n X M → List (ZMod n) → β)
     (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
     (simulateQ (appImpl C challenge pk sk) (do
@@ -298,7 +299,7 @@ theorem red_run_post_eq {β : Type}
   rw [zs_red, bind_map_left]
 
 /-- The reduction's run in the BIP340 game is the joint run followed by extraction. -/
-theorem red_run_eq [Inhabited M] (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
+theorem red_run_eq [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
     (simulateQ (appImpl C challenge pk sk) ((reduction C challenge red F).main pk)).run [] = (do
       let p ← ((simulateQ (jImpl (H := H) C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
@@ -324,7 +325,7 @@ theorem gameOK_iff [Inhabited M] (t : Transcript n X M) :
 
 /-- **The BIP340 game of the reduction is the joint experiment followed by
 extraction.** -/
-theorem red_experiment_eq [Inhabited M] (F : AlgForger n H E X M) :
+theorem red_experiment_eq [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) :
     SignatureAlg.unforgeableExperiment (reduction C challenge red F) =
       gameOK C challenge <$> jExp C challenge red F := by
   have hexp : SignatureAlg.unforgeableExperiment (reduction C challenge red F) = (do
@@ -359,7 +360,7 @@ theorem red_experiment_eq [Inhabited M] (F : AlgForger n H E X M) :
 
 /-- **Bridge B.** The annotated experiment's extraction succeeds exactly as often
 as the reduction wins the BIP340 game. -/
-theorem red_advantage_eq [Inhabited M] (F : AlgForger n H E X M) :
+theorem red_advantage_eq [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) :
     SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) =
       Pr{let t ← annROM C challenge red F}[extractOK C challenge t] := by
   unfold SignatureAlg.unforgeableAdvantage
@@ -367,7 +368,7 @@ theorem red_advantage_eq [Inhabited M] (F : AlgForger n H E X M) :
     prEvent_map, annROM_eq]
   exact prEvent_congr_of_support _ _ _ fun t _ => gameOK_iff C challenge t
 
-theorem bridge_reduction [Inhabited M] (F : AlgForger n H E X M) :
+theorem bridge_reduction [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) :
     Pr{let t ← annROM C challenge red F}[extractOK C challenge t] ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) :=
   (red_advantage_eq C challenge F).ge

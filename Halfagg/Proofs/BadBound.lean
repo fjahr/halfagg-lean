@@ -26,7 +26,7 @@ variable [SampleableType H] {red : H → ZMod n}
 /-! ## Query counts -/
 
 /-- The scheme's signing makes no hash queries. -/
-theorem sign_bound (pk : X) (sk : ZMod n) (msg : M) :
+theorem sign_bound [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M) :
     ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).sign pk sk
       msg).IsQueryBoundP isHash 0 := by
   simp only [bip340]
@@ -35,7 +35,7 @@ theorem sign_bound (pk : X) (sk : ZMod n) (msg : M) :
     liftComp x (unifSpec + AnnSpec n H X M) from fun _ => (liftComp_eq_liftM _).symm]
   exact liftComp_isHash_zero _
 
-theorem keygen_bound :
+theorem keygen_bound [NonceGen n M] :
     ((bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).keygen
       ).IsQueryBoundP isHash 0 := by
   simp only [bip340]
@@ -45,7 +45,7 @@ theorem keygen_bound :
   exact liftComp_isHash_zero _
 
 /-- One request costs one hash query if it is a randomizer request, else none. -/
-theorem annImpl_step (pk : X) (sk : ZMod n)
+theorem annImpl_step [NonceGen n M] (pk : X) (sk : ZMod n)
     (t : Explained (ZMod n) (Request X M) (Pts E)) (s : Core n X M) :
     ((annImpl (H := H) C challenge pk sk t).run s).IsQueryBoundP isHash
       (if isRand t.value.data = true then 1 else 0) := by
@@ -64,7 +64,7 @@ theorem annImpl_step (pk : X) (sk : ZMod n)
     exact isQueryBoundP_bind (n := 0) (m := 0) (sign_bound C challenge pk sk msg)
       fun _ _ => isQueryBoundP_pure _ _ _
 
-theorem annPhase1_bound (F : AlgForger n H E X M) (q : ℕ)
+theorem annPhase1_bound [NonceGen n M] (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     (annPhase1 C challenge F).IsQueryBoundP isHash q := by
   unfold annPhase1

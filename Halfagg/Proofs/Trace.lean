@@ -116,7 +116,7 @@ theorem finalItems_ok (hx0 : C.liftX (C.x 0) = none) (d : ZMod n) {recv : List E
 
 /-- After key generation and the forger's run, the bookkeeping is valid for the
 normalized secret key `d`. -/
-theorem phase1_ok (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
+theorem phase1_ok [NonceGen n M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) :
     ∃ d : ZMod n, d ≠ 0 ∧ C.hasEvenY (C.mulG d) = true ∧ r.1 = C.x (C.mulG d) ∧

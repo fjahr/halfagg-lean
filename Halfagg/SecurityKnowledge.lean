@@ -43,7 +43,7 @@ def aggVerifies (its : List (Item X M)) (s : ZMod n) (zs : List (ZMod n)) : Bool
 
 /-- The game of `aggExperiment` without the condition on the target key: the
 adversary's aggregate passes `VerifyAggregate`. -/
-noncomputable def aggVerifyExperiment (A : AggAdversary n H X M) :
+noncomputable def aggVerifyExperiment [NonceGen n M] (A : AggAdversary n H X M) :
     OracleComp (unifSpec + RandSpec H X M) Bool := do
   let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))
   let (pk, sk) ← alg.keygen
@@ -53,7 +53,7 @@ noncomputable def aggVerifyExperiment (A : AggAdversary n H X M) :
 
 /-- The probability that the adversary's aggregate verifies, with a lazily
 sampled random oracle. -/
-noncomputable def aggVerifyAdvantage (A : AggAdversary n H X M) : ℝ≥0∞ :=
+noncomputable def aggVerifyAdvantage [NonceGen n M] (A : AggAdversary n H X M) : ℝ≥0∞ :=
   (ProbCompRuntime.rom (RandSpec H X M)).evalDist (aggVerifyExperiment C challenge red A) {true}
 
 /-! ## The extractor -/
@@ -94,14 +94,15 @@ noncomputable def extractor (F : AlgForger n H E X M) (pk : X) :
 
 /-- The extraction experiment: the extractor runs with a BIP340 key and its
 signing oracle. -/
-noncomputable def extractExperiment (F : AlgForger n H E X M) : ProbComp Bool := do
+noncomputable def extractExperiment [NonceGen n M] (F : AlgForger n H E X M) :
+    ProbComp Bool := do
   let alg := bip340 (M := M) C challenge ProbComp
   let (pk, sk) ← alg.keygen
   let ((its, s, zs, sigs), _) ← alg.runWithSigningOracle pk sk (extractor C challenge red F pk)
   return extractWins C challenge its s zs sigs
 
 /-- The probability that the extractor succeeds. -/
-noncomputable def extractAdvantage (F : AlgForger n H E X M) : ℝ≥0∞ :=
+noncomputable def extractAdvantage [NonceGen n M] (F : AlgForger n H E X M) : ℝ≥0∞ :=
   ProbCompRuntime.probComp.evalDist (extractExperiment C challenge red F) {true}
 
 end Halfagg.Security

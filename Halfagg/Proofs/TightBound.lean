@@ -38,14 +38,14 @@ variable [SampleableType H] {red : H → ZMod n} {μ : ℝ≥0∞}
 def betaOf (a : AItem n X M) : ZMod n := (starRep challenge a).2
 
 /-- The forger's phase with its transcript of randomizer queries. -/
-noncomputable def loggedPhase1 (F : AlgForger n H E X M) :
+noncomputable def loggedPhase1 [NonceGen n M] (F : AlgForger n H E X M) :
     OracleComp (unifSpec + AnnSpec n H X M)
       ((X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M) ×
         Tr (List (AItem n X M)) H) :=
   withLog (annPhase1 C challenge F)
 
 /-- **The forger completes a bad configuration with probability at most `q⋅μ`.** -/
-theorem phase1_cfg_bound (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : ℕ)
+theorem phase1_cfg_bound [NonceGen n M] (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     Pr{let z ← randomOracleLoggedRun (loggedPhase1 C challenge F)}[
       Dcfg (finalItems C z.1.1.1.2.1 z.1.1.1.2.2) (betaOf challenge)
@@ -102,7 +102,8 @@ theorem phase1_cfg_bound (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : 
 
 /-- A failed extraction means that the randomized sum of the coefficients
 vanishes while some coefficient is nonzero. -/
-theorem fail_sum [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
+theorem fail_sum [NonceGen n M] [Inhabited M] (hx0 : C.liftX (C.x 0) = none)
+    (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) (zs : List (ZMod n))
     (hwin : winT C challenge
@@ -128,7 +129,7 @@ theorem fail_sum [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H
 /-- **An event that makes the randomized sum vanish is unlikely.** If an event
 of the transcript implies that some coefficient `β*ᵢ` is nonzero while the
 randomized sum `Σ zᵢ⋅β*ᵢ` vanishes, its probability is at most `(q + 1)⋅μ`. -/
-theorem annROM_sum_bound (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : ℕ)
+theorem annROM_sum_bound [NonceGen n M] (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (ev : Transcript n X M → Prop)
     (hev : ∀ r ∈ support (annPhase1 C challenge F), ∀ zs : List (ZMod n),
@@ -181,7 +182,7 @@ theorem annROM_sum_bound (hμ : RedBound red μ) (F : AlgForger n H E X M) (q : 
     exact add_le_add h2 le_rfl
 
 /-- **The bad event is unlikely.** -/
-theorem annROM_bad [Inhabited M] (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
+theorem annROM_bad [NonceGen n M] [Inhabited M] (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
     (F : AlgForger n H E X M)
     (q : ℕ) (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     Pr{let t ← annROM C challenge red F}[winT C challenge t ∧ ¬ extractOK C challenge t] ≤

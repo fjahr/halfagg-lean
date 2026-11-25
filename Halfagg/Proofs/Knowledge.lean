@@ -98,7 +98,7 @@ def extB (t : Transcript n X M) : Bool :=
 
 /-- A verifying aggregate whose extraction fails means that the randomized sum
 of the coefficients vanishes while some coefficient is nonzero. -/
-theorem fail_sum_all (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
+theorem fail_sum_all [NonceGen n M] (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
     (r : X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M)
     (hr : r ∈ support (annPhase1 C challenge F)) (zs : List (ZMod n))
     (hver : verB C challenge
@@ -122,7 +122,7 @@ theorem fail_sum_all (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M)
   · exact h
 
 /-- **A verifying aggregate with a failed extraction is unlikely.** -/
-theorem know_bad (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
+theorem know_bad [NonceGen n M] (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
     (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
     Pr{let t ← annROM C challenge red F}[verB C challenge t = true ∧ ¬ extB C challenge t = true] ≤
@@ -132,7 +132,7 @@ theorem know_bad (hμ : RedBound red μ) (hx0 : C.liftX (C.x 0) = none)
 
 /-! ## The verification game -/
 
-theorem verify_experiment_eq (F : AlgForger n H E X M) :
+theorem verify_experiment_eq [NonceGen n M] (F : AlgForger n H E X M) :
     (simulateQ (RandSpec H X M).romImpl (aggVerifyExperiment C challenge red (erase C F))).run' ∅ =
       verB C challenge <$> jExp C challenge red F := by
   have hexp : aggVerifyExperiment C challenge red (erase C F) = (do
@@ -164,7 +164,7 @@ theorem verify_experiment_eq (F : AlgForger n H E X M) :
 
 /-- The aggregate of the erased forger verifies in the game exactly as often as
 the transcript's aggregate does. -/
-theorem verify_advantage_eq (F : AlgForger n H E X M) :
+theorem verify_advantage_eq [NonceGen n M] (F : AlgForger n H E X M) :
     aggVerifyAdvantage C challenge red (erase C F) =
       Pr{let t ← annROM C challenge red F}[verB C challenge t = true] := by
   unfold aggVerifyAdvantage
@@ -192,7 +192,7 @@ theorem extractor_sign_bound (F : AlgForger n H E X M) (p : M → Bool) (q : ℕ
         (by omega)
   exact tableZs_sign p _ _ y.2
 
-theorem extractor_run_eq (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
+theorem extractor_run_eq [NonceGen n M] (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
     (simulateQ (appImpl C challenge pk sk) (extractor C challenge red F pk)).run [] = (do
       let p ← ((simulateQ (jImpl (H := H) C challenge pk sk)
         (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
@@ -207,7 +207,7 @@ theorem extractor_run_eq (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
       (finalItems C out st).map (extractSig challenge (finalItems C out st) out.value.data.s zs)))
     F pk sk
 
-theorem extract_experiment_eq (F : AlgForger n H E X M) :
+theorem extract_experiment_eq [NonceGen n M] (F : AlgForger n H E X M) :
     extractExperiment C challenge red F = extB C challenge <$> jExp C challenge red F := by
   have hexp : extractExperiment C challenge red F = (do
       let ks ← (bip340 (M := M) C challenge ProbComp).keygen
@@ -228,7 +228,7 @@ theorem extract_experiment_eq (F : AlgForger n H E X M) :
   simp [extB, finalItems, map_strip_annotate]
 
 /-- The extractor succeeds exactly as often as it does on the transcript. -/
-theorem extract_advantage_eq (F : AlgForger n H E X M) :
+theorem extract_advantage_eq [NonceGen n M] (F : AlgForger n H E X M) :
     extractAdvantage C challenge red F =
       Pr{let t ← annROM C challenge red F}[extB C challenge t = true] := by
   unfold extractAdvantage

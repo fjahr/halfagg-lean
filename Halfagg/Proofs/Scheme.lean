@@ -40,7 +40,7 @@ theorem sign_rep {d k : ZMod n} (hd : d ≠ 0) (hk : k ≠ 0) (msg : M) :
 
 variable {κ : Type} {S : OracleSpec κ}
 
-theorem keygen_support (ks : X × ZMod n)
+theorem keygen_support [NonceGen n M] (ks : X × ZMod n)
     (h : ks ∈ support (bip340 (M := M) C challenge (OracleComp (unifSpec + S))).keygen) :
     ks.2 ≠ 0 ∧ ks.1 = C.x (C.mulG ks.2) := by
   simp only [bip340] at h
@@ -51,7 +51,7 @@ theorem keygen_support (ks : X × ZMod n)
   obtain ⟨d, -, rfl⟩ := h'
   exact ⟨d.2, rfl⟩
 
-theorem sign_support {d : ZMod n} (hd : d ≠ 0) (msg : M) (sig : X × ZMod n)
+theorem sign_support [NonceGen n M] {d : ZMod n} (hd : d ≠ 0) (msg : M) (sig : X × ZMod n)
     (h : sig ∈ support ((bip340 (M := M) C challenge (OracleComp (unifSpec + S))).sign
       (C.x (C.mulG d)) d msg)) :
     C.liftX sig.1 = some (repPoint C (C.evenScalar d)

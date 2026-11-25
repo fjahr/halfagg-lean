@@ -35,7 +35,7 @@ BIP458's 256-bit hash reduced modulo `n` (`Halfagg/Hash256.lean`).
 `hx0` says the point at infinity has no x-only encoding: its x-coordinate in the
 curve interface does not lift. For secp256k1 that x-coordinate is `0`, and `0`
 is not an x-coordinate of the curve because `7` is not a square modulo `p`. -/
-theorem halfagg_unforgeable [Inhabited M] (hx0 : C.liftX (C.x 0) = none)
+theorem halfagg_unforgeable [NonceGen n M] [Inhabited M] (hx0 : C.liftX (C.x 0) = none)
     (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (μ : ℝ≥0∞) (hμ : RedBound red μ) :
@@ -56,6 +56,7 @@ theorem halfagg_unforgeable [Inhabited M] (hx0 : C.liftX (C.x 0) = none)
 /-- The theorem for secp256k1 and BIP458's randomizer hash: the curve hypothesis
 holds, the hash has 256 bits and is reduced modulo `n`. -/
 theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
+    [NonceGen Secp256k1.n M]
     (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
     (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
@@ -71,7 +72,8 @@ theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
 reduction makes at most `q` signing queries for messages in `p`. With `p` all
 messages, the reduction makes no more signing queries than the forger; with
 `q = 0`, it never asks for a signature the forger did not ask for. -/
-theorem reduction_sign_queries [Inhabited M] (F : AlgForger n H E X M) (p : M → Bool) (q : ℕ)
+theorem reduction_sign_queries [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M)
+    (p : M → Bool) (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
     ((reduction C challenge red F).main pk).IsQueryBoundP (fun t => isSignQuery p t) q :=
   reduction_sign_bound C challenge F p q h pk

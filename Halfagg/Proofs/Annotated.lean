@@ -39,7 +39,7 @@ def zQueryAnn (red : H → ZMod n) (items : List (AItem n X M)) (i : ℕ) :
 
 /-- The reduction's bookkeeping with real signatures under `sk` and the
 annotated random oracle. -/
-noncomputable def annImpl (pk : X) (sk : ZMod n) :
+noncomputable def annImpl [NonceGen n M] (pk : X) (sk : ZMod n) :
     QueryImpl (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M))
       (StateT (Core n X M) (OracleComp (unifSpec + AnnSpec n H X M))) :=
   coreImpl C challenge pk
@@ -49,7 +49,7 @@ noncomputable def annImpl (pk : X) (sk : ZMod n) :
       (OracleComp (unifSpec + AnnSpec n H X M))).sign pk sk msg)
 
 /-- Key generation and the forger's run. -/
-noncomputable def annPhase1 (F : AlgForger n H E X M) :
+noncomputable def annPhase1 [NonceGen n M] (F : AlgForger n H E X M) :
     OracleComp (unifSpec + AnnSpec n H X M)
       (X × Explained (ZMod n) (Out n M) (Pts E) × Core n X M) := do
   let ks ← (bip340 (M := M) C challenge (OracleComp (unifSpec + AnnSpec n H X M))).keygen
@@ -58,7 +58,7 @@ noncomputable def annPhase1 (F : AlgForger n H E X M) :
   return (ks.1, r.1, r.2)
 
 /-- The annotated experiment. -/
-noncomputable def annExperiment (red : H → ZMod n) (F : AlgForger n H E X M) :
+noncomputable def annExperiment [NonceGen n M] (red : H → ZMod n) (F : AlgForger n H E X M) :
     OracleComp (unifSpec + AnnSpec n H X M) (Transcript n X M) := do
   let r ← annPhase1 C challenge F
   let zs ← (List.range (finalItems C r.2.1 r.2.2).length).mapM

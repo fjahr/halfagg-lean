@@ -25,6 +25,8 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 
 In `Halfagg/`: `Unforgeability.lean`, `Knowledge.lean`, `Tightness.lean`, `UnforgeabilityROM.lean`, `UnforgeabilityTight.lean` and `Binding.lean`. Except for binding, the forger is algebraic. The randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. `μ` bounds the probability that one randomizer is a given scalar. For BIP 458's 256-bit hash reduced mod `n` it is `2/2^256` (`Halfagg/Hash256.lean`), and the secp256k1 forms of the theorems use that value.
 
+`halfagg_unforgeable`, `halfagg_knowledge` and `grinder_advantage` hold for every way the signer derives a nonce from its key and the message (`NonceGen`), so also for BIP 340's hashed nonces. The BIP 340 game of the reduction has the same signer. The theorems with the challenge hash as a random oracle are for uniform nonces, as taproot-lean's proof of BIP 340 is.
+
 | Theorem | Statement |
 |---|---|
 | `halfagg_unforgeable` | Half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, for every challenge hash. An explicit reduction turns a forger of the standard aggregate chosen-key game into a BIP 340 forger and loses at most `(q + 1)·μ`. |

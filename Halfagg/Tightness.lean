@@ -92,7 +92,7 @@ noncomputable def finish (pk : X)
   pure (aggWins C challenge pk w.1.1.1 w.1.1.2 zs.1 (fun m => w.1.2.contains m))
 
 /-- The standard game, for any adversary. -/
-theorem game_form (A : AggAdversary n (ZMod n) X ℕ) :
+theorem game_form [NonceGen n ℕ] (A : AggAdversary n (ZMod n) X ℕ) :
     (simulateQ (RandSpec (ZMod n) X ℕ).romImpl (aggExperiment C challenge id A)).run' ∅ = (do
       let ks ← (bip340 (M := ℕ) C challenge ProbComp).keygen
       let w ← gRun C challenge ks.1 ks.2 (A.main ks.1) [] ∅
@@ -217,7 +217,7 @@ theorem items_one {D : Type} (data : D) (m : ℕ) :
   simp [toItems, pairs, List.replicate, C.x_evenScalar]
 
 /-- One try: a fresh uniform randomizer, then success or the next try. -/
-theorem grind_step (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
+theorem grind_step [NonceGen n ℕ] (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
     (hc : c (gKey (C.x (C.mulG d)) j) = none) :
     gRun C challenge (C.x (C.mulG d)) sk (eraseOut C <$> simulateQ (fun q => eraseImpl C q.value)
         (grindLoop challenge (C.x (C.mulG d)) (k + 1) j
@@ -297,7 +297,7 @@ theorem gKey_ne (pk : X) {i j : ℕ} (h : i ≠ j) : gKey pk i ≠ gKey pk j := 
 include hd in
 /-- **The loop loses with probability at most `((n - 1)/n)^k`**, if the keys of
 its `k` tries are fresh and none of their coefficients vanishes. -/
-theorem grind_loss (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
+theorem grind_loss [NonceGen n ℕ] (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
     (hc : ∀ i, j ≤ i → c (gKey (C.x (C.mulG d)) i) = none)
     (hβ : ∀ i, j ≤ i → i < j + k → gβ challenge (C.x (C.mulG d)) (i + 1) ≠ 0) :
     Pr{let b ← (gRun C challenge (C.x (C.mulG d)) sk
@@ -335,7 +335,7 @@ theorem grind_loss (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZMod n) X ℕ).Quer
 include hd in
 /-- After key generation with secret key `d`, the forger loses with probability
 at most `((n - 1)/n)^q`. -/
-theorem grinder_loss_key (q : ℕ) :
+theorem grinder_loss_key [NonceGen n ℕ] (q : ℕ) :
     Pr{let b ← (gRun C challenge (C.x (C.mulG d)) d
         ((erase C (grinder C challenge q)).main (C.x (C.mulG d))) [] ∅ >>=
         finish C challenge (C.x (C.mulG d)))}[b = false] ≤ (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q := by
@@ -373,7 +373,7 @@ end Loop
 /-- **The bound is tight in `q`.** The grinding forger makes no signing requests
 and at most `q` randomizer requests, and wins the standard game with probability
 at least `1 - ((n - 1)/n)^q`. -/
-theorem grinder_advantage (q : ℕ) :
+theorem grinder_advantage [NonceGen n ℕ] (q : ℕ) :
     1 - (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q ≤
       aggAdvantage C challenge id (erase C (grinder C challenge q)) := by
   have hloss : Pr{let b ← (simulateQ (RandSpec (ZMod n) X ℕ).romImpl
@@ -473,7 +473,7 @@ theorem grinder_signs (q : ℕ) (p : ℕ → Bool) : ∀ input,
 
 /-- The main theorem applied to the grinding forger: its reduction is a BIP340
 forger that wins with probability at least `1 - ((n - 1)/n)^q - (q + 1)/n`. -/
-theorem grinder_sandwich (hx0 : C.liftX (C.x 0) = none) (q : ℕ) :
+theorem grinder_sandwich [NonceGen n ℕ] (hx0 : C.liftX (C.x 0) = none) (q : ℕ) :
     1 - (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
         (reduction C challenge id (grinder C challenge q)) + ((q : ℕ) + 1 : ℝ≥0∞) / n := by
@@ -483,7 +483,7 @@ theorem grinder_sandwich (hx0 : C.liftX (C.x 0) = none) (q : ℕ) :
       (grinder_queries C challenge q) _ (id_bound n))
 
 /-- That reduction makes no signing queries. -/
-theorem grinder_reduction_no_sign (q : ℕ) (pk : X) :
+theorem grinder_reduction_no_sign [NonceGen n ℕ] (q : ℕ) (pk : X) :
     ((reduction C challenge id (grinder C challenge q)).main pk).IsQueryBoundP
       (fun t => isSignQuery (fun _ => true) t) 0 :=
   reduction_sign_queries C challenge id (grinder C challenge q) (fun _ => true) 0

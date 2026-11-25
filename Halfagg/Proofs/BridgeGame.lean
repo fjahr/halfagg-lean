@@ -29,7 +29,7 @@ variable [SampleableType H] {red : H → ZMod n}
 
 /-- The game's oracles for the adversary, with the signing log kept as the list
 of signed messages. Uniform sampling and the randomizer hash pass through. -/
-noncomputable def gApp (pk : X) (sk : ZMod n) :
+noncomputable def gApp [NonceGen n M] (pk : X) (sk : ZMod n) :
     QueryImpl (GameSpec n H X M) (StateT (List M) (OracleComp (unifSpec + RandSpec H X M))) :=
   (HasQuery.toQueryImpl (spec := unifSpec + RandSpec H X M)
       (m := OracleComp (unifSpec + RandSpec H X M))).liftTarget
@@ -37,7 +37,7 @@ noncomputable def gApp (pk : X) (sk : ZMod n) :
     QueryImpl.appendInputLog
       ((bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).sign pk sk)
 
-theorem run_sign_eq_game (pk : X) (sk : ZMod n) {α : Type}
+theorem run_sign_eq_game [NonceGen n M] (pk : X) (sk : ZMod n) {α : Type}
     (oa : OracleComp (GameSpec n H X M) α) :
     (fun z => (z.1, z.2.map (fun e => e.1))) <$>
         (bip340 (M := M) C challenge
@@ -51,17 +51,19 @@ theorem run_sign_eq_game (pk : X) (sk : ZMod n) {α : Type}
       ((bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).sign pk sk) oa []
 
 /-- A request of the game's adversary, run with the lazily sampled plain oracle. -/
-noncomputable def gRun (pk : X) (sk : ZMod n) {α : Type} (oa : OracleComp (GameSpec n H X M) α)
+noncomputable def gRun [NonceGen n M] (pk : X) (sk : ZMod n) {α : Type}
+    (oa : OracleComp (GameSpec n H X M) α)
     (l : List M) (c : (RandSpec H X M).QueryCache) :
     ProbComp ((α × List M) × (RandSpec H X M).QueryCache) :=
   (simulateQ (RandSpec H X M).romImpl ((simulateQ (gApp C challenge pk sk) oa).run l)).run c
 
-theorem gRun_pure (pk : X) (sk : ZMod n) {α : Type} (a : α) (l : List M)
+theorem gRun_pure [NonceGen n M] (pk : X) (sk : ZMod n) {α : Type} (a : α) (l : List M)
     (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (pure a) l c = pure ((a, l), c) := by
   simp [gRun]
 
-theorem gRun_bind (pk : X) (sk : ZMod n) {α β : Type} (oa : OracleComp (GameSpec n H X M) α)
+theorem gRun_bind [NonceGen n M] (pk : X) (sk : ZMod n) {α β : Type}
+    (oa : OracleComp (GameSpec n H X M) α)
     (f : α → OracleComp (GameSpec n H X M) β) (l : List M) (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (oa >>= f) l c =
       gRun C challenge pk sk oa l c >>= fun y => gRun C challenge pk sk (f y.1.1) y.1.2 y.2 := by
@@ -72,7 +74,8 @@ theorem unifFwd_runR (k : ℕ) (c : (RandSpec H X M).QueryCache) :
       (fun u => (u, c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   simpa using roSim.run_apply_inl (hashSpec := RandSpec H X M) (RandSpec H X M).randomOracle k c
 
-theorem rom_signR (pk : X) (sk : ZMod n) (msg : M) (c : (RandSpec H X M).QueryCache) :
+theorem rom_signR [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M)
+    (c : (RandSpec H X M).QueryCache) :
     (simulateQ (RandSpec H X M).romImpl
       ((bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).sign pk sk
         msg)).run c =
@@ -82,7 +85,7 @@ theorem rom_signR (pk : X) (sk : ZMod n) (msg : M) (c : (RandSpec H X M).QueryCa
     liftM x from fun _ => rfl, OracleSpec.simulateQ_romImpl_liftM_run]
   rfl
 
-theorem rom_keygenR (c : (RandSpec H X M).QueryCache) :
+theorem rom_keygenR [NonceGen n M] (c : (RandSpec H X M).QueryCache) :
     (simulateQ (RandSpec H X M).romImpl
       (bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).keygen).run c =
       (fun ks => (ks, c)) <$> (bip340 (M := M) C challenge ProbComp).keygen := by
@@ -91,21 +94,21 @@ theorem rom_keygenR (c : (RandSpec H X M).QueryCache) :
     liftM x from fun _ => rfl, OracleSpec.simulateQ_romImpl_liftM_run]
   rfl
 
-theorem gRun_unif (pk : X) (sk : ZMod n) (k : ℕ) (l : List M)
+theorem gRun_unif [NonceGen n M] (pk : X) (sk : ZMod n) (k : ℕ) (l : List M)
     (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (liftM ((GameSpec n H X M).query (.inl (.inl k)))) l c =
       (fun u => ((u, l), c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   unfold gRun gApp
   simp [unifFwd_runR]
 
-theorem gRun_rand (pk : X) (sk : ZMod n) (L : List (Item X M)) (l : List M)
+theorem gRun_rand [NonceGen n M] (pk : X) (sk : ZMod n) (L : List (Item X M)) (l : List M)
     (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (liftM ((GameSpec n H X M).query (.inl (.inr L)))) l c =
       (fun p => ((p.1, l), p.2)) <$> ((RandSpec H X M).randomOracle L).run c := by
   unfold gRun gApp
   simp
 
-theorem gRun_sign (pk : X) (sk : ZMod n) (msg : M) (l : List M)
+theorem gRun_sign [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M) (l : List M)
     (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (liftM ((GameSpec n H X M).query (.inr msg))) l c =
       (fun sig => ((sig, l ++ [msg]), c)) <$>
@@ -120,7 +123,7 @@ section Step
 variable (pk : X) (sk : ZMod n) (groups : Groups (Pts E))
   (coeffs : Unit → List (List (ZMod n))) (st : Core n X M)
 
-theorem g_random (k : ℕ) (l : List M) (c : (RandSpec H X M).QueryCache) :
+theorem g_random [NonceGen n M] (k : ℕ) (l : List M) (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (eraseImpl C (n := n) (M := M) ⟨.random k, groups⟩) l c =
       (fun u => ((⟨u, fun _ => []⟩, l), c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   rw [show eraseImpl C (n := n) (M := M) ⟨.random k, groups⟩ = (do
@@ -128,7 +131,7 @@ theorem g_random (k : ℕ) (l : List M) (c : (RandSpec H X M).QueryCache) :
     pure ⟨u, fun _ => []⟩) from rfl, gRun_bind, gRun_unif]
   simp [gRun_pure]
 
-theorem g_rand (ms : List M) (tail : List (Item X M)) (l : List M)
+theorem g_rand [NonceGen n M] (ms : List M) (tail : List (Item X M)) (l : List M)
     (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (eraseImpl C (n := n) (M := M) ⟨.rand ms tail, groups⟩) l c =
       (fun p => ((⟨p.1, fun _ => []⟩, l), p.2)) <$>
@@ -140,7 +143,7 @@ theorem g_rand (ms : List M) (tail : List (Item X M)) (l : List M)
     pure ⟨z, fun _ => []⟩) from rfl, gRun_bind, gRun_rand]
   simp [gRun_pure]
 
-theorem g_sign (msg : M) (l : List M) (c : (RandSpec H X M).QueryCache) :
+theorem g_sign [NonceGen n M] (msg : M) (l : List M) (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (eraseImpl C (n := n) (M := M) ⟨.sign msg, groups⟩) l c =
       (fun sig => ((⟨sig.2, fun _ => [(C.liftX sig.1).getD 0]⟩, l ++ [msg]), c)) <$>
         (bip340 (M := M) C challenge ProbComp).sign pk sk msg := by
@@ -149,14 +152,15 @@ theorem g_sign (msg : M) (l : List M) (c : (RandSpec H X M).QueryCache) :
     pure ⟨sig.2, fun _ => [(C.liftX sig.1).getD 0]⟩) from rfl, gRun_bind, gRun_sign]
   simp [gRun_pure]
 
-theorem j_random (k : ℕ) (cA : (AnnSpec n H X M).QueryCache) :
+theorem j_random [NonceGen n M] (k : ℕ) (cA : (AnnSpec n H X M).QueryCache) :
     ((jImpl (H := H) C challenge pk sk ⟨⟨.random k, groups⟩, coeffs⟩).run st).run cA =
       (fun u => ((⟨u, fun _ => []⟩, st), cA)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
   unfold jImpl
   rw [coreImpl_run_random]
   simp [unifFwd_run]
 
-theorem j_rand (ms : List M) (tail : List (Item X M)) (cA : (AnnSpec n H X M).QueryCache) :
+theorem j_rand [NonceGen n M] (ms : List M) (tail : List (Item X M))
+    (cA : (AnnSpec n H X M).QueryCache) :
     ((jImpl (H := H) C challenge pk sk ⟨⟨.rand ms tail, groups⟩, coeffs⟩).run st).run cA =
       (fun p => ((⟨p.1, fun _ => []⟩, memoize C st (groups ()) (coeffs ())), p.2)) <$>
         ((AnnSpec n H X M).randomOracle (annotate C (memoize C st (groups ()) (coeffs ())).memo
@@ -165,7 +169,7 @@ theorem j_rand (ms : List M) (tail : List (Item X M)) (cA : (AnnSpec n H X M).Qu
   rw [coreImpl_run_rand]
   simp
 
-theorem j_sign (msg : M) (cA : (AnnSpec n H X M).QueryCache) :
+theorem j_sign [NonceGen n M] (msg : M) (cA : (AnnSpec n H X M).QueryCache) :
     ((jImpl (H := H) C challenge pk sk ⟨⟨.sign msg, groups⟩, coeffs⟩).run st).run cA =
       (fun sig => ((⟨sig.2, fun _ => [(C.liftX sig.1).getD 0]⟩,
         { st with basis := st.basis ++ [(sig.2, -challenge sig.1 pk msg)]
@@ -195,7 +199,8 @@ theorem covered_memoize_nil (st : Core n X M) (ms : List M) (pts : List E)
   simpa [rawTail] using covered_memoize C st ms pts coeffs []
 
 /-- **One request**: the game's run projects from the joint handler's. -/
-theorem game_step (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X M) (Pts E))
+theorem game_step [NonceGen n M] (pk : X) (sk : ZMod n)
+    (t : Explained (ZMod n) (Request X M) (Pts E))
     (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     gRun C challenge pk sk (eraseImpl C t.value) st.signed (plainOf C st.memo cA) =
       (fun y => ((y.1.1, y.1.2.signed), plainOf C y.1.2.memo y.2)) <$>
@@ -211,7 +216,8 @@ theorem game_step (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X M) (
   | sign msg => rw [g_sign, j_sign]; simp
 
 /-- The joint handler keeps the cache invariant. -/
-theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X M) (Pts E))
+theorem game_step_inv [NonceGen n M] (pk : X) (sk : ZMod n)
+    (t : Explained (ZMod n) (Request X M) (Pts E))
     (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     ∀ y ∈ support (((jImpl (H := H) C challenge pk sk t).run st).run cA),
       CacheInv C y.1.2.memo y.2 := by
@@ -234,7 +240,7 @@ theorem game_step_inv (pk : X) (sk : ZMod n) (t : Explained (ZMod n) (Request X 
 
 /-! ## The forger's run -/
 
-theorem game_stack (pk : X) (sk : ZMod n) {Result : Type}
+theorem game_stack [NonceGen n M] (pk : X) (sk : ZMod n) {Result : Type}
     (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     gRun C challenge pk sk (simulateQ (fun q => eraseImpl C q.value) prog) st.signed
@@ -249,7 +255,7 @@ theorem game_stack (pk : X) (sk : ZMod n) {Result : Type}
     refine bind_congr_of_forall_mem_support _ fun y hy => ?_
     exact ih y.1.1 y.1.2 y.2 (game_step_inv C challenge pk sk t st cA hinv y hy)
 
-theorem j_stack_inv (pk : X) (sk : ZMod n) {Result : Type}
+theorem j_stack_inv [NonceGen n M] (pk : X) (sk : ZMod n) {Result : Type}
     (prog : OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) Result)
     (st : Core n X M) (cA : (AnnSpec n H X M).QueryCache) (hinv : CacheInv C st.memo cA) :
     ∀ y ∈ support (((simulateQ (jImpl (H := H) C challenge pk sk) prog).run st).run cA),
@@ -313,7 +319,7 @@ theorem game_zs (memo : X → Option (Rep n)) (its : List (Item X M))
 
 /-! ## Assembly -/
 
-theorem gRun_map (pk : X) (sk : ZMod n) {α β : Type} (f : α → β)
+theorem gRun_map [NonceGen n M] (pk : X) (sk : ZMod n) {α β : Type} (f : α → β)
     (oa : OracleComp (GameSpec n H X M) α) (l : List M) (c : (RandSpec H X M).QueryCache) :
     gRun C challenge pk sk (f <$> oa) l c =
       (fun y => ((f y.1.1, y.1.2), y.2)) <$> gRun C challenge pk sk oa l c := by
@@ -321,7 +327,7 @@ theorem gRun_map (pk : X) (sk : ZMod n) {α β : Type} (f : α → β)
 
 /-- The game after key generation, as the joint run followed by any check `f` of
 the key, the items, `s`, the randomizers and the signed messages. -/
-theorem game_run_eq {β : Type}
+theorem game_run_eq [NonceGen n M] {β : Type}
     (f : X → List (Item X M) → ZMod n → List (ZMod n) → List M → β)
     (F : AlgForger n H E X M) (pk : X) (sk : ZMod n) :
     (do
@@ -355,7 +361,7 @@ def winB (t : Transcript n X M) : Bool :=
 
 /-- **The standard game with the erased forger is the joint experiment followed
 by the win check.** -/
-theorem game_experiment_eq (F : AlgForger n H E X M) :
+theorem game_experiment_eq [NonceGen n M] (F : AlgForger n H E X M) :
     (simulateQ (RandSpec H X M).romImpl (aggExperiment C challenge red (erase C F))).run' ∅ =
       winB C challenge <$> jExp C challenge red F := by
   have hexp : aggExperiment C challenge red (erase C F) = (do
@@ -392,7 +398,7 @@ theorem game_experiment_eq (F : AlgForger n H E X M) :
 
 /-- **Bridge A.** The standard game with the erased forger wins exactly as often
 as the annotated experiment's transcript wins. -/
-theorem bridge_game (F : AlgForger n H E X M) :
+theorem bridge_game [NonceGen n M] (F : AlgForger n H E X M) :
     aggAdvantage C challenge red (erase C F) ≤
       Pr{let t ← annROM C challenge red F}[winT C challenge t] := by
   unfold aggAdvantage

@@ -25,6 +25,9 @@ open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security Halfagg.LoggedR
 
 attribute [local instance] smulVal
 
+-- Uniform nonces, as in `Halfagg/SecurityROM.lean`.
+attribute [local instance] NonceGen.uniform
+
 variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)
 variable [SampleableType H] {red : H → ZMod n} {μ : ℝ≥0∞}

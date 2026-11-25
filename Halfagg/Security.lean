@@ -56,10 +56,15 @@ explanations, so the theorem is about the standard game.
   lose `μ` per randomizer, where `μ` bounds the probability that `red` of a
   uniform hash output is a given scalar. For BIP458, `H` is the 256-bit strings
   and `red` is `int(⋅) mod n` (`Halfagg/Hash256.lean`).
-* **BIP340** (`bip340`). Secret keys and nonces are uniform nonzero scalars;
-  `BIP340.sign` normalizes them as BIP340 does. Real BIP340 derives nonces by
-  hashing. The reduction is a VCVio `SignatureAlg.UnforgeableAdversary` and is
-  measured by VCVio's `unforgeableAdvantage`.
+* **BIP340** (`bip340`). Secret keys are uniform nonzero scalars, and
+  `BIP340.sign` normalizes key and nonce as BIP340 does. The nonce of a
+  signature comes from a `NonceGen`: any distribution on the nonzero scalars
+  that depends on the secret key and the message. The theorems of
+  `Halfagg/Unforgeability.lean` and `Halfagg/Knowledge.lean` hold for every
+  `NonceGen`, so also for BIP340's own derivation, which hashes the key, the
+  message and auxiliary randomness. The reduction is a VCVio
+  `SignatureAlg.UnforgeableAdversary` and is measured by VCVio's
+  `unforgeableAdvantage`, against BIP340 with the same `NonceGen`.
 * **Scalars act on points** by `k⋅P = k.val • P` (`smulVal`), as in `Taproot.Curve`.
 
 ## Limitations
@@ -89,17 +94,34 @@ section BIP340
 variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] (C : Curve n E X) (challenge : X → X → M → ZMod n)
 
-/-- BIP340 with uniformly random nonzero secret keys and nonces, in any monad
-that can sample. `BIP340.sign` normalizes the key and the nonce to even-y
-points. Signing cannot fail with a nonzero key and nonce; the fallback
-`(pk, 0)` is never used. -/
-noncomputable def bip340 (m : Type → Type) [Monad m] [MonadLiftT ProbComp m] :
+/-- **How the signer derives the nonce of a signature**: a distribution on the
+nonzero scalars for every secret key and message. BIP340 hashes the key, the
+message and auxiliary randomness, which is such a distribution for fixed hash
+functions. The signer keeps no state between signatures, and a derivation that
+can give the nonce `0`, where BIP340 fails, is not covered.
+
+It is a class so that the proofs need not pass it along. -/
+class NonceGen (n : ℕ) (M : Type) where
+  /-- The nonce for a secret key and a message. -/
+  draw : ZMod n → M → ProbComp (NonzeroScalar n)
+
+/-- Uniformly random nonces, as in taproot-lean's proof of BIP340. The theorems
+with the challenge hash as a random oracle are for this derivation. -/
+@[reducible] noncomputable def NonceGen.uniform (n : ℕ) [Fact n.Prime] (M : Type) :
+    NonceGen n M :=
+  ⟨fun _ _ => $ᵗ (NonzeroScalar n)⟩
+
+/-- BIP340 with a uniformly random nonzero secret key and nonces from a
+`NonceGen`, in any monad that can sample. `BIP340.sign` normalizes the key and
+the nonce to even-y points. Signing cannot fail with a nonzero key and nonce;
+the fallback `(pk, 0)` is never used. -/
+noncomputable def bip340 [NonceGen n M] (m : Type → Type) [Monad m] [MonadLiftT ProbComp m] :
     SignatureAlg m M X (ZMod n) (X × ZMod n) where
   keygen := monadLift (do
     let d ← $ᵗ (NonzeroScalar n)
     return (C.x (C.mulG d.1), d.1) : ProbComp (X × ZMod n))
   sign pk sk msg := monadLift (do
-    let k ← $ᵗ (NonzeroScalar n)
+    let k ← NonceGen.draw sk msg
     return (BIP340.sign C challenge (fun _ _ _ => k.1) sk msg).getD (pk, 0) :
       ProbComp (X × ZMod n))
   verify pk msg sig := pure (BIP340.verify C challenge pk msg sig)
@@ -150,7 +172,7 @@ def aggWins (pk : X) (its : List (Item X M)) (s : ZMod n) (zs : List (ZMod n))
 
 /-- The aggregate chosen-key unforgeability game (CK-AEUF-CMA) with the
 randomizer hash as a random oracle. -/
-noncomputable def aggExperiment (A : AggAdversary n H X M) :
+noncomputable def aggExperiment [NonceGen n M] (A : AggAdversary n H X M) :
     OracleComp (unifSpec + RandSpec H X M) Bool := do
   let alg := bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))
   let (pk, sk) ← alg.keygen
@@ -159,7 +181,8 @@ noncomputable def aggExperiment (A : AggAdversary n H X M) :
   return aggWins C challenge pk its s zs log.wasQueried
 
 /-- The adversary's success probability, with a lazily sampled random oracle. -/
-noncomputable def aggAdvantage [SampleableType H] (A : AggAdversary n H X M) : ℝ≥0∞ :=
+noncomputable def aggAdvantage [NonceGen n M] [SampleableType H] (A : AggAdversary n H X M) :
+    ℝ≥0∞ :=
   (ProbCompRuntime.rom (RandSpec H X M)).evalDist (aggExperiment C challenge red A) {true}
 
 end Game
@@ -400,7 +423,8 @@ its table; then record the forgery's representations, draw the randomizers the
 verifier needs, and extract a BIP340 forgery. It makes one signing query per
 signing request of the forger (`reduction_sign_queries`). Its running time is
 not formalized. -/
-noncomputable def reduction [SampleableType H] [Inhabited M] (F : AlgForger n H E X M) :
+noncomputable def reduction [NonceGen n M] [SampleableType H] [Inhabited M]
+    (F : AlgForger n H E X M) :
     SignatureAlg.UnforgeableAdversary (bip340 (M := M) C challenge ProbComp) where
   main pk := do
     let impl := coreImpl (E := E) C challenge pk

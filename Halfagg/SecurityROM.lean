@@ -14,7 +14,8 @@ defines that setting; `Halfagg/UnforgeabilityROM.lean` has the theorems.
   encodings: it does not explain them.
 * **Game.** `aggExperimentROM` samples the whole challenge hash table uniformly
   and then runs the game of `Halfagg/Security.lean` with it. This needs a finite
-  message type, which BIP458's 32-byte messages are.
+  message type, which BIP458's 32-byte messages are. The signer draws uniform
+  nonces (`NonceGen.uniform`), as taproot-lean's proof of BIP340 does.
 * **Target.** The BIP340 game is VCVio's EUF-CMA game for the Fiat-Shamir
   transform of taproot-lean's Σ-protocol (`Taproot.BIP340Security.sigma`), with
   a lazily sampled random oracle. This is the game of
@@ -32,6 +33,9 @@ namespace Halfagg.Security
 open Taproot Taproot.Curve Taproot.BIP340 Taproot.BIP340Security
 
 attribute [local instance] smulVal
+
+-- The signer of this file draws uniform nonces, as taproot-lean's proof of BIP340 does.
+attribute [local instance] NonceGen.uniform
 
 variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq E]
   [DecidableEq X] [DecidableEq M] (C : Curve n E X)

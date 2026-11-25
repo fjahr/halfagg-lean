@@ -22,7 +22,7 @@ variable {n : ℕ} [Fact n.Prime] {H E X M : Type} [AddCommGroup E] [DecidableEq
 variable [SampleableType H] {red : H → ZMod n}
 
 /-- The annotated experiment with a lazily sampled random oracle. -/
-noncomputable def annROM (red : H → ZMod n) (F : AlgForger n H E X M) :
+noncomputable def annROM [NonceGen n M] (red : H → ZMod n) (F : AlgForger n H E X M) :
     ProbComp (Transcript n X M) :=
   (simulateQ (AnnSpec n H X M).romImpl (annExperiment C challenge red F)).run' ∅
 

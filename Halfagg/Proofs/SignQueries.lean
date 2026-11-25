@@ -121,7 +121,8 @@ theorem tableZs_sign (p : M → Bool) (items : List (AItem n X M)) (is : List �
     · rw [StateT.run_map, tableRO_run, isQueryBoundP_map_iff]
       exact lift_sign_zero p _
 
-theorem reduction_sign_bound [Inhabited M] (F : AlgForger n H E X M) (p : M → Bool) (q : ℕ)
+theorem reduction_sign_bound [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M) (p : M → Bool)
+    (q : ℕ)
     (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
     ((reduction C challenge red F).main pk).IsQueryBoundP (fun t => isSignQuery p t) q := by
   rw [red_main_eq]

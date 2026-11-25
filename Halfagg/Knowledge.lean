@@ -32,7 +32,8 @@ probability at least `ε - (q + 1)⋅μ`, with `μ` as in `halfagg_unforgeable`.
 The forger chooses every public key except the target, so this covers items
 under its own keys, which unforgeability does not. `hx0` is the curve
 hypothesis of `halfagg_unforgeable`. -/
-theorem halfagg_knowledge (hx0 : C.liftX (C.x 0) = none) (F : AlgForger n H E X M) (q : ℕ)
+theorem halfagg_knowledge [NonceGen n M] (hx0 : C.liftX (C.x 0) = none)
+    (F : AlgForger n H E X M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q)
     (μ : ℝ≥0∞) (hμ : RedBound red μ) :
     aggVerifyAdvantage C challenge red (erase C F) ≤
@@ -58,7 +59,7 @@ theorem extractor_sign_queries (F : AlgForger n H E X M) (p : M → Bool) (q : �
   extractor_sign_bound C challenge F p q h pk
 
 /-- The theorem for secp256k1 and BIP458's randomizer hash. -/
-theorem secp256k1_halfagg_knowledge {M : Type} [DecidableEq M]
+theorem secp256k1_halfagg_knowledge {M : Type} [DecidableEq M] [NonceGen Secp256k1.n M]
     (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
     (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :

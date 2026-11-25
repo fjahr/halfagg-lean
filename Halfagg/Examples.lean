@@ -83,7 +83,7 @@ theorem demo_queries : ∀ input, ((demo (n := n) (E := E) (X := X)).main input)
   exact isQueryBoundP_pure _ _ _
 
 /-- The main theorem applies to `demo` with `q = 1`. -/
-theorem demo_theorem [DecidableEq E] [DecidableEq X] (C : Curve n E X)
+theorem demo_theorem [NonceGen n ℕ] [DecidableEq E] [DecidableEq X] (C : Curve n E X)
     (challenge : X → X → ℕ → ZMod n) (hx0 : C.liftX (C.x 0) = none) :
     aggAdvantage C challenge id (erase C demo) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
