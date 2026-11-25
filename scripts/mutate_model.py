@@ -97,6 +97,8 @@ MUTANTS = [
      [("Halfagg/BytesSecurity.lean",
        "(toNatBE (taggedHash \"BIP0340/challenge\" (r.1 ++ pk.1 ++ m.1)) : ZMod n)\n",
        "(toNatBE (taggedHash \"BIP0340/challenge\" (pk.1 ++ r.1 ++ m.1)) : ZMod n)\n")]),
+    ("parseB", "the game on bytes is won by a forgery that fails the parsing",
+     [("Halfagg/BytesGame.lean", "  | none => return false\n", "  | none => return true\n")]),
     ("range", "VerifyAggregate on bytes accepts an s that is not below n",
      [("Halfagg/Vectors.lean",
        "    decide (s < n) &&\n    verifyAggregate secp256k1F challenge randomizerF",

@@ -44,7 +44,7 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **What does binding add to unforgeability?** Unforgeability protects one honest key. `halfagg_binding` is about an adversary that chooses every key: it cannot produce an aggregate that `VerifyAggregate` accepts for two lists that differ in a key or a message. BIP 458 does not state this. The bound is statistical, with both hashes as random oracles. The challenge hash has to be one because a one-signature aggregate has no randomizer, so its binding is BIP 340's own. Binding says nothing about which signatures went into the aggregate (`aggregate_accepts_invalid`).
 
-**What connects the theorems to BIP 458's bytes?** `Halfagg/BytesSecurity.lean` instantiates them for secp256k1 with 32-byte arrays as nonces, public keys and messages (`bytes_halfagg_unforgeable` and three more). The x-only encoding of a point is `bytes(x(P))`, and an array that is not below `p` does not lift. The challenge hash is BIP 340's tagged SHA-256. The randomizer oracle answers with 256-bit values that the scheme reduces mod `n`, and BIP 458's randomizer is such a function: SHA-256 has 32 bytes of output (`length_sha256`, `randomizerX_eq_red256`), and its input determines the item list (`randHash256_input_injective`). `verifyAggregateBytes_eq_X` says that `VerifyAggregate` on bytes is the parsing and the checks followed by the verifier of this instance, on the 32-byte chunks of the input (`decodeX_bytes`). `bytes_game_verifier` puts these together: with SHA-256 as the randomizer hash, the game's check of a forgery is `VerifyAggregate` on bytes.
+**What connects the theorems to BIP 458's bytes?** `Halfagg/BytesSecurity.lean` instantiates them for secp256k1 with 32-byte arrays as nonces, public keys and messages (`bytes_halfagg_unforgeable` and three more). The x-only encoding of a point is `bytes(x(P))`, and an array that is not below `p` does not lift. The challenge hash is BIP 340's tagged SHA-256. The randomizer oracle answers with 256-bit values that the scheme reduces mod `n`, and BIP 458's randomizer is such a function: SHA-256 has 32 bytes of output (`length_sha256`, `randomizerX_eq_red256`), and its input determines the item list (`randHash256_input_injective`). `verifyAggregateBytes_eq_X` says that `VerifyAggregate` on bytes is the parsing and the checks followed by the verifier of this instance, on the 32-byte chunks of the input (`decodeX_bytes`). `bytes_game_verifier` puts these together: with SHA-256 as the randomizer hash, the game's check of a forgery is `VerifyAggregate` on bytes. In `Halfagg/BytesGame.lean` the forger outputs `aggsig` and `pm_aggd` as byte arrays of any length. `aggExperimentB_eq` says that this game is the game on 32-byte arrays for the adversary that parses its forgery, so `bytesGame_halfagg_unforgeable` has the same bound. `toStruct_serB` is the other direction: an algebraic forger with its forgery written as bytes parses back to itself. So the game on bytes can be won (`bytesGame_winnable`).
 
 **Are the theorems vacuous?** A bound on forgers says nothing about a game that nobody can win, and a mistake in a definition could make a game like that. `Halfagg/Winnable.lean` has a forger that wins. `bettor` bets that the secret key is `1` and signs with it. It wins the standard game with positive probability, for every randomizer hash, every reduction of its outputs and every nonce derivation (`bettor_advantage_pos`). Its aggregate verifies in the game of the knowledge theorem (`bettor_verify_pos`), and `bettorRom` wins the game with the challenge hash as a random oracle (`bettorRom_advantage_pos`). `bettor_bound` and `bettorRom_bound` are `halfagg_unforgeable` and `halfagg_dlog_tight` applied to these forgers, so the hypotheses of both theorems, `ExplainsNonces` among them, hold for a forger that wins. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query. There is no such forger for the binding game, where winning means a collision.
 
@@ -76,7 +76,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorems.
 - The challenge hash answers uniformly in `ZMod n`, as in taproot-lean's proof of BIP 340. BIP 340 reduces a 256-bit hash mod `n`. For secp256k1 that is about `2^-127.65` from uniform per answer, and the bounds leave this term out. The randomizer hash is modelled as BIP 458 computes it.
-- In the instance for 32-byte arrays a query to the randomizer hash is a list of items of 32-byte arrays, not the byte string that BIP 458 hashes, and the forger outputs items and a scalar, not `aggsig` as one byte string. No theorem has a random oracle on byte strings or a forger that outputs bytes of any length.
+- In the instance for 32-byte arrays and in the game on bytes a query to the randomizer hash is a list of items of 32-byte arrays, not the byte string that BIP 458 hashes, and a signature of the signing oracle comes as `(r, s)`, not as 64 bytes. No theorem has a random oracle on byte strings.
 - No theorem says that the functions on bytes in `Halfagg/Vectors.lean` are BIP 458's algorithms. The 53 test vectors and the differential test compare them with `halfagg.py`.
 
 ## Machine checks
@@ -92,7 +92,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 
 ### Mutants of the model
 
-`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 18 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
+`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 19 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
 
 | Mutant | Fails in |
 |---|---|
@@ -112,6 +112,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | Every forger counts as explaining its nonces | `demoRom_explains`, `explains_chal` |
 | The binding adversary wins with the same list twice | `win_pair` |
 | The challenge hash on 32-byte arrays hashes the public key before the nonce | `challengeX_encX` |
+| The game on bytes is won by a forgery that fails the parsing | `aggExperimentB_eq` |
 | `VerifyAggregate` on bytes accepts an `s` that is not below `n` | `decodeVerify_some`, `verifyAggregateBytes_encode`, `incAggregateBytes_isSome`, `verifyAggregateBytes_unique` |
 | The randomizer hash does not cover the messages | `aggregate_vectors`, `incAggregate_vectors`, `verifyAggregate_vectors` |
 
@@ -1357,6 +1358,114 @@ theorem bytes_game_verifier {aggsig : Bytes} {pm : List (Bytes × Bytes)}
         (items x.2 x.1.rs).any fun it => decide (it.2.1 = pk) && !signed it.2.2)
 ```
 
+### The game with the forgery as bytes
+
+From `Halfagg/BytesGame.lean`.
+
+```lean
+/-- An adversary of the game on bytes. It gets the target public key as 32
+bytes and has the oracles of the game. Its forgery is BIP458's `aggsig` and
+`pm_aggd`: byte arrays of any length. -/
+structure AggAdversaryB (H : Type) where
+  main (pk : B32) : OracleComp (GameSpec n H B32 B32) (Bytes × List (Bytes × Bytes))
+```
+
+```lean
+/-- **The game on bytes.** The adversary outputs `aggsig` and `pm_aggd`. The
+game parses them as `VerifyAggregate` does. If that fails, the adversary loses.
+Otherwise it wins as in `aggExperiment`: `VerifyAggregate` accepts, and some
+pair has the target public key and a message that was never signed. -/
+noncomputable def aggExperimentB [NonceGen n B32] (red : H → ZMod n) (A : AggAdversaryB H) :
+    OracleComp (unifSpec + RandSpec H B32 B32) Bool := do
+  let alg := bip340 (M := B32) secp256k1X challengeX (OracleComp (unifSpec + RandSpec H B32 B32))
+  let (pk, sk) ← alg.keygen
+  let ((aggsig, pm), log) ← alg.runWithSigningOracle pk sk (A.main pk)
+  match decodeX aggsig pm with
+  | none => return false
+  | some x =>
+    let zs ← (List.range (items x.2 x.1.rs).length).mapM (zQuery red (items x.2 x.1.rs))
+    return aggWins secp256k1X challengeX pk (items x.2 x.1.rs) x.1.s zs log.wasQueried
+```
+
+```lean
+/-- The probability that a game outputs `true`, with the randomizer hash as a
+lazily sampled random oracle. `aggAdvantage` is this probability for
+`aggExperiment`. -/
+noncomputable def romProb [SampleableType H]
+    (exp : OracleComp (unifSpec + RandSpec H X M) Bool) : ℝ≥0∞ :=
+  (ProbCompRuntime.rom (RandSpec H X M)).evalDist exp {true}
+```
+
+```lean
+/-- The adversary's success probability, with a lazily sampled random oracle. -/
+noncomputable def aggAdvantageB [NonceGen n B32] [SampleableType H] (red : H → ZMod n)
+    (A : AggAdversaryB H) : ℝ≥0∞ :=
+  romProb (aggExperimentB red A)
+```
+
+```lean
+/-- The items and `s` of a forgery in bytes. A forgery that fails the parsing
+or the checks becomes the empty aggregate, which never wins. -/
+def parseOut (out : Bytes × List (Bytes × Bytes)) : List (Item B32 B32) × ZMod n :=
+  match decodeX out.1 out.2 with
+  | none => ([], 0)
+  | some x => (items x.2 x.1.rs, x.1.s)
+```
+
+```lean
+/-- The adversary of the game on 32-byte arrays that parses the forgery of `A`. -/
+def toStruct (A : AggAdversaryB H) : AggAdversary n H B32 B32 where
+  main pk := parseOut <$> A.main pk
+```
+
+```lean
+/-- **The game on bytes is the game on 32-byte arrays for the adversary that
+parses its forgery.** -/
+theorem aggExperimentB_eq [NonceGen n B32] (red : H → ZMod n) (A : AggAdversaryB H) :
+    aggExperimentB red A = aggExperiment secp256k1X challengeX red (toStruct A)
+```
+
+```lean
+/-- A forgery of the game on 32-byte arrays as BIP458's bytes:
+`aggsig = r₀ ‖ … ‖ r_{u-1} ‖ bytes(s)` and `pm_aggd`. -/
+def serOut (out : List (Item B32 B32) × ZMod n) : Bytes × List (Bytes × Bytes) :=
+  ((out.1.map (·.1.1)).flatten ++ bytes32 out.2.val, out.1.map fun it => (it.2.1.1, it.2.2.1))
+```
+
+```lean
+/-- The byte adversary that runs an algebraic forger and outputs its forgery as
+bytes. -/
+noncomputable def serB (F : AlgForger n H Point B32 B32) : AggAdversaryB H where
+  main pk := serOut <$> (erase secp256k1X F).main pk
+```
+
+```lean
+/-- **Parsing the bytes of a forger's output gives the forger back.** -/
+theorem toStruct_serB (F : AlgForger n H Point B32 B32) :
+    toStruct (serB F) = erase secp256k1X F
+```
+
+```lean
+/-- **Half-aggregation is as secure as BIP340, with the forgery as bytes.** For
+a byte adversary whose parsed forgery is that of an algebraic forger `F`, the
+bound of `bytes_halfagg_unforgeable` holds in the game on bytes. -/
+theorem bytesGame_halfagg_unforgeable [NonceGen n B32] (A : AggAdversaryB (Fin (2 ^ 256)))
+    (F : AlgForger n (Fin (2 ^ 256)) Point B32 B32) (hF : toStruct A = erase secp256k1X F)
+    (q : ℕ) (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
+    aggAdvantageB red256 A ≤
+      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
+        (reduction secp256k1X challengeX red256 F) +
+        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
+```
+
+```lean
+/-- **The game on bytes can be won.** The bettor with its forgery written as
+bytes wins it with positive probability: a correct aggregate in bytes passes
+the parsing, the checks and `VerifyAggregate`. -/
+theorem bytesGame_winnable [NonceGen n B32] [SampleableType H] (red : H → ZMod n) (m₀ : B32) :
+    0 < aggAdvantageB red (serB (bettor (H := H) secp256k1X challengeX m₀))
+```
+
 ### Binding
 
 From `Halfagg/SecurityBinding.lean` and `Halfagg/Binding.lean`. `PrimeOrder n E` is taproot-lean's: every point `P` satisfies `n⋅P = 0`.
@@ -1480,12 +1589,13 @@ theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
 
 ### Every definition behind the results
 
-The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 156 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
+The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 164 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
 
 **This project**
 
 - `Halfagg/Attacks.lean`: `forgeLate`, `forgeOnes`, `rogue`, `zLate`
 - `Halfagg/Basic.lean`: `AggSig`, `Item`, `aggregate`, `entryItem`, `entryPM`, `incAggregate`, `isum`, `items`, `lifts`, `shiftedPair`, `term`, `verifyAggregate`, `verifyMulti`, `verifyWith`, `z`
+- `Halfagg/BytesGame.lean`: `Security.AggAdversaryB`, `Security.aggAdvantageB`, `Security.aggExperimentB`, `Security.parseOut`, `Security.romProb`, `Security.serB`, `Security.serOut`, `Security.toStruct`
 - `Halfagg/BytesSecurity.lean`: `Security.B32`, `Security.challengeX`, `Security.decodeX`, `Security.encX`, `Security.instDecidableEqB32`, `Security.instInhabitedB32`, `Security.int256`, `Security.itemBytes`, `Security.randHash256`, `Security.randomizerX`, `Security.secp256k1X`, `Security.to32`
 - `Halfagg/Encoding.lean`: `Vectors.Item32`, `Vectors.decodeVerify`, `Vectors.encodeItem`, `Vectors.randomizerInput`
 - `Halfagg/Examples.lean`: `Examples.demo`, `Examples.uvec`
