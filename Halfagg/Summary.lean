@@ -42,6 +42,7 @@ import Halfagg.SecurityBinding
 import Halfagg.Proofs.BindingPairs
 import Halfagg.Proofs.Binding
 import Halfagg.Binding
+import Halfagg.Winnable
 import Halfagg.Audit
 
 /-!
@@ -244,6 +245,36 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Examples.aggWins_honest
 
+/-! ## The games can be won -/
+
+/-- info: 'Halfagg.Security.bettor_advantage_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettor_advantage_pos
+
+/-- info: 'Halfagg.Security.bettor_queries' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettor_queries
+
+/-- info: 'Halfagg.Security.bettor_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettor_bound
+
+/-- info: 'Halfagg.Security.bettor_verify_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettor_verify_pos
+
+/-- info: 'Halfagg.Security.bettorRom_advantage_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettorRom_advantage_pos
+
+/-- info: 'Halfagg.Security.bettorRom_explains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettorRom_explains
+
+/-- info: 'Halfagg.Security.bettorRom_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.bettorRom_bound
+
 /-! ## The challenge hash as a random oracle -/
 
 /-- info: 'Halfagg.Security.halfagg_unforgeable_rom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -335,6 +366,7 @@ Halfagg.Unforgeability: Halfagg.Security.answerRand
 Halfagg.VectorData: Halfagg.Vectors.aggregateVectors, Halfagg.Vectors.incAggregateVectors, Halfagg.Vectors.verifyVectors
 Halfagg.VectorTypes: Halfagg.Vectors.AggregateVector, Halfagg.Vectors.IncAggregateVector, Halfagg.Vectors.VerifyVector
 Halfagg.Vectors: Halfagg.Vectors.aggregateBytes, Halfagg.Vectors.bip340VerifyBytes, Halfagg.Vectors.chunks32, Halfagg.Vectors.incAggregateBytes, Halfagg.Vectors.is32, Halfagg.Vectors.pmOf, Halfagg.Vectors.pmsOf, Halfagg.Vectors.randomizer, Halfagg.Vectors.randomizerF, Halfagg.Vectors.verifyAggregateBytes
+Halfagg.Winnable: Halfagg.Security.bettor, Halfagg.Security.bettorRom
 Taproot.BIP340: Taproot.BIP340.pubkey, Taproot.BIP340.sign, Taproot.BIP340.verify
 Taproot.BIP340Props: Taproot.BIP340.Entry, Taproot.BIP340.Entry.valid
 Taproot.BIP340Security: Taproot.BIP340Security.Good, Taproot.BIP340Security.NonzeroScalar, Taproot.BIP340Security.Stmt, Taproot.BIP340Security.dlogExperiment, Taproot.BIP340Security.dlogOfKeyRecovery, Taproot.BIP340Security.instSampleableTypeGoodValMemSetStmt, Taproot.BIP340Security.instSampleableTypeNonzeroScalar, Taproot.BIP340Security.keyGen, Taproot.BIP340Security.negStmt, Taproot.BIP340Security.sigma, Taproot.BIP340Security.simTranscript
@@ -393,4 +425,4 @@ VCVio.CryptoFoundations.FiatShamir.Sigma.Stateful.Bridge: FiatShamir.Stateful.So
 VCVio.CryptoFoundations.FiatShamir.Sigma.Stateful.Chain.Simulation: FiatShamir.Stateful.nmaAdvFromCma, FiatShamir.Stateful.nmaAdvFromCmaWithFinalQuery
 -/
 #guard_msgs in
-#surface Halfagg.verifyAggregate_aggregate Halfagg.verifyAggregate_incAggregate Halfagg.verifyAggregate_single Halfagg.incAggregate_append Halfagg.aggregate_append Halfagg.aggregate_accepts_invalid Halfagg.verifyMulti_eq Halfagg.OrderG.n_smul_G Halfagg.secp256k1F Halfagg.secp256k1_primeOrder Halfagg.secp256k1_verifyMulti_eq Halfagg.Vectors.aggregate_vectors Halfagg.Vectors.incAggregate_vectors Halfagg.Vectors.verifyAggregate_vectors Halfagg.Vectors.randomizerInput_injective Halfagg.Vectors.randomizerF_input_injective Halfagg.Vectors.verifyAggregateBytes_eq Halfagg.Vectors.decodeVerify_randomizer Halfagg.Vectors.decodeVerify_pm_injective Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes Halfagg.Vectors.verifyAggregateBytes_aggregateBytes Halfagg.Vectors.incAggregateBytes_isSome Halfagg.Vectors.aggregateBytes_isSome Halfagg.Vectors.verifyAggregateBytes_unique Halfagg.Security.halfagg_unforgeable Halfagg.Security.redMod_bound Halfagg.Security.secp256k1_redBound Halfagg.Security.reduction_sign_queries Halfagg.Security.aggWins_lifts Halfagg.Security.game_verifier Halfagg.Security.secp256k1_halfagg_unforgeable Halfagg.Security.halfagg_knowledge Halfagg.Security.extractor_sign_queries Halfagg.Security.secp256k1_halfagg_knowledge Halfagg.Security.grinder_advantage Halfagg.Security.grinder_sandwich Halfagg.Security.grinder_reduction_no_sign Halfagg.Examples.demo_theorem Halfagg.Examples.aggWins_honest Halfagg.Security.halfagg_unforgeable_rom Halfagg.Security.halfagg_dlog Halfagg.Security.reductionROM_bound Halfagg.LoggedRun.rom_eq_table Halfagg.Security.secp256k1_halfagg_dlog Halfagg.Security.halfagg_key_or_signature Halfagg.Security.halfagg_dlog_tight Halfagg.Security.secp256k1_halfagg_dlog_tight Halfagg.Security.halfagg_binding Halfagg.Security.secp256k1_halfagg_binding
+#surface Halfagg.verifyAggregate_aggregate Halfagg.verifyAggregate_incAggregate Halfagg.verifyAggregate_single Halfagg.incAggregate_append Halfagg.aggregate_append Halfagg.aggregate_accepts_invalid Halfagg.verifyMulti_eq Halfagg.OrderG.n_smul_G Halfagg.secp256k1F Halfagg.secp256k1_primeOrder Halfagg.secp256k1_verifyMulti_eq Halfagg.Vectors.aggregate_vectors Halfagg.Vectors.incAggregate_vectors Halfagg.Vectors.verifyAggregate_vectors Halfagg.Vectors.randomizerInput_injective Halfagg.Vectors.randomizerF_input_injective Halfagg.Vectors.verifyAggregateBytes_eq Halfagg.Vectors.decodeVerify_randomizer Halfagg.Vectors.decodeVerify_pm_injective Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes Halfagg.Vectors.verifyAggregateBytes_aggregateBytes Halfagg.Vectors.incAggregateBytes_isSome Halfagg.Vectors.aggregateBytes_isSome Halfagg.Vectors.verifyAggregateBytes_unique Halfagg.Security.halfagg_unforgeable Halfagg.Security.redMod_bound Halfagg.Security.secp256k1_redBound Halfagg.Security.reduction_sign_queries Halfagg.Security.aggWins_lifts Halfagg.Security.game_verifier Halfagg.Security.secp256k1_halfagg_unforgeable Halfagg.Security.halfagg_knowledge Halfagg.Security.extractor_sign_queries Halfagg.Security.secp256k1_halfagg_knowledge Halfagg.Security.grinder_advantage Halfagg.Security.grinder_sandwich Halfagg.Security.grinder_reduction_no_sign Halfagg.Examples.demo_theorem Halfagg.Examples.aggWins_honest Halfagg.Security.bettor_advantage_pos Halfagg.Security.bettor_queries Halfagg.Security.bettor_bound Halfagg.Security.bettor_verify_pos Halfagg.Security.bettorRom_advantage_pos Halfagg.Security.bettorRom_explains Halfagg.Security.bettorRom_bound Halfagg.Security.halfagg_unforgeable_rom Halfagg.Security.halfagg_dlog Halfagg.Security.reductionROM_bound Halfagg.LoggedRun.rom_eq_table Halfagg.Security.secp256k1_halfagg_dlog Halfagg.Security.halfagg_key_or_signature Halfagg.Security.halfagg_dlog_tight Halfagg.Security.secp256k1_halfagg_dlog_tight Halfagg.Security.halfagg_binding Halfagg.Security.secp256k1_halfagg_binding

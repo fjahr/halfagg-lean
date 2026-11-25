@@ -44,7 +44,7 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **What does binding add to unforgeability?** Unforgeability protects one honest key. `halfagg_binding` is about an adversary that chooses every key: it cannot produce an aggregate that `VerifyAggregate` accepts for two lists that differ in a key or a message. BIP 458 does not state this. The bound is statistical, with both hashes as random oracles. The challenge hash has to be one because a one-signature aggregate has no randomizer, so its binding is BIP 340's own. Binding says nothing about which signatures went into the aggregate (`aggregate_accepts_invalid`).
 
-**Are the theorems vacuous?** `Halfagg/Examples.lean` has a forger that satisfies the hypotheses, a forger with a challenge query that satisfies `ExplainsNonces`, and a transcript that satisfies the win predicate. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query.
+**Are the theorems vacuous?** A bound on forgers says nothing about a game that nobody can win, and a mistake in a definition could make a game like that. `Halfagg/Winnable.lean` has a forger that wins. `bettor` bets that the secret key is `1` and signs with it. It wins the standard game with positive probability, for every randomizer hash, every reduction of its outputs and every nonce derivation (`bettor_advantage_pos`). Its aggregate verifies in the game of the knowledge theorem (`bettor_verify_pos`), and `bettorRom` wins the game with the challenge hash as a random oracle (`bettorRom_advantage_pos`). `bettor_bound` and `bettorRom_bound` are `halfagg_unforgeable` and `halfagg_dlog_tight` applied to these forgers, so the hypotheses of both theorems, `ExplainsNonces` among them, hold for a forger that wins. The curve hypothesis `hx0` holds for secp256k1 (`Halfagg/Proofs/Secp256k1.lean`). `grinder_advantage` shows that the bound cannot be improved by more than one query. There is no such forger for the binding game, where winning means a collision.
 
 ## BIP 458's claims
 
@@ -1037,6 +1037,92 @@ theorem halfagg_key_or_signature [Inhabited M] [Finite M] [Finite X]
           (romMachine C red F (repFin C))
 ```
 
+### The games can be won
+
+From `Halfagg/Winnable.lean`. `copies` is from `Halfagg/Tightness.lean`. A request of the forger carries points as combinations of the points it has received, here the target key's point.
+
+```lean
+/-- `k` copies of the second received point, the target key's point `P*`. -/
+def copies (b : Groups (Pts E)) (k : ℕ) : (s : Unit) → List (Fin (b s).length → ZMod n) :=
+  fun _ => List.replicate k fun i => if i.val = 1 then 1 else 0
+```
+
+```lean
+/-- The forger that bets on the secret key `1`. Its nonce and its key are the
+x-coordinate of the point in its randomizer request, the target key's point. -/
+def bettor (m₀ : M) : AlgForger n H E X M where
+  main input :=
+    let req : Explained (ZMod n) (Request X M) (Pts E) :=
+      Explained.ofVectors input.groups (Request.rand [] []) (copies input.groups 1)
+    OracleComp.queryBind
+      (spec := explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) req fun rep =>
+    let pk : X := C.x ((req.value.groups ()).headD 0)
+    pure (Explained.ofVectors (extend input.groups rep.groups)
+      (⟨[m₀], (1 + challenge pk pk m₀) * C.evenScalar 1⟩ : Out n M) (copies _ 2))
+  algebraic _ :=
+    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
+```
+
+```lean
+/-- **The standard game can be won.** The bettor wins it with positive
+probability, for every randomizer hash, every reduction of its outputs and
+every nonce derivation of the signer. -/
+theorem bettor_advantage_pos [NonceGen n M] (m₀ : M) :
+    0 < aggAdvantage C challenge red (erase C (bettor C challenge m₀))
+```
+
+```lean
+/-- **The game of the knowledge theorem can be won.** The bettor's aggregate
+verifies with positive probability. -/
+theorem bettor_verify_pos [NonceGen n M] (m₀ : M) :
+    0 < aggVerifyAdvantage C challenge red (erase C (bettor C challenge m₀))
+```
+
+```lean
+/-- `halfagg_unforgeable` applied to the bettor. Its left-hand side is positive
+(`bettor_advantage_pos`). -/
+theorem bettor_bound [NonceGen n M] [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (m₀ : M)
+    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
+    aggAdvantage C challenge red (erase C (bettor C challenge m₀)) ≤
+      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
+        (reduction C challenge red (bettor C challenge m₀)) + 2 * μ
+```
+
+```lean
+/-- The bettor with oracle access to the challenge hash. It sends the target
+key's point in a randomizer request, asks for the challenge of `m₀` with that
+point's x-coordinate as nonce and as key, and outputs the bettor's aggregate. -/
+def bettorRom (m₀ : M) : RomForger n H E X M where
+  main input :=
+    let req : Explained (ZMod n) (Request X M) (Pts E) :=
+      Explained.ofVectors input.groups (Request.rand [] []) (copies input.groups 1)
+    OracleComp.queryBind (spec := RomForgerSpec n H E X M) (.inr req) fun rep =>
+    let pk : X := C.x ((req.value.groups ()).headD 0)
+    OracleComp.queryBind (spec := RomForgerSpec n H E X M) (.inl (m₀, (pk, pk))) fun e =>
+    pure (Explained.ofVectors (extend input.groups rep.groups)
+      (⟨[m₀], (1 + e) * C.evenScalar 1⟩ : Out n M) (copies _ 2))
+  algebraic _ _ :=
+    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
+```
+
+```lean
+/-- **The game with the challenge hash as a random oracle can be won.** -/
+theorem bettorRom_advantage_pos [SampleableType (M × (X × X) → ZMod n)] (m₀ : M) :
+    0 < aggAdvantageROM C red (bettorRom C m₀)
+```
+
+```lean
+/-- `halfagg_dlog_tight` applied to `bettorRom`: one randomizer request, one
+challenge query, no signing request and one item. Its left-hand side is
+positive (`bettorRom_advantage_pos`). -/
+theorem bettorRom_bound [Inhabited M] [Finite M] [Finite X]
+    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none) (m₀ : M)
+    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
+    aggAdvantageROM C red (bettorRom C m₀) ≤
+      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C
+        (keySolver C red (bettorRom C m₀)))}[x = true] + 2 * μ + 2 / n
+```
+
 ### Binding
 
 From `Halfagg/SecurityBinding.lean` and `Halfagg/Binding.lean`. `PrimeOrder n E` is taproot-lean's: every point `P` satisfies `n⋅P = 0`.
@@ -1160,7 +1246,7 @@ theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
 
 ### Every definition behind the results
 
-The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 138 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
+The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 140 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
 
 **This project**
 
@@ -1179,6 +1265,7 @@ The definitions that the statements of the results in `Halfagg/Summary.lean` dep
 - `Halfagg/VectorData.lean`: `Vectors.aggregateVectors`, `Vectors.incAggregateVectors`, `Vectors.verifyVectors`
 - `Halfagg/VectorTypes.lean`: `Vectors.AggregateVector`, `Vectors.IncAggregateVector`, `Vectors.VerifyVector`
 - `Halfagg/Vectors.lean`: `Vectors.aggregateBytes`, `Vectors.bip340VerifyBytes`, `Vectors.chunks32`, `Vectors.incAggregateBytes`, `Vectors.is32`, `Vectors.pmOf`, `Vectors.pmsOf`, `Vectors.randomizer`, `Vectors.randomizerF`, `Vectors.verifyAggregateBytes`
+- `Halfagg/Winnable.lean`: `Security.bettor`, `Security.bettorRom`
 
 **taproot-lean**
 

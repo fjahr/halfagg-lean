@@ -38,6 +38,8 @@ In `Halfagg/`: `Unforgeability.lean`, `Knowledge.lean`, `Tightness.lean`, `Unfor
 | `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
 | `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
 | `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs `n⋅P = 0` for every point. |
+| `bettor_advantage_pos`, `bettor_verify_pos`, `bettorRom_advantage_pos` | The games can be won, so the bounds are not empty. A forger that bets on the secret key `1` wins the standard game, the game of the knowledge theorem and the game with the challenge hash as a random oracle with positive probability, for every model of the randomizer hash and every nonce derivation. |
+| `bettor_bound`, `bettorRom_bound` | `halfagg_unforgeable` and `halfagg_dlog_tight` applied to that forger: their hypotheses hold for a forger that wins. |
 
 For the discrete-log solvers, let `qH` and `qS` bound the forger's challenge queries and signing requests, `ℓ` the length of its forgery, `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`. The solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. Its quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
 
@@ -82,7 +84,7 @@ The proofs of the security theorems are under `Halfagg/Proofs/`:
 | `BindingPairs.lean` | For a fixed challenge hash, two lists have the same randomized sum with probability at most `Q²·μ` (`pair_term`). |
 | `Binding.lean` | The challenge hash is degenerate on the adversary's output with probability at most `Q²/n` (`chal_lazy`), and the two bounds together (`binding_bound`). |
 
-`Halfagg/Examples.lean` has a concrete forger that satisfies the hypotheses of `halfagg_unforgeable`, and one that satisfies `ExplainsNonces`.
+`Halfagg/Winnable.lean` has the forger that wins each game. `Halfagg/Examples.lean` has two more forgers that satisfy the hypotheses of `halfagg_unforgeable` and `ExplainsNonces`.
 
 ## Test vectors
 

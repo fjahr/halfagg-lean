@@ -81,49 +81,6 @@ def grinder (q : ℕ) : AlgForger n (ZMod n) E X ℕ where
     · exact Explained.valid_ofVectors _ _ _
     · exact grindLoop_algebraic challenge _ _ _ _
 
-/-! ## The game, with the signing log and the oracle's cache as state -/
-
-/-- The verifier's check on the adversary's output `w`. -/
-noncomputable def finish (pk : X)
-    (w : ((List (Item X ℕ) × ZMod n) × List ℕ) × (RandSpec (ZMod n) X ℕ).QueryCache) :
-    ProbComp Bool := do
-  let zs ← (simulateQ (RandSpec (ZMod n) X ℕ).romImpl
-    ((List.range w.1.1.1.length).mapM (zQuery id (n := n) w.1.1.1))).run w.2
-  pure (aggWins C challenge pk w.1.1.1 w.1.1.2 zs.1 (fun m => w.1.2.contains m))
-
-/-- The standard game, for any adversary. -/
-theorem game_form [NonceGen n ℕ] (A : AggAdversary n (ZMod n) X ℕ) :
-    (simulateQ (RandSpec (ZMod n) X ℕ).romImpl (aggExperiment C challenge id A)).run' ∅ = (do
-      let ks ← (bip340 (M := ℕ) C challenge ProbComp).keygen
-      let w ← gRun C challenge ks.1 ks.2 (A.main ks.1) [] ∅
-      finish C challenge ks.1 w) := by
-  have hexp : aggExperiment C challenge id A = (do
-      let ks ← (bip340 (M := ℕ) C challenge (OracleComp (unifSpec + RandSpec (ZMod n) X ℕ))).keygen
-      let z ← (bip340 (M := ℕ) C challenge
-        (OracleComp (unifSpec + RandSpec (ZMod n) X ℕ))).runWithSigningOracle ks.1 ks.2
-          (A.main ks.1)
-      let zs ← (List.range z.1.1.length).mapM (zQuery id z.1.1)
-      pure (aggWins C challenge ks.1 z.1.1 z.1.2 zs z.2.wasQueried)) := rfl
-  have key : ∀ pk sk, (do
-      let z ← (bip340 (M := ℕ) C challenge
-        (OracleComp (unifSpec + RandSpec (ZMod n) X ℕ))).runWithSigningOracle pk sk (A.main pk)
-      let zs ← (List.range z.1.1.length).mapM (zQuery id (n := n) z.1.1)
-      pure (aggWins C challenge pk z.1.1 z.1.2 zs z.2.wasQueried)) = (do
-      let w ← (simulateQ (gApp C challenge pk sk) (A.main pk)).run []
-      let zs ← (List.range w.1.1.length).mapM (zQuery id (n := n) w.1.1)
-      pure (aggWins C challenge pk w.1.1 w.1.2 zs (fun m => w.2.contains m))) := by
-    intro pk sk
-    rw [← run_sign_eq_game, bind_map_left]
-    refine bind_congr fun z => bind_congr fun zs => ?_
-    have hw : z.2.wasQueried = fun m => (List.map (fun e => e.1) z.2).contains m := by
-      funext m
-      simp [QueryLog.wasQueried_eq_decide_mem_map_fst]
-    rw [hw]
-  rw [hexp]
-  simp only [key, simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind,
-    StateT.run_pure, rom_keygenR (H := ZMod n) C challenge, map_bind, bind_map_left, map_pure,
-    finish, gRun]
-
 /-! ## Winning transcripts -/
 
 section Wins
@@ -267,7 +224,7 @@ include hd in
 /-- After a successful try, the verifier reads the same randomizer and accepts. -/
 theorem finish_two (j : ℕ) (u : ZMod n) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
     (hz : gβ challenge (C.x (C.mulG d)) 0 + u * gβ challenge (C.x (C.mulG d)) (j + 1) = 0) :
-    finish C challenge (C.x (C.mulG d))
+    finish C challenge id (C.x (C.mulG d))
       (((gKey (C.x (C.mulG d)) j, (0 : ZMod n)), ([] : List ℕ)),
         c.cacheQuery (gKey (C.x (C.mulG d)) j) u) = pure true := by
   have hw := wins_two C challenge hd j u hz
@@ -283,7 +240,7 @@ include hd in
 /-- A single item with `1 + e = 0` is accepted. -/
 theorem finish_one (m : ℕ) (c : (RandSpec (ZMod n) X ℕ).QueryCache)
     (hm : gβ challenge (C.x (C.mulG d)) m = 0) :
-    finish C challenge (C.x (C.mulG d))
+    finish C challenge id (C.x (C.mulG d))
       ((([(C.x (C.mulG d), C.x (C.mulG d), m)], (0 : ZMod n)), ([] : List ℕ)), c) = pure true := by
   have hw := wins_one C challenge hd m hm
   unfold finish
@@ -304,7 +261,7 @@ theorem grind_loss [NonceGen n ℕ] (sk : ZMod n) (k j : ℕ) (c : (RandSpec (ZM
         (eraseOut C <$> simulateQ (fun q => eraseImpl C q.value)
           (grindLoop challenge (C.x (C.mulG d)) k j
             (fun _ => [C.G, C.mulG (C.evenScalar d)]))) [] c >>=
-        finish C challenge (C.x (C.mulG d)))}[b = false] ≤
+        finish C challenge id (C.x (C.mulG d)))}[b = false] ≤
       (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ k := by
   induction k generalizing j c with
   | zero => rw [pow_zero]; exact prEvent_le_one _
@@ -338,7 +295,7 @@ at most `((n - 1)/n)^q`. -/
 theorem grinder_loss_key [NonceGen n ℕ] (q : ℕ) :
     Pr{let b ← (gRun C challenge (C.x (C.mulG d)) d
         ((erase C (grinder C challenge q)).main (C.x (C.mulG d))) [] ∅ >>=
-        finish C challenge (C.x (C.mulG d)))}[b = false] ≤ (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q := by
+        finish C challenge id (C.x (C.mulG d)))}[b = false] ≤ (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q := by
   have hP : (C.liftX (C.x (C.mulG d))).getD 0 = C.mulG (C.evenScalar d) := by
     rw [C.liftX_x_mulG hd]; rfl
   have hmain : (erase C (grinder C challenge q)).main (C.x (C.mulG d)) =
@@ -354,7 +311,7 @@ theorem grinder_loss_key [NonceGen n ℕ] (q : ℕ) :
     have hm : gβ challenge (C.x (C.mulG d)) m = 0 := by
       simpa using List.find?_some hfind
     simp only [simulateQ_pure, map_pure, gRun_pure, pure_bind, eraseOut]
-    have hfin : finish C challenge (C.x (C.mulG d))
+    have hfin : finish C challenge id (C.x (C.mulG d))
         (((toItems C [m] ((Explained.ofVectors (F := ZMod n) (G := Pts E)
           (fun _ => [C.G, C.mulG (C.evenScalar d)]) (⟨[m], 0⟩ : Out n ℕ)
           (copies (fun _ => [C.G, C.mulG (C.evenScalar d)]) 2)).value.groups ()), (0 : ZMod n)),
@@ -379,7 +336,7 @@ theorem grinder_advantage [NonceGen n ℕ] (q : ℕ) :
   have hloss : Pr{let b ← (simulateQ (RandSpec (ZMod n) X ℕ).romImpl
       (aggExperiment C challenge id (erase C (grinder C challenge q)))).run' ∅}[b = false] ≤
       (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q := by
-    rw [game_form]
+    rw [game_form C challenge id]
     refine prEvent_bind_le_of_forall_le_of_support _ _ _ fun ks hks => ?_
     have hk : ks.2 ≠ 0 ∧ ks.1 = C.x (C.mulG ks.2) := by
       have h' : ks ∈ support (do

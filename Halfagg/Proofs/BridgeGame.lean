@@ -355,6 +355,49 @@ theorem game_run_eq [NonceGen n M] {β : Type}
       (p.1.1.coefficients ())) _ p.2 (cacheInv_ext C hinv hext), bind_map_left]
   simp [finalItems, map_strip_annotate, annotate_length]
 
+/-! ## The game, with the signing log and the oracle's cache as state -/
+
+/-- The verifier's check on the adversary's output `w`. -/
+noncomputable def finish (red : H → ZMod n) (pk : X)
+    (w : ((List (Item X M) × ZMod n) × List M) × (RandSpec H X M).QueryCache) :
+    ProbComp Bool := do
+  let zs ← (simulateQ (RandSpec H X M).romImpl
+    ((List.range w.1.1.1.length).mapM (zQuery red (n := n) w.1.1.1))).run w.2
+  pure (aggWins C challenge pk w.1.1.1 w.1.1.2 zs.1 (fun m => w.1.2.contains m))
+
+/-- The standard game, for any adversary. -/
+theorem game_form [NonceGen n M] (red : H → ZMod n) (A : AggAdversary n H X M) :
+    (simulateQ (RandSpec H X M).romImpl (aggExperiment C challenge red A)).run' ∅ = (do
+      let ks ← (bip340 (M := M) C challenge ProbComp).keygen
+      let w ← gRun C challenge ks.1 ks.2 (A.main ks.1) [] ∅
+      finish C challenge red ks.1 w) := by
+  have hexp : aggExperiment C challenge red A = (do
+      let ks ← (bip340 (M := M) C challenge (OracleComp (unifSpec + RandSpec H X M))).keygen
+      let z ← (bip340 (M := M) C challenge
+        (OracleComp (unifSpec + RandSpec H X M))).runWithSigningOracle ks.1 ks.2
+          (A.main ks.1)
+      let zs ← (List.range z.1.1.length).mapM (zQuery red z.1.1)
+      pure (aggWins C challenge ks.1 z.1.1 z.1.2 zs z.2.wasQueried)) := rfl
+  have key : ∀ pk sk, (do
+      let z ← (bip340 (M := M) C challenge
+        (OracleComp (unifSpec + RandSpec H X M))).runWithSigningOracle pk sk (A.main pk)
+      let zs ← (List.range z.1.1.length).mapM (zQuery red (n := n) z.1.1)
+      pure (aggWins C challenge pk z.1.1 z.1.2 zs z.2.wasQueried)) = (do
+      let w ← (simulateQ (gApp C challenge pk sk) (A.main pk)).run []
+      let zs ← (List.range w.1.1.length).mapM (zQuery red (n := n) w.1.1)
+      pure (aggWins C challenge pk w.1.1 w.1.2 zs (fun m => w.2.contains m))) := by
+    intro pk sk
+    rw [← run_sign_eq_game, bind_map_left]
+    refine bind_congr fun z => bind_congr fun zs => ?_
+    have hw : z.2.wasQueried = fun m => (List.map (fun e => e.1) z.2).contains m := by
+      funext m
+      simp [QueryLog.wasQueried_eq_decide_mem_map_fst]
+    rw [hw]
+  rw [hexp]
+  simp only [key, simulateQ_bind, simulateQ_pure, StateT.run'_eq, StateT.run_bind,
+    StateT.run_pure, rom_keygenR, map_bind, bind_map_left, map_pure,
+    finish, gRun]
+
 /-- The outcome of the game as a function of the transcript. -/
 def winB (t : Transcript n X M) : Bool :=
   aggWins C challenge t.1 (t.2.1.map strip) t.2.2.1 t.2.2.2.1 (fun m => t.2.2.2.2.contains m)
