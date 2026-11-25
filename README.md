@@ -113,7 +113,7 @@ python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
 
-No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit.
+No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit, with a new seed for every run.
 
 `scripts/mutate_secp256k1.py` measures what these tests can see. It applies 21 one-line mutants to the C module, such as dropping a range check or hashing `z₀`, and runs the module's unit tests and the generated cases against each:
 

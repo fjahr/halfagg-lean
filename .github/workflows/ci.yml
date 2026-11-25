@@ -32,9 +32,10 @@ jobs:
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
       - name: Regenerate the summary
         run: python3 scripts/gen_summary.py | diff - Halfagg/Summary.lean
-      # Also type-checks scripts/Fuzz.lean.
+      # Also type-checks scripts/Fuzz.lean. Every run has a new seed, which the
+      # script prints.
       - name: Differential test against the Python reference
-        run: python3 scripts/fuzz.py bips/bip-0458 --cases 300 --seed 1
+        run: python3 scripts/fuzz.py bips/bip-0458 --cases 300 --seed "${{ github.run_id }}"
       - name: Replay the project, taproot-lean and agm-lean in the kernel
         run: scripts/replay.sh
       # Last, because it changes a source file: an axiom that no result uses

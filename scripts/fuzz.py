@@ -182,6 +182,7 @@ def main():
     import halfagg as ref
     from secp256k1lab import bip340
 
+    print(f"seed {args.seed}")
     gen = Gen(random.Random(args.seed), ref, bip340)
     makers = [gen.case_aggregate, gen.case_inc, gen.case_verify, gen.case_verify]
     cases = [makers[i % len(makers)]() for i in range(args.cases)]
