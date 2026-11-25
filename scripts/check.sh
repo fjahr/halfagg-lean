@@ -14,19 +14,31 @@ set -eu
 cd "$(dirname "$0")/.."
 fail=0
 files=$(find . -name '*.lean' -not -path './.lake/*' | sed 's|^\./||' | sort)
+# The file names are passed to grep as words, so a path with a space or another
+# unusual character would not be read.
+if echo "$files" | grep -vE '^[A-Za-z0-9_./-]+$'; then
+  echo 'error: a Lean file with an unexpected character in its path'; fail=1
+fi
 # Halfagg/Summary.lean is generated and quotes axiom names: it is checked line
 # by line below instead.
 scanned=$(echo "$files" | grep -v '^Halfagg/Summary\.lean$')
-if grep -nwE 'sorry|admit' $scanned; then
-  echo 'error: sorry or admit found'; fail=1
-fi
-if grep -nwE 'axiom|unsafe|implemented_by|extern|skipKernelTC' $scanned; then
-  echo 'error: axiom, unsafe code or kernel bypass found'; fail=1
-fi
-if grep -lE 'native|ofReduceBool|reduceBool|trustCompiler' $scanned |
-    grep -vE '^Halfagg/Vectors\.lean$'; then
-  echo 'error: compiled evaluation outside the test vector checks'; fail=1
-fi
+# `forbid MESSAGE ARGS`: fail if grep with ARGS finds a match in the scanned
+# files, or if it cannot read one of them.
+forbid() {
+  message=$1
+  shift
+  status=0
+  grep "$@" $scanned || status=$?
+  if [ "$status" -eq 0 ]; then
+    echo "error: $message"; fail=1
+  elif [ "$status" -gt 1 ]; then
+    echo 'error: grep could not read a file'; fail=1
+  fi
+}
+forbid 'sorry or admit found' -nwE 'sorry|admit'
+forbid 'axiom, unsafe code or kernel bypass found' -nwE 'axiom|unsafe|implemented_by|extern|skipKernelTC'
+scanned=$(echo "$scanned" | grep -v '^Halfagg/Vectors\.lean$')
+forbid 'compiled evaluation outside the test vector checks' -lE 'native|ofReduceBool|reduceBool|trustCompiler'
 python3 - <<'EOF' || fail=1
 import pathlib, re, sys
 bad = 0
@@ -57,21 +69,69 @@ for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_t
 sys.exit(bad)
 EOF
 # Halfagg/Summary.lean must check the axioms of every theorem printed in
-# REVIEW.md and of every result in the README's tables.
+# REVIEW.md and of every result in the README's tables. A result is found by
+# its full name: a declaration with the same last name in another namespace
+# does not count.
 python3 - <<'EOF' || fail=1
 import pathlib, re, sys
-summary = pathlib.Path('Halfagg/Summary.lean').read_text()
-checked = {m.split('.')[-1] for m in re.findall(r'^#print axioms (\S+)', summary, re.M)}
-names = []
+DECL = re.compile(r"(?:@\[[^\]]*\]\s*)?(?:noncomputable |private |protected )*"
+                  r"(?:theorem|lemma|def|abbrev|structure|inductive|class|instance)\s+([^\s:({\[]+)")
+
+
+def declarations(text):
+    """The full name and the position of every declaration that starts a line."""
+    stack, out, pos = [], [], 0
+    for line in text.split('\n'):
+        m = re.fullmatch(r'namespace\s+(\S+)\s*', line)
+        if m:
+            stack.append(m.group(1))
+        elif re.fullmatch(r'section(\s+\S+)?\s*', line):
+            stack.append(None)
+        elif re.fullmatch(r'end(\s+\S+)?\s*', line) and stack:
+            stack.pop()
+        else:
+            m = DECL.match(line)
+            if m:
+                out.append(('.'.join([n for n in stack if n] + [m.group(1)]), pos))
+        pos += len(line) + 1
+    return out
+
+
+sources = {p: p.read_text() for p in pathlib.Path('Halfagg').rglob('*.lean')
+           if p.name != 'Summary.lean'}
+decls = {p: declarations(s) for p, s in sources.items()}
+names = [full for l in decls.values() for full, _ in l]
+checked = set(re.findall(r'^#print axioms (\S+)', pathlib.Path('Halfagg/Summary.lean').read_text(),
+                         re.M))
+bad = 0
+# The theorems that REVIEW.md prints, with the namespace they have in the sources.
 for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_text(), re.S):
-    names += re.findall(r'^(?:theorem|lemma)\s+(\S+)', block, re.M)
+    for m in re.finditer(r'^(?:theorem|lemma)\s+', block, re.M):
+        homes = [(p, s.find(block)) for p, s in sources.items() if block in s]
+        if not homes:
+            continue    # reported above
+        if len(homes) > 1:
+            print('error: REVIEW.md block is in more than one source file:\n' + block)
+            bad = 1
+            continue
+        p, at = homes[0]
+        full = [f for f, pos in decls[p] if pos == at + m.start()]
+        if len(full) != 1 or full[0] not in checked:
+            print('error: Halfagg/Summary.lean does not check the axioms of the printed theorem at: '
+                  + block[m.start():].split('\n')[0][:80])
+            bad = 1
+# The results in the README's tables: each names exactly one declaration.
 table = pathlib.Path('README.md').read_text().split('## Results')[1].split('\n## ')[0]
 for line in table.split('\n'):
     if line.startswith('| `'):
-        names += re.findall(r"`([A-Za-z_][A-Za-z0-9_.']*)`", line.split('|')[1])
-missing = sorted({x for x in names if x.split('.')[-1] not in checked})
-if missing:
-    print('error: Halfagg/Summary.lean does not check the axioms of: ' + ', '.join(missing))
-sys.exit(bool(missing))
+        for short in re.findall(r"`([A-Za-z_][A-Za-z0-9_.']*)`", line.split('|')[1]):
+            full = [f for f in names if f == short or f.endswith('.' + short)]
+            if len(full) != 1:
+                print(f'error: the README names {short}, which is {len(full)} declarations')
+                bad = 1
+            elif full[0] not in checked:
+                print('error: Halfagg/Summary.lean does not check the axioms of ' + full[0])
+                bad = 1
+sys.exit(bad)
 EOF
 exit $fail

@@ -55,4 +55,14 @@ grep -v '^#print axioms Halfagg.Security.halfagg_unforgeable$' "$tmp/work/Halfag
 cp "$tmp/summary" "$tmp/work/Halfagg/Summary.lean"
 expect_fail 'a printed theorem whose axioms the summary does not check'
 
+fresh
+printf '\nnamespace Other\ntheorem halfagg_unforgeable : True := trivial\nend Other\n' >> "$tmp/work/Halfagg/Tightness.lean"
+sed 's/^#print axioms Halfagg.Security.halfagg_unforgeable$/#print axioms Other.halfagg_unforgeable/' "$tmp/work/Halfagg/Summary.lean" > "$tmp/summary"
+cp "$tmp/summary" "$tmp/work/Halfagg/Summary.lean"
+expect_fail 'a summary that checks another theorem with the same last name'
+
+fresh
+echo 'theorem audit_backdoor : False := by sorry' > "$tmp/work/Halfagg/Back door.lean"
+expect_fail 'a sorry in a file with a space in its name'
+
 exit $fail
