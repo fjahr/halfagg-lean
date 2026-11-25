@@ -61,6 +61,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | `Aggregate`, `IncAggregate`: the inverse does not hold. | `aggregate_accepts_invalid`, for invalid triples given to `Aggregate`. No theorem for an invalid aggregate given to `IncAggregate`. |
 | `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. `secp256k1_verifyMulti_eq` for secp256k1. |
 | The pseudocode of `VerifyAggregate`. | `verifyAggregateBytes_eq`: the verifier on bytes is the parsing and range checks followed by the model's `verifyAggregate`. |
+| `VerifyAggregate` fails if `s ≥ n`. | `verifyAggregateBytes_unique`: two aggregate signatures with the same nonces that verify for the same list are equal. Without the check, the empty aggregate would have the encodings `bytes(0)` and `bytes(n)`. No test vector of BIP 458 has that input. The differential test generates it. |
 
 ## What the theorems do not say
 
@@ -84,7 +85,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 
 ### Mutants of the model
 
-`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 16 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
+`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 17 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
 
 | Mutant | Fails in |
 |---|---|
@@ -103,6 +104,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | Challenge-hash queries are not counted | `romHandler_bound` |
 | Every forger counts as explaining its nonces | `demoRom_explains`, `explains_chal` |
 | The binding adversary wins with the same list twice | `win_pair` |
+| `VerifyAggregate` on bytes accepts an `s` that is not below `n` | `decodeVerify_some`, `verifyAggregateBytes_encode`, `incAggregateBytes_isSome`, `verifyAggregateBytes_unique` |
 | The randomizer hash does not cover the messages | `aggregate_vectors`, `incAggregate_vectors`, `verifyAggregate_vectors` |
 
 The two randomizer mutants change four definitions in the same way: `zQuery` of the game and `tableZs` of the reduction in `Halfagg/Security.lean`, and `zQueryAnn` and `zOf` of the proof in `Halfagg/Proofs/Annotated.lean`. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.

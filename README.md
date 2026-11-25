@@ -49,6 +49,7 @@ The theorems above are about x-coordinates and scalars. `Halfagg/Vectors.lean` a
 | `decodeVerify_randomizer` | The randomizers of the decoded input hash the bytes of the input. |
 | `randomizerInput_injective` | The bytes that a randomizer hashes determine the item list, because every field has 32 bytes. So the model loses nothing by taking the randomizer as a function of the list. |
 | `verifyAggregateBytes_aggregateBytes`, `verifyAggregateBytes_incAggregateBytes` | `Aggregate` and `IncAggregate` on bytes are correct: signatures that pass BIP 340 `Verify` give bytes that pass `VerifyAggregate`. |
+| `verifyAggregateBytes_unique` | An aggregate signature has one encoding. Two aggregate signatures with the same nonces that pass `VerifyAggregate` for the same list are equal, because `VerifyAggregate` rejects an `s` that is not below `n`. |
 
 ### Axioms
 

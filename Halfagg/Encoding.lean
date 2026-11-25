@@ -532,4 +532,39 @@ theorem aggregateBytes_isSome {pms : List (Bytes × Bytes × Bytes)}
     (hm : ∀ x ∈ pms, x.2.1.length = 32) : (aggregateBytes pms).isSome = true :=
   incAggregateBytes_isSome verifyAggregateBytes_empty hpms hm
 
+/-! ## One encoding per aggregate -/
+
+/-- The first `v` chunks of `b` are those of its first `32⋅v` bytes. -/
+theorem chunks32_take (b : Bytes) (v : ℕ) : chunks32 (b.take (32 * v)) v = chunks32 b v := by
+  unfold chunks32
+  refine List.map_congr_left fun i hi => ?_
+  have hi' : i < v := List.mem_range.mp hi
+  rw [List.drop_take, List.take_take, min_eq_left (by omega)]
+
+/-- **An aggregate signature has one encoding.** Two aggregate signatures with
+the same nonces that pass `VerifyAggregate` for the same list are equal: the
+verification equation fixes `s` modulo `n`, and the check `s < n` leaves one
+value. -/
+theorem verifyAggregateBytes_unique {aggsig aggsig' : Bytes} {pm : List (Bytes × Bytes)}
+    (h : verifyAggregateBytes aggsig pm = true) (h' : verifyAggregateBytes aggsig' pm = true)
+    (hr : aggsig.take (32 * pm.length) = aggsig'.take (32 * pm.length)) : aggsig = aggsig' := by
+  unfold verifyAggregateBytes at h h'
+  dsimp only at h h'
+  simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, is32, beq_iff_eq] at h h'
+  obtain ⟨⟨⟨⟨⟨hlen, -⟩, -⟩, -⟩, hs⟩, hver⟩ := h
+  obtain ⟨⟨⟨⟨⟨hlen', -⟩, -⟩, -⟩, hs'⟩, hver'⟩ := h'
+  have hc : chunks32 aggsig' pm.length = chunks32 aggsig pm.length := by
+    rw [← chunks32_take aggsig, ← chunks32_take aggsig', hr]
+  rw [hc] at hver'
+  simp only [verifyAggregate, verifyWith, Bool.and_eq_true, decide_eq_true_eq] at hver hver'
+  have hG := secp256k1F.mulG_injective (hver.2.trans hver'.2.symm)
+  have hnat : toNatBE (aggsig.drop (32 * pm.length)) =
+      toNatBE (aggsig'.drop (32 * pm.length)) := by
+    have := (ZMod.natCast_eq_natCast_iff' _ _ _).mp hG
+    rwa [Nat.mod_eq_of_lt hs, Nat.mod_eq_of_lt hs'] at this
+  have hd : aggsig.drop (32 * pm.length) = aggsig'.drop (32 * pm.length) :=
+    toNatBE_injective (by simp only [List.length_drop, hlen, hlen']) hnat
+  rw [← List.take_append_drop (32 * pm.length) aggsig,
+    ← List.take_append_drop (32 * pm.length) aggsig', hr, hd]
+
 end Halfagg.Vectors
