@@ -47,3 +47,36 @@ jobs:
             echo "error: the build passes with a new axiom"; exit 1
           fi
           grep -q 'audit_backdoor' inventory.log
+
+  # The C module against BIP 458's Python reference. Needs no Lean. The revision
+  # is the head of bitcoin-core/secp256k1#1566 that the README's results are for.
+  secp256k1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: bitcoin/bips
+          ref: a7f91321f25b5be8d93e901775621c21519e80b7
+          path: bips
+          sparse-checkout: bip-0458
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: bitcoin-core/secp256k1
+          ref: c7ed5e0a0dbc69f5f75bc00e516ccd5ee1033e25
+          path: secp256k1
+      - name: Build the library with the half-aggregation module
+        run: |
+          cmake -S secp256k1 -B secp256k1/build -DBUILD_SHARED_LIBS=OFF -DSECP256K1_EXPERIMENTAL=ON \
+            -DSECP256K1_ENABLE_MODULE_SCHNORRSIG_HALFAGG=ON -DSECP256K1_BUILD_BENCHMARK=OFF \
+            -DSECP256K1_BUILD_CTIME_TESTS=OFF -DSECP256K1_BUILD_EXAMPLES=OFF \
+            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF
+          cmake --build secp256k1/build -j4
+          cc -O2 -Isecp256k1/include scripts/fuzz_secp256k1.c secp256k1/build/lib/libsecp256k1.a -o fuzz_secp256k1
+      - name: Unit tests of the module
+        run: secp256k1/build/bin/tests --target=schnorrsig_halfagg
+      - name: Differential test against the Python reference
+        run: >
+          python3 scripts/fuzz.py bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp256k1
+          --cases 3000 --seed "${{ github.run_id }}"

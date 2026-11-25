@@ -80,6 +80,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 - `scripts/replay.sh` replays in the kernel with `leanchecker`, without the elaborator, every project module and every module of taproot-lean and agm-lean that the project imports, one process per module. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 - `scripts/replay.sh --deps` does the same for the 255 modules of VCVio, PolyFun and cslib that the project imports. A CI workflow of its own runs it when a pinned commit or the toolchain changes, and once a week. Mathlib and the libraries under it are not replayed here.
 - CI runs all of these. It also regenerates the summary and the test vector data, runs 300 cases of `scripts/fuzz.py` against the Python reference with a new seed for every run, and checks that the build fails when an unused axiom is added to a module.
+- A second CI job builds libsecp256k1 with the `schnorrsig_halfagg` module at the commit the README names. It runs the module's unit tests and 3,000 cases of `scripts/fuzz.py` against the Python reference with a new seed.
 
 ### Mutants of the model
 

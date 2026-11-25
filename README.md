@@ -101,7 +101,7 @@ No theorem can say that the byte functions are BIP 458's algorithms, so `scripts
 python3 scripts/fuzz.py path/to/bips/bip-0458 --cases 2500 --seed 1
 ```
 
-For libsecp256k1, build the library with the module and compile the driver:
+The module is [bitcoin-core/secp256k1#1566](https://github.com/bitcoin-core/secp256k1/pull/1566). The numbers in this section are for its head at commit [`c7ed5e0`](https://github.com/bitcoin-core/secp256k1/commit/c7ed5e0a0dbc69f5f75bc00e516ccd5ee1033e25). To test it, build the library with the module and compile the driver:
 
 ```sh
 cmake -S path/to/secp256k1 -B build -DBUILD_SHARED_LIBS=OFF \
@@ -113,7 +113,7 @@ python3 scripts/fuzz.py path/to/bips/bip-0458 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express every malformed input, such as a public key of the wrong length. The driver skips those cases, about one in five.
 
-No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit, with a new seed for every run.
+No run has found a mismatch: 10,000 cases against the Lean model and more than 30,000 against libsecp256k1, 3,000 of them under ASan and UBSan. CI runs 300 cases against the Python reference at the pinned bips commit, with a new seed for every run. A second CI job builds libsecp256k1 at the commit above and runs the module's unit tests and 3,000 cases.
 
 `scripts/mutate_secp256k1.py` measures what these tests can see. It applies 21 one-line mutants to the C module, such as dropping a range check or hashing `z₀`, and runs the module's unit tests and the generated cases against each:
 
