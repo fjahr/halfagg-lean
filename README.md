@@ -55,6 +55,9 @@ The theorems above are about x-coordinates and scalars. `Halfagg/Vectors.lean` a
 | `randomizerInput_injective` | The bytes that a randomizer hashes determine the item list, because every field has 32 bytes. So the model loses nothing by taking the randomizer as a function of the list. |
 | `verifyAggregateBytes_aggregateBytes`, `verifyAggregateBytes_incAggregateBytes` | `Aggregate` and `IncAggregate` on bytes are correct: signatures that pass BIP 340 `Verify` give bytes that pass `VerifyAggregate`. |
 | `verifyAggregateBytes_unique` | An aggregate signature has one encoding. Two aggregate signatures with the same nonces that pass `VerifyAggregate` for the same list are equal, because `VerifyAggregate` rejects an `s` that is not below `n`. |
+| `bytes_halfagg_unforgeable`, `bytes_halfagg_knowledge`, `bytes_halfagg_dlog_tight`, `bytes_halfagg_binding` | The security theorems for secp256k1 with 32-byte nonces, public keys and messages (`Halfagg/BytesSecurity.lean`). The x-only encoding of a point is `bytes(x(P))`, the challenge hash is BIP 340's, and the randomizer hash has 256-bit outputs that are reduced mod `n`. |
+| `randomizerX_eq_red256`, `length_sha256` | BIP 458's randomizer is such a hash: SHA-256 has 32 bytes of output, and the randomizer is that value reduced mod `n`. |
+| `verifyAggregateBytes_eq_X`, `decodeX_bytes`, `bytes_game_verifier` | `VerifyAggregate` on bytes is the verifier of that instance on the 32-byte chunks of its input. So with SHA-256 as the randomizer hash, the game's check of a forgery is `VerifyAggregate` on bytes. |
 
 ### Axioms
 
