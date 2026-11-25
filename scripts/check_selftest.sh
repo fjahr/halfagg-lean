@@ -65,4 +65,15 @@ fresh
 echo 'theorem audit_backdoor : False := by sorry' > "$tmp/work/Halfagg/Back door.lean"
 expect_fail 'a sorry in a file with a space in its name'
 
+fresh
+sed 's/^Halfagg\.Hash256: /Halfagg.Proofs.Hash256: /' "$tmp/work/Halfagg/Summary.lean" > "$tmp/summary"
+cp "$tmp/summary" "$tmp/work/Halfagg/Summary.lean"
+python3 "$tmp/work/scripts/gen_review.py"
+expect_fail 'a definition behind the results under Halfagg/Proofs/'
+
+fresh
+grep -v '^- `Halfagg/Hash256.lean`: ' "$tmp/work/REVIEW.md" > "$tmp/review"
+cp "$tmp/review" "$tmp/work/REVIEW.md"
+expect_fail 'a list of definitions in REVIEW.md that is not the one of the summary'
+
 exit $fail

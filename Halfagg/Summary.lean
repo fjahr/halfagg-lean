@@ -42,6 +42,7 @@ import Halfagg.SecurityBinding
 import Halfagg.Proofs.BindingPairs
 import Halfagg.Proofs.Binding
 import Halfagg.Binding
+import Halfagg.Audit
 
 /-!
 # Main results and their axioms
@@ -284,3 +285,108 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 /-- info: 'Halfagg.Security.secp256k1_halfagg_binding' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.secp256k1_halfagg_binding
+
+/-! ## The axioms of the whole project
+
+The checks above are about the main results. This one is about every
+declaration of the project: the axioms that its modules declare, and the
+axioms that its declarations depend on. The only axioms of the project are
+the ones of the test vector checks. -/
+
+/--
+info: axioms declared in the project: [Halfagg.Vectors.aggregate_vectors._native.native_decide.ax_1_1,
+ Halfagg.Vectors.incAggregate_vectors._native.native_decide.ax_1_1,
+ Halfagg.Vectors.verifyAggregate_vectors._native.native_decide.ax_1_2]
+axioms that the project depends on: [propext,
+ Classical.choice,
+ Quot.sound,
+ Halfagg.Vectors.aggregate_vectors._native.native_decide.ax_1_1,
+ Halfagg.Vectors.incAggregate_vectors._native.native_decide.ax_1_1,
+ Halfagg.Vectors.verifyAggregate_vectors._native.native_decide.ax_1_2]
+-/
+#guard_msgs in
+#project_axioms
+
+/-! ## The definitions behind the results
+
+The definitions that the statements of the results above depend on, directly
+or through other definitions, by module: the ones of this project, and the
+ones of taproot-lean, VCVio, agm-lean and the libraries these are built on.
+Proofs are not followed. `REVIEW.md` lists the same definitions. -/
+
+/--
+info: AlgebraicGroupModel.Interaction: AlgebraicGroupModel.Interaction.Adversary, AlgebraicGroupModel.Interaction.Explained, AlgebraicGroupModel.Interaction.Groups, AlgebraicGroupModel.Interaction.IsAlgebraic, AlgebraicGroupModel.Interaction.Message, AlgebraicGroupModel.Interaction.evaluate, AlgebraicGroupModel.Interaction.explainedSpec, AlgebraicGroupModel.Interaction.extend, AlgebraicGroupModel.Interaction.plainSpec, AlgebraicGroupModel.Interaction.Explained.Valid, AlgebraicGroupModel.Interaction.Explained.ofVectors
+Halfagg.Basic: Halfagg.AggSig, Halfagg.Item, Halfagg.aggregate, Halfagg.entryItem, Halfagg.entryPM, Halfagg.incAggregate, Halfagg.isum, Halfagg.items, Halfagg.lifts, Halfagg.shiftedPair, Halfagg.term, Halfagg.verifyAggregate, Halfagg.verifyMulti, Halfagg.verifyWith, Halfagg.z
+Halfagg.Encoding: Halfagg.Vectors.Item32, Halfagg.Vectors.decodeVerify, Halfagg.Vectors.encodeItem, Halfagg.Vectors.randomizerInput
+Halfagg.Examples: Halfagg.Examples.demo, Halfagg.Examples.uvec
+Halfagg.Hash256: Halfagg.Security.red256, Halfagg.Security.redMod
+Halfagg.OrderG: Halfagg.secp256k1F
+Halfagg.Security: Halfagg.Security.AItem, Halfagg.Security.AggAdversary, Halfagg.Security.AlgForger, Halfagg.Security.AnnSpec, Halfagg.Security.Core, Halfagg.Security.GameSpec, Halfagg.Security.Out, Halfagg.Security.Pts, Halfagg.Security.RandSpec, Halfagg.Security.RedBound, Halfagg.Security.Rep, Halfagg.Security.Reply, Halfagg.Security.Request, Halfagg.Security.SignSpec, Halfagg.Security.aggAdvantage, Halfagg.Security.aggExperiment, Halfagg.Security.aggWins, Halfagg.Security.annotate, Halfagg.Security.bip340, Halfagg.Security.coreImpl, Halfagg.Security.erase, Halfagg.Security.eraseImpl, Halfagg.Security.extractForgery, Halfagg.Security.finalItems, Halfagg.Security.flatten, Halfagg.Security.initial, Halfagg.Security.instDecidableEqAItem, Halfagg.Security.isRand, Halfagg.Security.isSign, Halfagg.Security.isSignQuery, Halfagg.Security.liftRep, Halfagg.Security.memoRecord, Halfagg.Security.memoize, Halfagg.Security.memoizeList, Halfagg.Security.pairs, Halfagg.Security.rawTail, Halfagg.Security.reduction, Halfagg.Security.smulVal, Halfagg.Security.starRep, Halfagg.Security.tableRO, Halfagg.Security.tableZs, Halfagg.Security.toItems, Halfagg.Security.zQuery, Halfagg.Security.Core.init, Halfagg.Security.instDecidableEqAItem.decEq
+Halfagg.SecurityBinding: Halfagg.Security.BindAdversary, Halfagg.Security.BindSpec, Halfagg.Security.answerChalB, Halfagg.Security.bindAdvantage, Halfagg.Security.bindExperiment, Halfagg.Security.bindGame, Halfagg.Security.bindWins, Halfagg.Security.isChalB, Halfagg.Security.isRandB
+Halfagg.SecurityKnowledge: Halfagg.Security.aggVerifies, Halfagg.Security.aggVerifyAdvantage, Halfagg.Security.aggVerifyExperiment, Halfagg.Security.extractAdvantage, Halfagg.Security.extractExperiment, Halfagg.Security.extractSig, Halfagg.Security.extractWins, Halfagg.Security.extractor
+Halfagg.SecurityROM: Halfagg.LoggedRun.tableImpl, Halfagg.Security.ChalSpec, Halfagg.Security.FSSig, Halfagg.Security.RomForger, Halfagg.Security.RomForgerSpec, Halfagg.Security.RomSpec, Halfagg.Security.aggAdvantageROM, Halfagg.Security.aggExperimentROM, Halfagg.Security.answerChal, Halfagg.Security.extractROM, Halfagg.Security.hOf, Halfagg.Security.hashQ, Halfagg.Security.isChalCall, Halfagg.Security.isRandCall, Halfagg.Security.isSignCall, Halfagg.Security.knownChal, Halfagg.Security.reductionROM, Halfagg.Security.romHandler, Halfagg.Security.romTableRO, Halfagg.Security.RomForger.at
+Halfagg.SecurityTight: Halfagg.Security.ExplainsNonces, Halfagg.Security.FinalStep, Halfagg.Security.candKey, Halfagg.Security.junk, Halfagg.Security.keySolver, Halfagg.Security.repFin, Halfagg.Security.romMachine, Halfagg.Security.romPrefix, Halfagg.Security.target
+Halfagg.Tightness: Halfagg.Security.copies, Halfagg.Security.grindLoop, Halfagg.Security.grinder, Halfagg.Security.gβ
+Halfagg.Unforgeability: Halfagg.Security.answerRand
+Halfagg.VectorData: Halfagg.Vectors.aggregateVectors, Halfagg.Vectors.incAggregateVectors, Halfagg.Vectors.verifyVectors
+Halfagg.VectorTypes: Halfagg.Vectors.AggregateVector, Halfagg.Vectors.IncAggregateVector, Halfagg.Vectors.VerifyVector
+Halfagg.Vectors: Halfagg.Vectors.aggregateBytes, Halfagg.Vectors.bip340VerifyBytes, Halfagg.Vectors.chunks32, Halfagg.Vectors.incAggregateBytes, Halfagg.Vectors.is32, Halfagg.Vectors.pmOf, Halfagg.Vectors.pmsOf, Halfagg.Vectors.randomizer, Halfagg.Vectors.randomizerF, Halfagg.Vectors.verifyAggregateBytes
+Taproot.BIP340: Taproot.BIP340.pubkey, Taproot.BIP340.sign, Taproot.BIP340.verify
+Taproot.BIP340Props: Taproot.BIP340.Entry, Taproot.BIP340.Entry.valid
+Taproot.BIP340Security: Taproot.BIP340Security.Good, Taproot.BIP340Security.NonzeroScalar, Taproot.BIP340Security.Stmt, Taproot.BIP340Security.dlogExperiment, Taproot.BIP340Security.dlogOfKeyRecovery, Taproot.BIP340Security.instSampleableTypeGoodValMemSetStmt, Taproot.BIP340Security.instSampleableTypeNonzeroScalar, Taproot.BIP340Security.keyGen, Taproot.BIP340Security.negStmt, Taproot.BIP340Security.sigma, Taproot.BIP340Security.simTranscript
+Taproot.BIP340Vectors: Taproot.BIP340Vectors.Bytes, Taproot.BIP340Vectors.be32, Taproot.BIP340Vectors.bytes32, Taproot.BIP340Vectors.challenge, Taproot.BIP340Vectors.hex, Taproot.BIP340Vectors.rotr, Taproot.BIP340Vectors.sha256, Taproot.BIP340Vectors.sha256Block, Taproot.BIP340Vectors.sha256H0, Taproot.BIP340Vectors.sha256K, Taproot.BIP340Vectors.sha256Pad, Taproot.BIP340Vectors.taggedHash, Taproot.BIP340Vectors.toNatBE, Taproot.BIP340Vectors.hex.go
+Taproot.Curve: Taproot.Curve, Taproot.Curve.PrimeOrder, Taproot.Curve.evenScalar, Taproot.Curve.mulG
+Taproot.Secp256k1: Taproot.Secp256k1.F, Taproot.Secp256k1.G, Taproot.Secp256k1.Gx, Taproot.Secp256k1.Gy, Taproot.Secp256k1.Point, Taproot.Secp256k1.W, Taproot.Secp256k1.evenRoot, Taproot.Secp256k1.hasEvenY, Taproot.Secp256k1.liftX, Taproot.Secp256k1.n, Taproot.Secp256k1.p, Taproot.Secp256k1.sqrtExp, Taproot.Secp256k1.xCoord
+PolyFun.PFunctor.Basic: PFunctor.sum
+PolyFun.PFunctor.Bound: PFunctor.FreeM.IsRollBound
+PolyFun.PFunctor.Handler: PFunctor.Handler
+VCVio.CryptoFoundations.ReplayFork: OracleComp.ContextForkWitness, OracleComp.acceptContextForkWitness, OracleComp.classifyForkView, OracleComp.contextFork, OracleComp.contextForkWitness
+VCVio.CryptoFoundations.SigmaProtocol: ChallengeVerifyProtocol, SigmaProtocol
+VCVio.CryptoFoundations.SignatureAlg: SignatureAlg, SignatureAlg.ManagedRoNmaAdversary, SignatureAlg.UnforgeableAdversary, SignatureAlg.map_correctnessGame, SignatureAlg.runWithSigningOracle, SignatureAlg.signingOracle, SignatureAlg.unforgeableAdvantage, SignatureAlg.unforgeableExperiment
+VCVio.EvalDist.ProbabilityNotation: prEvent
+VCVio.OracleComp.OracleComp: OracleComp, OracleComp.queryBind
+VCVio.OracleComp.OracleQuery: OracleQuery, OracleQuery.cont, OracleQuery.input, OracleSpec.query
+VCVio.OracleComp.OracleSpec: OracleSpec, unifSpec, OracleSpec.Domain, OracleSpec.Range, OracleSpec.instDecidableEqRangeSumHAdd, OracleSpec.instFintypeRangeSumHAdd, OracleSpec.instHAddSum, OracleSpec.ofFn, OracleSpec.ofPFunctor, OracleSpec.toPFunctor
+VCVio.OracleComp.ProbCompLift: ProbCompLift, ProbCompRuntime, ProbCompLift.id, ProbCompLift.ofMonadLift, ProbCompRuntime.evalDist, ProbCompRuntime.probComp
+PolyFun.Control.Monad.Hom: MonadHom, NatHom, MonadHom.id, MonadHom.ofLift
+PolyFun.Control.Monad.Support: MonadAttach.support
+PolyFun.PFunctor.Free.Cursor: PFunctor.FreeM.Cursor, PFunctor.FreeM.Cursor.Spine, PFunctor.FreeM.Cursor.plug, PFunctor.FreeM.Cursor.Spine.plug
+PolyFun.PFunctor.Free.Displayed: PFunctor.FreeM.Displayed, PFunctor.FreeM.Displayed.Algebra
+PolyFun.PFunctor.Free.Path: PFunctor.FreeM.Path, PFunctor.FreeM.output, PFunctor.FreeM.Path.algebra
+PolyFun.PFunctor.Free.Support: PFunctor.FreeM.attachSupp, PFunctor.FreeM.instMonadAttach, PFunctor.FreeM.supp
+PolyFun.PFunctor.Handler.Instrumentation: PFunctor.Handler.liftTarget, PFunctor.Handler.postInsert, PFunctor.Handler.withTraceAppend
+VCVio.CryptoFoundations.FiatShamir.QueryBounds: FiatShamir.challengeSpaceInv, FiatShamir.hashQueryBound, FiatShamir.signHashQueryBound
+VCVio.CryptoFoundations.FiatShamir.Sigma: FiatShamir, FiatShamir.inROM, FiatShamir.runtime, FiatShamir.runtimeWithCache
+VCVio.CryptoFoundations.HardnessAssumptions.HardRelation: GenerableRelation
+VCVio.EvalDist.PFunctorMeasure.Core: PFunctor.AnswerMeasure, PFunctor.FreeM.denote, PFunctor.FreeM.instEvalDistSemanticsFreeM
+VCVio.OracleComp.EvalDist.AnswerMeasure: OracleComp.instEvalDistSemantics, OracleSpec.AnswerMeasure, OracleSpec.UniformAnswerMeasure, OracleSpec.UniformAnswerMeasure.ofFiniteNonempty, OracleSpec.UniformAnswerMeasure.unifSpec
+VCVio.OracleComp.HasQuery.Basic: HasQuery, HasQuery.instOfMonadLift
+VCVio.OracleComp.ProbComp.Basic: ProbComp, ProbComp.uniformFin
+VCVio.OracleComp.QueryTracking.CachingOracle: QueryImpl.withCaching
+VCVio.OracleComp.QueryTracking.Structures: OracleSpec.QueryCache, OracleSpec.QueryLog, OracleSpec.QueryCache.cacheQuery, OracleSpec.QueryCache.instEmptyCollection, OracleSpec.QueryCache.ofFn, OracleSpec.QueryCache.toSet, OracleSpec.QueryLog.getQ, OracleSpec.QueryLog.wasQueried
+VCVio.OracleComp.SimSemantics.SimulateQ: simulateQ, simulateQ'
+Cslib.Foundations.Data.PFunctor.Free: PFunctor.FreeM, PFunctor.FreeM.bind, PFunctor.FreeM.instBind, PFunctor.FreeM.instFunctor, PFunctor.FreeM.instMonad, PFunctor.FreeM.instMonadLiftObj, PFunctor.FreeM.instPure, PFunctor.FreeM.lift, PFunctor.FreeM.liftM, PFunctor.FreeM.liftObj, PFunctor.FreeM.map
+PolyFun.PFunctor.Free.Cursor.Fork: PFunctor.FreeM.Cursor.Located, PFunctor.FreeM.Cursor.SelectedForkView, PFunctor.FreeM.Cursor.filterMapLocateAndForkSelected, PFunctor.FreeM.Cursor.locateAndForkBy, PFunctor.FreeM.Cursor.locateAndForkSelected, PFunctor.FreeM.Cursor.locateAt?, PFunctor.FreeM.Cursor.Located.fork, PFunctor.FreeM.Cursor.Located.here, PFunctor.FreeM.Cursor.Located.prependOther, PFunctor.FreeM.Cursor.Located.prependSame, PFunctor.FreeM.Cursor.SelectedForkView.firstOutput, PFunctor.FreeM.Cursor.SelectedForkView.outputs, PFunctor.FreeM.Cursor.SelectedForkView.secondOutput
+PolyFun.PFunctor.Free.Cursor.Occurrence: PFunctor.FreeM.Cursor.ForkView, PFunctor.FreeM.Cursor.Occurrence, PFunctor.FreeM.Cursor.ForkView.firstAnswer, PFunctor.FreeM.Cursor.ForkView.firstPath, PFunctor.FreeM.Cursor.ForkView.secondAnswer, PFunctor.FreeM.Cursor.ForkView.secondPath, PFunctor.FreeM.Cursor.Occurrence.Completion, PFunctor.FreeM.Cursor.Occurrence.plug, PFunctor.FreeM.Cursor.Occurrence.resume, PFunctor.FreeM.Cursor.Occurrence.toCursor, PFunctor.FreeM.Cursor.Occurrence.toSpine, PFunctor.FreeM.Cursor.Occurrence.Completion.path
+PolyFun.PFunctor.Free.Path.Execution: PFunctor.FreeM.withPath
+VCVio.CryptoFoundations.FiatShamir.Sigma.CmaToNma: FiatShamir.cmaOracleSpec, FiatShamir.fsRoSpec, FiatShamir.simulatedNmaAdv, FiatShamir.simulatedNmaBaseSim, FiatShamir.simulatedNmaFwd, FiatShamir.simulatedNmaImpl, FiatShamir.simulatedNmaRoSim, FiatShamir.simulatedNmaSigSim, FiatShamir.simulatedNmaUnifSim
+VCVio.CryptoFoundations.FiatShamir.Sigma.Fork: FiatShamir.Fork.SimState, FiatShamir.Fork.Trace, FiatShamir.Fork.forkPoint, FiatShamir.Fork.roImpl, FiatShamir.Fork.runTrace, FiatShamir.Fork.unifForward, FiatShamir.Fork.wrappedChallengeQuery, FiatShamir.Fork.wrappedSpec, FiatShamir.Fork.wrappedUniformQuery, FiatShamir.Fork.Trace.target
+VCVio.CryptoFoundations.FiatShamir.Sigma.Reductions: FiatShamir.cmaReduction, FiatShamir.cmaToNmaAdv, FiatShamir.nmaForkBudget, FiatShamir.nmaForkExtract, FiatShamir.nmaForkExtractBranch, FiatShamir.nmaReduction
+VCVio.EvalDist.Defs.Measure.Core: EvalDistSemantics, evalDist
+VCVio.EvalDist.Defs.Semantics.Core: SemanticsVia, SemanticsVia.evalDist, SemanticsVia.ofEvalDistSemantics
+VCVio.OracleComp.Coercions.Add.Basic: OracleQuery.subSpec_add_assoc, OracleQuery.subSpec_add_left, OracleQuery.subSpec_add_right
+VCVio.OracleComp.Coercions.SubSpec.Basic: OracleComp.instMonadLiftOfOracleQuery, OracleComp.instMonadLiftStateTOfOracleQuery, OracleComp.liftComp, OracleSpec.SubSpec, OracleSpec.SubSpec.liftM_eq_lift
+VCVio.OracleComp.Constructions.SampleableType.Basic: SampleableType, instFinEnumZModOfNeZeroNat_vCVio, instSampleableTypeFinOfNeZeroNat, uniformSample, uniformSampleImpl, FinEnum.SampleableType, SampleableType.Fin, SampleableType.ofEquiv, SampleableType.ofFintype, SampleableType.subtype
+VCVio.OracleComp.QueryTracking.LoggingOracle.Core: QueryImpl.withLogging
+VCVio.OracleComp.QueryTracking.QueryBound.Basic: OracleComp.IsQueryBound, OracleComp.IsQueryBoundP
+VCVio.OracleComp.QueryTracking.RandomOracle.Basic: OracleSpec.randomOracle
+VCVio.OracleComp.QueryTracking.RandomOracle.Simulation: unifFwdImpl, OracleSpec.romImpl, ProbCompRuntime.rom
+VCVio.OracleComp.QueryTracking.Tracing.Core: QueryImpl.withTraceAppend
+VCVio.OracleComp.SimSemantics.Append.Core: OracleSpec.passthrough, QueryImpl.Passthrough, QueryImpl.add, QueryImpl.instHAddPassthroughSumHAddOracleSpecOfMonadLiftTOracleComp, QueryImpl.instHAddSumHAddOracleSpec
+VCVio.OracleComp.SimSemantics.QueryImpl.Basic: QueryImpl, HasQuery.toQueryImpl, QueryImpl.id, QueryImpl.id', QueryImpl.liftTarget, QueryImpl.ofFn, QueryImpl.ofLift
+VCVio.OracleComp.SimSemantics.StateT.BundledSemantics: ProbCompRuntime.withStateOracle, SemanticsVia.withStateOracle
+VCVio.CryptoFoundations.FiatShamir.Sigma.Stateful.Bridge: FiatShamir.Stateful.SourceAdversary, FiatShamir.Stateful.SourceSigAlg
+VCVio.CryptoFoundations.FiatShamir.Sigma.Stateful.Chain.Simulation: FiatShamir.Stateful.nmaAdvFromCma, FiatShamir.Stateful.nmaAdvFromCmaWithFinalQuery
+-/
+#guard_msgs in
+#surface Halfagg.verifyAggregate_aggregate Halfagg.verifyAggregate_incAggregate Halfagg.verifyAggregate_single Halfagg.incAggregate_append Halfagg.aggregate_append Halfagg.aggregate_accepts_invalid Halfagg.verifyMulti_eq Halfagg.OrderG.n_smul_G Halfagg.secp256k1F Halfagg.secp256k1_primeOrder Halfagg.secp256k1_verifyMulti_eq Halfagg.Vectors.aggregate_vectors Halfagg.Vectors.incAggregate_vectors Halfagg.Vectors.verifyAggregate_vectors Halfagg.Vectors.randomizerInput_injective Halfagg.Vectors.randomizerF_input_injective Halfagg.Vectors.verifyAggregateBytes_eq Halfagg.Vectors.decodeVerify_randomizer Halfagg.Vectors.decodeVerify_pm_injective Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes Halfagg.Vectors.verifyAggregateBytes_aggregateBytes Halfagg.Vectors.incAggregateBytes_isSome Halfagg.Vectors.aggregateBytes_isSome Halfagg.Security.halfagg_unforgeable Halfagg.Security.redMod_bound Halfagg.Security.secp256k1_redBound Halfagg.Security.reduction_sign_queries Halfagg.Security.aggWins_lifts Halfagg.Security.game_verifier Halfagg.Security.secp256k1_halfagg_unforgeable Halfagg.Security.halfagg_knowledge Halfagg.Security.extractor_sign_queries Halfagg.Security.secp256k1_halfagg_knowledge Halfagg.Security.grinder_advantage Halfagg.Security.grinder_sandwich Halfagg.Security.grinder_reduction_no_sign Halfagg.Examples.demo_theorem Halfagg.Examples.aggWins_honest Halfagg.Security.halfagg_unforgeable_rom Halfagg.Security.halfagg_dlog Halfagg.Security.reductionROM_bound Halfagg.LoggedRun.rom_eq_table Halfagg.Security.secp256k1_halfagg_dlog Halfagg.Security.halfagg_key_or_signature Halfagg.Security.halfagg_dlog_tight Halfagg.Security.secp256k1_halfagg_dlog_tight Halfagg.Security.halfagg_binding Halfagg.Security.secp256k1_halfagg_binding

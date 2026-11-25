@@ -1,4 +1,5 @@
 import Halfagg.Proofs.LoggedRun
+import Halfagg.SecurityROM
 import VCVio.OracleComp.QueryTracking.RandomOracle.ExpectedFreshQuery
 import VCVio.CryptoFoundations.FiatShamir.Sigma
 
@@ -18,10 +19,6 @@ open scoped ENNReal
 namespace Halfagg.LoggedRun
 
 variable {D α : Type} {R : D → Type}
-
-/-- Answer every hash query from the table `g`. -/
-def tableImpl (g : ∀ d, R d) : QueryImpl (unifSpec + ofFn R) ProbComp :=
-  HasQuery.toQueryImpl (spec := unifSpec) (m := ProbComp) + (QueryImpl.ofFn g).liftTarget ProbComp
 
 theorem tableImpl_inr (g : ∀ d, R d) (d : D) : tableImpl g (.inr d) = pure (g d) := rfl
 

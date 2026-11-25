@@ -181,3 +181,13 @@ noncomputable def reductionROM [Inhabited M] (F : RomForger n H E X M) :
     extractROM C pk items out.value.data.s zs st.signed es
 
 end Halfagg.Security
+
+namespace Halfagg.LoggedRun
+
+/-- Answer every hash query from the table `g`. `rom_eq_table` in
+`Halfagg/Proofs/Eager.lean` says that a lazily sampled random oracle on a finite
+domain is this handler for a uniformly sampled table. -/
+def tableImpl {D : Type} {R : D → Type} (g : ∀ d, R d) : QueryImpl (unifSpec + ofFn R) ProbComp :=
+  HasQuery.toQueryImpl (spec := unifSpec) (m := ProbComp) + (QueryImpl.ofFn g).liftTarget ProbComp
+
+end Halfagg.LoggedRun

@@ -1,6 +1,6 @@
 # Reviewing halfagg-lean
 
-Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Halfagg/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does.
+Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Halfagg/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does. [Every definition behind the results](#every-definition-behind-the-results) lists all definitions that a result depends on, in this project and in the libraries it is built on. The list is computed from the compiled project, and the build fails if it changes.
 
 ## What to read
 
@@ -74,8 +74,9 @@ What BIP 458 says about correctness and security, and the theorem for it.
 ## Machine checks
 
 - `lake build` compiles every proof and fails if the axioms of a main result change (`Halfagg/Summary.lean`).
-- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Halfagg/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's tables. It finds a result by its full name, so a declaration with the same last name in another namespace does not count.
-- `scripts/check_selftest.sh` changes a copy of the sources in ten ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
+- `Halfagg/Summary.lean` also guards two inventories of the whole project, computed by the commands of `Halfagg/Audit.lean`. `#project_axioms` lists the axioms that the modules declare and that their declarations depend on, so an axiom that no main result uses fails the build too. `#surface` lists the definitions behind the results, which is the last section of this file.
+- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Halfagg/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's tables. It finds a result by its full name, so a declaration with the same last name in another namespace does not count. It checks that the list of definitions at the end of this file is the one the summary guards, and that no definition on it is under `Halfagg/Proofs/`.
+- `scripts/check_selftest.sh` changes a copy of the sources in twelve ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
 - `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 
 ### Mutants of the model
@@ -1119,3 +1120,101 @@ theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
       (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
         (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
+
+<!-- definitions:begin -->
+
+### Every definition behind the results
+
+The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 136 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
+
+**This project**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `aggregate`, `entryItem`, `entryPM`, `incAggregate`, `isum`, `items`, `lifts`, `shiftedPair`, `term`, `verifyAggregate`, `verifyMulti`, `verifyWith`, `z`
+- `Halfagg/Encoding.lean`: `Vectors.Item32`, `Vectors.decodeVerify`, `Vectors.encodeItem`, `Vectors.randomizerInput`
+- `Halfagg/Examples.lean`: `Examples.demo`, `Examples.uvec`
+- `Halfagg/Hash256.lean`: `Security.red256`, `Security.redMod`
+- `Halfagg/OrderG.lean`: `secp256k1F`
+- `Halfagg/Security.lean`: `Security.AItem`, `Security.AggAdversary`, `Security.AlgForger`, `Security.AnnSpec`, `Security.Core`, `Security.GameSpec`, `Security.Out`, `Security.Pts`, `Security.RandSpec`, `Security.RedBound`, `Security.Rep`, `Security.Reply`, `Security.Request`, `Security.SignSpec`, `Security.aggAdvantage`, `Security.aggExperiment`, `Security.aggWins`, `Security.annotate`, `Security.bip340`, `Security.coreImpl`, `Security.erase`, `Security.eraseImpl`, `Security.extractForgery`, `Security.finalItems`, `Security.flatten`, `Security.initial`, `Security.instDecidableEqAItem`, `Security.isRand`, `Security.isSign`, `Security.isSignQuery`, `Security.liftRep`, `Security.memoRecord`, `Security.memoize`, `Security.memoizeList`, `Security.pairs`, `Security.rawTail`, `Security.reduction`, `Security.smulVal`, `Security.starRep`, `Security.tableRO`, `Security.tableZs`, `Security.toItems`, `Security.zQuery`, `Security.Core.init`, `Security.instDecidableEqAItem.decEq`
+- `Halfagg/SecurityBinding.lean`: `Security.BindAdversary`, `Security.BindSpec`, `Security.answerChalB`, `Security.bindAdvantage`, `Security.bindExperiment`, `Security.bindGame`, `Security.bindWins`, `Security.isChalB`, `Security.isRandB`
+- `Halfagg/SecurityKnowledge.lean`: `Security.aggVerifies`, `Security.aggVerifyAdvantage`, `Security.aggVerifyExperiment`, `Security.extractAdvantage`, `Security.extractExperiment`, `Security.extractSig`, `Security.extractWins`, `Security.extractor`
+- `Halfagg/SecurityROM.lean`: `LoggedRun.tableImpl`, `Security.ChalSpec`, `Security.FSSig`, `Security.RomForger`, `Security.RomForgerSpec`, `Security.RomSpec`, `Security.aggAdvantageROM`, `Security.aggExperimentROM`, `Security.answerChal`, `Security.extractROM`, `Security.hOf`, `Security.hashQ`, `Security.isChalCall`, `Security.isRandCall`, `Security.isSignCall`, `Security.knownChal`, `Security.reductionROM`, `Security.romHandler`, `Security.romTableRO`, `Security.RomForger.at`
+- `Halfagg/SecurityTight.lean`: `Security.ExplainsNonces`, `Security.FinalStep`, `Security.candKey`, `Security.junk`, `Security.keySolver`, `Security.repFin`, `Security.romMachine`, `Security.romPrefix`, `Security.target`
+- `Halfagg/Tightness.lean`: `Security.copies`, `Security.grindLoop`, `Security.grinder`, `Security.gβ`
+- `Halfagg/Unforgeability.lean`: `Security.answerRand`
+- `Halfagg/VectorData.lean`: `Vectors.aggregateVectors`, `Vectors.incAggregateVectors`, `Vectors.verifyVectors`
+- `Halfagg/VectorTypes.lean`: `Vectors.AggregateVector`, `Vectors.IncAggregateVector`, `Vectors.VerifyVector`
+- `Halfagg/Vectors.lean`: `Vectors.aggregateBytes`, `Vectors.bip340VerifyBytes`, `Vectors.chunks32`, `Vectors.incAggregateBytes`, `Vectors.is32`, `Vectors.pmOf`, `Vectors.pmsOf`, `Vectors.randomizer`, `Vectors.randomizerF`, `Vectors.verifyAggregateBytes`
+
+**taproot-lean**
+
+- `Taproot/BIP340.lean`: `Taproot.BIP340.pubkey`, `Taproot.BIP340.sign`, `Taproot.BIP340.verify`
+- `Taproot/BIP340Props.lean`: `Taproot.BIP340.Entry`, `Taproot.BIP340.Entry.valid`
+- `Taproot/BIP340Security.lean`: `Taproot.BIP340Security.Good`, `Taproot.BIP340Security.NonzeroScalar`, `Taproot.BIP340Security.Stmt`, `Taproot.BIP340Security.dlogExperiment`, `Taproot.BIP340Security.dlogOfKeyRecovery`, `Taproot.BIP340Security.instSampleableTypeGoodValMemSetStmt`, `Taproot.BIP340Security.instSampleableTypeNonzeroScalar`, `Taproot.BIP340Security.keyGen`, `Taproot.BIP340Security.negStmt`, `Taproot.BIP340Security.sigma`, `Taproot.BIP340Security.simTranscript`
+- `Taproot/BIP340Vectors.lean`: `Taproot.BIP340Vectors.Bytes`, `Taproot.BIP340Vectors.be32`, `Taproot.BIP340Vectors.bytes32`, `Taproot.BIP340Vectors.challenge`, `Taproot.BIP340Vectors.hex`, `Taproot.BIP340Vectors.rotr`, `Taproot.BIP340Vectors.sha256`, `Taproot.BIP340Vectors.sha256Block`, `Taproot.BIP340Vectors.sha256H0`, `Taproot.BIP340Vectors.sha256K`, `Taproot.BIP340Vectors.sha256Pad`, `Taproot.BIP340Vectors.taggedHash`, `Taproot.BIP340Vectors.toNatBE`, `Taproot.BIP340Vectors.hex.go`
+- `Taproot/Curve.lean`: `Taproot.Curve`, `Taproot.Curve.PrimeOrder`, `Taproot.Curve.evenScalar`, `Taproot.Curve.mulG`
+- `Taproot/Secp256k1.lean`: `Taproot.Secp256k1.F`, `Taproot.Secp256k1.G`, `Taproot.Secp256k1.Gx`, `Taproot.Secp256k1.Gy`, `Taproot.Secp256k1.Point`, `Taproot.Secp256k1.W`, `Taproot.Secp256k1.evenRoot`, `Taproot.Secp256k1.hasEvenY`, `Taproot.Secp256k1.liftX`, `Taproot.Secp256k1.n`, `Taproot.Secp256k1.p`, `Taproot.Secp256k1.sqrtExp`, `Taproot.Secp256k1.xCoord`
+
+**agm-lean**
+
+- `AlgebraicGroupModel/Interaction.lean`: `AlgebraicGroupModel.Interaction.Adversary`, `AlgebraicGroupModel.Interaction.Explained`, `AlgebraicGroupModel.Interaction.Groups`, `AlgebraicGroupModel.Interaction.IsAlgebraic`, `AlgebraicGroupModel.Interaction.Message`, `AlgebraicGroupModel.Interaction.evaluate`, `AlgebraicGroupModel.Interaction.explainedSpec`, `AlgebraicGroupModel.Interaction.extend`, `AlgebraicGroupModel.Interaction.plainSpec`, `AlgebraicGroupModel.Interaction.Explained.Valid`, `AlgebraicGroupModel.Interaction.Explained.ofVectors`
+
+**VCVio**
+
+- `VCVio/CryptoFoundations/ReplayFork.lean`: `OracleComp.ContextForkWitness`, `OracleComp.acceptContextForkWitness`, `OracleComp.classifyForkView`, `OracleComp.contextFork`, `OracleComp.contextForkWitness`
+- `VCVio/CryptoFoundations/SigmaProtocol.lean`: `ChallengeVerifyProtocol`, `SigmaProtocol`
+- `VCVio/CryptoFoundations/SignatureAlg.lean`: `SignatureAlg`, `SignatureAlg.ManagedRoNmaAdversary`, `SignatureAlg.UnforgeableAdversary`, `SignatureAlg.map_correctnessGame`, `SignatureAlg.runWithSigningOracle`, `SignatureAlg.signingOracle`, `SignatureAlg.unforgeableAdvantage`, `SignatureAlg.unforgeableExperiment`
+- `VCVio/EvalDist/ProbabilityNotation.lean`: `prEvent`
+- `VCVio/OracleComp/OracleComp.lean`: `OracleComp`, `OracleComp.queryBind`
+- `VCVio/OracleComp/OracleQuery.lean`: `OracleQuery`, `OracleQuery.cont`, `OracleQuery.input`, `OracleSpec.query`
+- `VCVio/OracleComp/OracleSpec.lean`: `OracleSpec`, `unifSpec`, `OracleSpec.Domain`, `OracleSpec.Range`, `OracleSpec.instDecidableEqRangeSumHAdd`, `OracleSpec.instFintypeRangeSumHAdd`, `OracleSpec.instHAddSum`, `OracleSpec.ofFn`, `OracleSpec.ofPFunctor`, `OracleSpec.toPFunctor`
+- `VCVio/OracleComp/ProbCompLift.lean`: `ProbCompLift`, `ProbCompRuntime`, `ProbCompLift.id`, `ProbCompLift.ofMonadLift`, `ProbCompRuntime.evalDist`, `ProbCompRuntime.probComp`
+- `VCVio/CryptoFoundations/FiatShamir/QueryBounds.lean`: `FiatShamir.challengeSpaceInv`, `FiatShamir.hashQueryBound`, `FiatShamir.signHashQueryBound`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma.lean`: `FiatShamir`, `FiatShamir.inROM`, `FiatShamir.runtime`, `FiatShamir.runtimeWithCache`
+- `VCVio/CryptoFoundations/HardnessAssumptions/HardRelation.lean`: `GenerableRelation`
+- `VCVio/EvalDist/PFunctorMeasure/Core.lean`: `PFunctor.AnswerMeasure`, `PFunctor.FreeM.denote`, `PFunctor.FreeM.instEvalDistSemanticsFreeM`
+- `VCVio/OracleComp/EvalDist/AnswerMeasure.lean`: `OracleComp.instEvalDistSemantics`, `OracleSpec.AnswerMeasure`, `OracleSpec.UniformAnswerMeasure`, `OracleSpec.UniformAnswerMeasure.ofFiniteNonempty`, `OracleSpec.UniformAnswerMeasure.unifSpec`
+- `VCVio/OracleComp/HasQuery/Basic.lean`: `HasQuery`, `HasQuery.instOfMonadLift`
+- `VCVio/OracleComp/ProbComp/Basic.lean`: `ProbComp`, `ProbComp.uniformFin`
+- `VCVio/OracleComp/QueryTracking/CachingOracle.lean`: `QueryImpl.withCaching`
+- `VCVio/OracleComp/QueryTracking/Structures.lean`: `OracleSpec.QueryCache`, `OracleSpec.QueryLog`, `OracleSpec.QueryCache.cacheQuery`, `OracleSpec.QueryCache.instEmptyCollection`, `OracleSpec.QueryCache.ofFn`, `OracleSpec.QueryCache.toSet`, `OracleSpec.QueryLog.getQ`, `OracleSpec.QueryLog.wasQueried`
+- `VCVio/OracleComp/SimSemantics/SimulateQ.lean`: `simulateQ`, `simulateQ'`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma/CmaToNma.lean`: `FiatShamir.cmaOracleSpec`, `FiatShamir.fsRoSpec`, `FiatShamir.simulatedNmaAdv`, `FiatShamir.simulatedNmaBaseSim`, `FiatShamir.simulatedNmaFwd`, `FiatShamir.simulatedNmaImpl`, `FiatShamir.simulatedNmaRoSim`, `FiatShamir.simulatedNmaSigSim`, `FiatShamir.simulatedNmaUnifSim`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma/Fork.lean`: `FiatShamir.Fork.SimState`, `FiatShamir.Fork.Trace`, `FiatShamir.Fork.forkPoint`, `FiatShamir.Fork.roImpl`, `FiatShamir.Fork.runTrace`, `FiatShamir.Fork.unifForward`, `FiatShamir.Fork.wrappedChallengeQuery`, `FiatShamir.Fork.wrappedSpec`, `FiatShamir.Fork.wrappedUniformQuery`, `FiatShamir.Fork.Trace.target`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma/Reductions.lean`: `FiatShamir.cmaReduction`, `FiatShamir.cmaToNmaAdv`, `FiatShamir.nmaForkBudget`, `FiatShamir.nmaForkExtract`, `FiatShamir.nmaForkExtractBranch`, `FiatShamir.nmaReduction`
+- `VCVio/EvalDist/Defs/Measure/Core.lean`: `EvalDistSemantics`, `evalDist`
+- `VCVio/EvalDist/Defs/Semantics/Core.lean`: `SemanticsVia`, `SemanticsVia.evalDist`, `SemanticsVia.ofEvalDistSemantics`
+- `VCVio/OracleComp/Coercions/Add/Basic.lean`: `OracleQuery.subSpec_add_assoc`, `OracleQuery.subSpec_add_left`, `OracleQuery.subSpec_add_right`
+- `VCVio/OracleComp/Coercions/SubSpec/Basic.lean`: `OracleComp.instMonadLiftOfOracleQuery`, `OracleComp.instMonadLiftStateTOfOracleQuery`, `OracleComp.liftComp`, `OracleSpec.SubSpec`, `OracleSpec.SubSpec.liftM_eq_lift`
+- `VCVio/OracleComp/Constructions/SampleableType/Basic.lean`: `SampleableType`, `instFinEnumZModOfNeZeroNat_vCVio`, `instSampleableTypeFinOfNeZeroNat`, `uniformSample`, `uniformSampleImpl`, `FinEnum.SampleableType`, `SampleableType.Fin`, `SampleableType.ofEquiv`, `SampleableType.ofFintype`, `SampleableType.subtype`
+- `VCVio/OracleComp/QueryTracking/LoggingOracle/Core.lean`: `QueryImpl.withLogging`
+- `VCVio/OracleComp/QueryTracking/QueryBound/Basic.lean`: `OracleComp.IsQueryBound`, `OracleComp.IsQueryBoundP`
+- `VCVio/OracleComp/QueryTracking/RandomOracle/Basic.lean`: `OracleSpec.randomOracle`
+- `VCVio/OracleComp/QueryTracking/RandomOracle/Simulation.lean`: `unifFwdImpl`, `OracleSpec.romImpl`, `ProbCompRuntime.rom`
+- `VCVio/OracleComp/QueryTracking/Tracing/Core.lean`: `QueryImpl.withTraceAppend`
+- `VCVio/OracleComp/SimSemantics/Append/Core.lean`: `OracleSpec.passthrough`, `QueryImpl.Passthrough`, `QueryImpl.add`, `QueryImpl.instHAddPassthroughSumHAddOracleSpecOfMonadLiftTOracleComp`, `QueryImpl.instHAddSumHAddOracleSpec`
+- `VCVio/OracleComp/SimSemantics/QueryImpl/Basic.lean`: `QueryImpl`, `HasQuery.toQueryImpl`, `QueryImpl.id`, `QueryImpl.id'`, `QueryImpl.liftTarget`, `QueryImpl.ofFn`, `QueryImpl.ofLift`
+- `VCVio/OracleComp/SimSemantics/StateT/BundledSemantics.lean`: `ProbCompRuntime.withStateOracle`, `SemanticsVia.withStateOracle`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma/Stateful/Bridge.lean`: `FiatShamir.Stateful.SourceAdversary`, `FiatShamir.Stateful.SourceSigAlg`
+- `VCVio/CryptoFoundations/FiatShamir/Sigma/Stateful/Chain/Simulation.lean`: `FiatShamir.Stateful.nmaAdvFromCma`, `FiatShamir.Stateful.nmaAdvFromCmaWithFinalQuery`
+
+**PolyFun**
+
+- `PolyFun/PFunctor/Basic.lean`: `PFunctor.sum`
+- `PolyFun/PFunctor/Bound.lean`: `PFunctor.FreeM.IsRollBound`
+- `PolyFun/PFunctor/Handler.lean`: `PFunctor.Handler`
+- `PolyFun/Control/Monad/Hom.lean`: `MonadHom`, `NatHom`, `MonadHom.id`, `MonadHom.ofLift`
+- `PolyFun/Control/Monad/Support.lean`: `MonadAttach.support`
+- `PolyFun/PFunctor/Free/Cursor.lean`: `PFunctor.FreeM.Cursor`, `PFunctor.FreeM.Cursor.Spine`, `PFunctor.FreeM.Cursor.plug`, `PFunctor.FreeM.Cursor.Spine.plug`
+- `PolyFun/PFunctor/Free/Displayed.lean`: `PFunctor.FreeM.Displayed`, `PFunctor.FreeM.Displayed.Algebra`
+- `PolyFun/PFunctor/Free/Path.lean`: `PFunctor.FreeM.Path`, `PFunctor.FreeM.output`, `PFunctor.FreeM.Path.algebra`
+- `PolyFun/PFunctor/Free/Support.lean`: `PFunctor.FreeM.attachSupp`, `PFunctor.FreeM.instMonadAttach`, `PFunctor.FreeM.supp`
+- `PolyFun/PFunctor/Handler/Instrumentation.lean`: `PFunctor.Handler.liftTarget`, `PFunctor.Handler.postInsert`, `PFunctor.Handler.withTraceAppend`
+- `PolyFun/PFunctor/Free/Cursor/Fork.lean`: `PFunctor.FreeM.Cursor.Located`, `PFunctor.FreeM.Cursor.SelectedForkView`, `PFunctor.FreeM.Cursor.filterMapLocateAndForkSelected`, `PFunctor.FreeM.Cursor.locateAndForkBy`, `PFunctor.FreeM.Cursor.locateAndForkSelected`, `PFunctor.FreeM.Cursor.locateAt?`, `PFunctor.FreeM.Cursor.Located.fork`, `PFunctor.FreeM.Cursor.Located.here`, `PFunctor.FreeM.Cursor.Located.prependOther`, `PFunctor.FreeM.Cursor.Located.prependSame`, `PFunctor.FreeM.Cursor.SelectedForkView.firstOutput`, `PFunctor.FreeM.Cursor.SelectedForkView.outputs`, `PFunctor.FreeM.Cursor.SelectedForkView.secondOutput`
+- `PolyFun/PFunctor/Free/Cursor/Occurrence.lean`: `PFunctor.FreeM.Cursor.ForkView`, `PFunctor.FreeM.Cursor.Occurrence`, `PFunctor.FreeM.Cursor.ForkView.firstAnswer`, `PFunctor.FreeM.Cursor.ForkView.firstPath`, `PFunctor.FreeM.Cursor.ForkView.secondAnswer`, `PFunctor.FreeM.Cursor.ForkView.secondPath`, `PFunctor.FreeM.Cursor.Occurrence.Completion`, `PFunctor.FreeM.Cursor.Occurrence.plug`, `PFunctor.FreeM.Cursor.Occurrence.resume`, `PFunctor.FreeM.Cursor.Occurrence.toCursor`, `PFunctor.FreeM.Cursor.Occurrence.toSpine`, `PFunctor.FreeM.Cursor.Occurrence.Completion.path`
+- `PolyFun/PFunctor/Free/Path/Execution.lean`: `PFunctor.FreeM.withPath`
+
+**cslib**
+
+- `Cslib/Foundations/Data/PFunctor/Free.lean`: `PFunctor.FreeM`, `PFunctor.FreeM.bind`, `PFunctor.FreeM.instBind`, `PFunctor.FreeM.instFunctor`, `PFunctor.FreeM.instMonad`, `PFunctor.FreeM.instMonadLiftObj`, `PFunctor.FreeM.instPure`, `PFunctor.FreeM.lift`, `PFunctor.FreeM.liftM`, `PFunctor.FreeM.liftObj`, `PFunctor.FreeM.map`
+
+<!-- definitions:end -->

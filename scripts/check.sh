@@ -8,7 +8,9 @@
 #   nothing but imports and guarded commands,
 # - the statements printed in REVIEW.md match the sources, and
 #   Halfagg/Summary.lean checks the axioms of every result that REVIEW.md
-#   prints or the README lists.
+#   prints or the README lists,
+# - the list of definitions in REVIEW.md is the one that Halfagg/Summary.lean
+#   guards, and it has no module under Halfagg/Proofs/.
 # scripts/check_selftest.sh checks that these checks fail when they should.
 set -eu
 cd "$(dirname "$0")/.."
@@ -49,11 +51,25 @@ for line in pathlib.Path('Halfagg.lean').read_text().split('\n'):
         bad = 1
 # The generated summary: outside of comments only imports and guarded commands.
 allowed = re.compile(r"import Halfagg(\.[A-Za-z0-9_]+)+|set_option linter\.style\.longLine false|"
-                     r"#guard_msgs in|#print axioms [A-Za-z0-9_.']+")
-summary = re.sub(r'/-.*?-/', '', pathlib.Path('Halfagg/Summary.lean').read_text(), flags=re.S)
+                     r"#guard_msgs in|#print axioms [A-Za-z0-9_.']+|#project_axioms|"
+                     r"#surface( [A-Za-z0-9_.']+)+")
+raw = pathlib.Path('Halfagg/Summary.lean').read_text()
+summary = re.sub(r'/-.*?-/', '', raw, flags=re.S)
 for line in summary.split('\n'):
     if line.strip() and not allowed.fullmatch(line):
         print('error: Halfagg/Summary.lean has an unexpected line: ' + line)
+        bad = 1
+for command in ('#project_axioms', '#surface '):
+    if ('#guard_msgs in\n' + command) not in summary:
+        print('error: Halfagg/Summary.lean does not guard ' + command.strip())
+        bad = 1
+# No definition behind the results is under Halfagg/Proofs/, so the proofs can
+# stay unread.
+end = raw.find('\n-/\n#guard_msgs in\n#surface ')
+start = raw.rfind('/--\ninfo: ', 0, end)
+for line in raw[start:end].split('\n'):
+    if line.startswith('Halfagg.Proofs.'):
+        print('error: a definition behind the results is under Halfagg/Proofs/: ' + line[:100])
         bad = 1
 lines = [l for l in summary.split('\n') if l.strip()]
 for prev, line in zip([''] + lines, lines):
@@ -68,6 +84,8 @@ for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_t
         bad = 1
 sys.exit(bad)
 EOF
+# The list of definitions in REVIEW.md must be the one in Halfagg/Summary.lean.
+python3 scripts/gen_review.py --check || fail=1
 # Halfagg/Summary.lean must check the axioms of every theorem printed in
 # REVIEW.md and of every result in the README's tables. A result is found by
 # its full name: a declaration with the same last name in another namespace
