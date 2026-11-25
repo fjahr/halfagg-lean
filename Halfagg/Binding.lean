@@ -1,5 +1,5 @@
 import Halfagg.Proofs.Binding
-import Halfagg.Proofs.Secp256k1
+import Halfagg.PrimeOrder
 
 /-!
 # Binding of half-aggregation
@@ -45,18 +45,16 @@ theorem halfagg_binding [Finite M] [Finite X] [SampleableType (M × (X × X) →
   exact binding_bound C red hord A qC qZ ℓ hC hZ hL μ hμ
 
 /-- The theorem for secp256k1 and BIP458's randomizer hash. That every point of
-secp256k1 has order dividing `n` is a hypothesis, because taproot-lean does not
-prove that the curve has `n` points. -/
+secp256k1 has order dividing `n` is `secp256k1_primeOrder`. -/
 theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
     [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
-    (hord : PrimeOrder Secp256k1.n Secp256k1.Point)
     (A : BindAdversary Secp256k1.n (Fin (2 ^ 256)) Secp256k1.F M) (qC qZ ℓ : ℕ)
     (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
     (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
     (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
-    bindAdvantage Secp256k1.secp256k1 red256 A ≤
+    bindAdvantage secp256k1F red256 A ≤
       (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
         (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) :=
-  halfagg_binding Secp256k1.secp256k1 red256 hord A qC qZ ℓ hC hZ hL _ secp256k1_redBound
+  halfagg_binding secp256k1F red256 secp256k1_primeOrder A qC qZ ℓ hC hZ hL _ secp256k1_redBound
 
 end Halfagg.Security

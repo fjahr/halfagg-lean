@@ -1,4 +1,5 @@
 import Halfagg.Basic
+import Halfagg.OrderG
 import Halfagg.VectorData
 import Taproot.BIP340Vectors
 
@@ -9,7 +10,8 @@ import Taproot.BIP340Vectors
 byte encodings, length checks and range checks to the model in
 `Halfagg.Basic`, on secp256k1 with SHA-256 tagged hashes (from
 `Taproot.BIP340Vectors`). As in the reference implementation, every failure
-(`ValueError` in Python) is `none` or `false`.
+(`ValueError` in Python) is `none` or `false`. The curve is `secp256k1F`, whose
+generator has order `n` by a proof that the kernel checks (`Halfagg.OrderG`).
 
 Verification runs through `verifyAggregateFast`, which uses double-and-add and
 fast square roots and is proven equal to the model. The test vectors are
@@ -67,19 +69,36 @@ def verifyAggregateBytes (aggsig : Bytes) (pm : List (Bytes × Bytes)) : Bool :=
   aggsig.length == 32 * (u + 1) && pm.all (fun x => is32 x.1 && is32 x.2) &&
     pm.all (fun x => decide (toNatBE x.1 < p)) && rs.all (fun r => decide (toNatBE r < p)) &&
     decide (s < n) &&
-    verifyAggregate secp256k1 challenge randomizerF ⟨rs.map fun r => (toNatBE r : F), (s : ZMod n)⟩
+    verifyAggregate secp256k1F challenge randomizerF ⟨rs.map fun r => (toNatBE r : F), (s : ZMod n)⟩
       (pm.map fun x => ((toNatBE x.1 : F), x.2))
 
+/-- BIP340 `Verify(pk, m, sig)` on bytes: taproot-lean's `verifyBytes` for the
+curve `secp256k1F`. -/
+def bip340VerifyBytes (pk m sig : Bytes) : Bool :=
+  let x := toNatBE pk
+  let r := toNatBE (sig.take 32)
+  let s := toNatBE (sig.drop 32)
+  pk.length == 32 && sig.length == 64 && decide (x < p) && decide (r < p) && decide (s < n) &&
+    BIP340.verify secp256k1F challenge (x : F) m ((r : F), (s : ZMod n))
+
 /-! ## Fast evaluation, proven equal -/
+
+/-- The `lift_x` of the curve. -/
+theorem secp256k1F_liftX : secp256k1F.liftX = liftX := by
+  simp only [secp256k1F]
+
+theorem mulGFast_eq_mulG (k : ZMod n) : mulGFast k = secp256k1F.mulG k := by
+  rw [mulGFast, smulDA_eq, Curve.mulG_eq_val_smul]
+  rfl
 
 def termFast (it : Item F Bytes) : Point :=
   (liftXFast it.1).getD 0 + smulDA (challenge it.1 it.2.1 it.2.2).val ((liftXFast it.2.1).getD 0)
 
 def liftsFast (it : Item F Bytes) : Bool := (liftXFast it.1).isSome && (liftXFast it.2.1).isSome
 
-theorem liftsFast_eq : liftsFast = lifts secp256k1 := by
+theorem liftsFast_eq : liftsFast = lifts secp256k1F := by
   funext it
-  simp only [liftsFast, lifts, liftXFast_eq, secp256k1_liftX]
+  simp only [liftsFast, lifts, liftXFast_eq, secp256k1F_liftX]
 
 def verifyAggregateFast (agg : AggSig n F) (pm : List (F × Bytes)) : Bool :=
   let its := items pm agg.rs
@@ -88,9 +107,9 @@ def verifyAggregateFast (agg : AggSig n F) (pm : List (F × Bytes)) : Bool :=
       isum (fun i it => smulDA (z randomizerF its i).val (termFast it)) 0 its)
 
 theorem verifyAggregateFast_eq (agg : AggSig n F) (pm : List (F × Bytes)) :
-    verifyAggregateFast agg pm = verifyAggregate secp256k1 challenge randomizerF agg pm := by
+    verifyAggregateFast agg pm = verifyAggregate secp256k1F challenge randomizerF agg pm := by
   simp only [verifyAggregateFast, verifyAggregate, verifyWith, termFast, term, liftsFast_eq,
-    liftXFast_eq, secp256k1_liftX, mulGFast_eq, smulDA_eq]
+    liftXFast_eq, secp256k1F_liftX, mulGFast_eq_mulG, smulDA_eq]
 
 def verifyAggregateBytesFast (aggsig : Bytes) (pm : List (Bytes × Bytes)) : Bool :=
   let u := pm.length

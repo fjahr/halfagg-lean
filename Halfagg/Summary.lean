@@ -1,4 +1,5 @@
 import Halfagg.Basic
+import Halfagg.PrimeOrder
 import Halfagg.Vectors
 import Halfagg.Encoding
 import Halfagg.Unforgeability
@@ -14,10 +15,10 @@ import Halfagg.Binding
 
 Each check below fails the build if the axioms of a main result change. The
 theorems must depend only on Lean's standard axioms (`propext`,
-`Classical.choice`, `Quot.sound`); a `sorry` would show up as `sorryAx`. The
-test vector checks also depend on one `native_decide` axiom each (compiled
-evaluation), and the secp256k1 results inherit taproot-lean's `native_decide`
-computation of `n·G = 0`.
+`Classical.choice`, `Quot.sound`); a `sorry` would show up as `sorryAx`. This
+includes the results about secp256k1: the order of its generator is checked by
+the kernel (`Halfagg.OrderG`). Only the test vector checks use compiled
+evaluation, with one `native_decide` axiom each.
 -/
 
 set_option linter.style.longLine false
@@ -52,6 +53,24 @@ set_option linter.style.longLine false
 #guard_msgs in
 #print axioms Halfagg.verifyMulti_eq
 
+/-! ## The order of secp256k1 and of its generator, checked by the kernel -/
+
+/-- info: 'Halfagg.OrderG.n_smul_G' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.OrderG.n_smul_G
+
+/-- info: 'Halfagg.secp256k1F' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.secp256k1F
+
+/-- info: 'Halfagg.secp256k1_primeOrder' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.secp256k1_primeOrder
+
+/-- info: 'Halfagg.secp256k1_verifyMulti_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.secp256k1_verifyMulti_eq
+
 /-! ## Test vectors (compiled evaluation) -/
 
 /--
@@ -76,8 +95,7 @@ info: 'Halfagg.Vectors.incAggregate_vectors' depends on axioms: [propext,
 info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
- Halfagg.Vectors.verifyAggregate_vectors._native.native_decide.ax_1_2,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+ Halfagg.Vectors.verifyAggregate_vectors._native.native_decide.ax_1_2]
 -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.verifyAggregate_vectors
@@ -92,12 +110,7 @@ info: 'Halfagg.Vectors.verifyAggregate_vectors' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Vectors.randomizerF_input_injective
 
-/--
-info: 'Halfagg.Vectors.verifyAggregateBytes_eq' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Vectors.verifyAggregateBytes_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.verifyAggregateBytes_eq
 
@@ -109,39 +122,19 @@ info: 'Halfagg.Vectors.verifyAggregateBytes_eq' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Vectors.decodeVerify_pm_injective
 
-/--
-info: 'Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.verifyAggregateBytes_incAggregateBytes
 
-/--
-info: 'Halfagg.Vectors.verifyAggregateBytes_aggregateBytes' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Vectors.verifyAggregateBytes_aggregateBytes' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.verifyAggregateBytes_aggregateBytes
 
-/--
-info: 'Halfagg.Vectors.incAggregateBytes_isSome' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Vectors.incAggregateBytes_isSome' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.incAggregateBytes_isSome
 
-/--
-info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Vectors.aggregateBytes_isSome
 
@@ -223,29 +216,18 @@ info: 'Halfagg.Vectors.aggregateBytes_isSome' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Halfagg.Examples.aggWins_honest
 
-/--
-info: 'Halfagg.Security.secp256k1_halfagg_unforgeable' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Security.secp256k1_halfagg_unforgeable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.secp256k1_halfagg_unforgeable
 
-/--
-info: 'Halfagg.Security.secp256k1_halfagg_dlog' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Security.secp256k1_halfagg_dlog' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.secp256k1_halfagg_dlog
 
-/--
-info: 'Halfagg.Security.secp256k1_halfagg_dlog_tight' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
--/
+/-- info: 'Halfagg.Security.secp256k1_halfagg_dlog_tight' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Halfagg.Security.secp256k1_halfagg_dlog_tight
+
+/-- info: 'Halfagg.Security.secp256k1_halfagg_binding' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Halfagg.Security.secp256k1_halfagg_binding

@@ -59,11 +59,11 @@ theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
     (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
     (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantage Secp256k1.secp256k1 challenge red256 (erase Secp256k1.secp256k1 F) ≤
+    aggAdvantage secp256k1F challenge red256 (erase secp256k1F F) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction Secp256k1.secp256k1 challenge red256 F) +
+        (reduction secp256k1F challenge red256 F) +
         (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) :=
-  halfagg_unforgeable Secp256k1.secp256k1 challenge red256 Halfagg.Secp256k1.liftX_x_zero F q hq
+  halfagg_unforgeable secp256k1F challenge red256 Halfagg.Secp256k1.liftX_x_zero F q hq
     _ secp256k1_redBound
 
 /-- **The reduction signs what the forger signs.** For every set of messages

@@ -62,10 +62,10 @@ theorem secp256k1_halfagg_knowledge {M : Type} [DecidableEq M]
     (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
     (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggVerifyAdvantage Secp256k1.secp256k1 challenge red256 (erase Secp256k1.secp256k1 F) ≤
-      extractAdvantage Secp256k1.secp256k1 challenge red256 F +
+    aggVerifyAdvantage secp256k1F challenge red256 (erase secp256k1F F) ≤
+      extractAdvantage secp256k1F challenge red256 F +
         (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) :=
-  halfagg_knowledge Secp256k1.secp256k1 challenge red256 Halfagg.Secp256k1.liftX_x_zero F q hq
+  halfagg_knowledge secp256k1F challenge red256 Halfagg.Secp256k1.liftX_x_zero F q hq
     _ secp256k1_redBound
 
 end Halfagg.Security

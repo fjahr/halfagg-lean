@@ -97,16 +97,16 @@ theorem secp256k1_halfagg_dlog {M : Type} [DecidableEq M] [Inhabited M] [Finite 
     (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
     (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
     (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ) :
-    let ε := aggAdvantageROM Secp256k1.secp256k1 red256 F -
+    let ε := aggAdvantageROM secp256k1F red256 F -
       (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) -
       (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((Secp256k1.n - 1 : ℕ) : ℝ≥0∞))
     ε * (ε / ((qH + qS + ℓ + 1 : ℕ) + 1 : ℝ≥0∞) -
         FiatShamir.challengeSpaceInv (ZMod Secp256k1.n)) ≤
-      Pr{let x ← (dlogExperiment Secp256k1.secp256k1 (dlogOfKeyRecovery Secp256k1.secp256k1
-        (FiatShamir.cmaReduction (sigma Secp256k1.secp256k1) (keyGen Secp256k1.secp256k1) M
-          (simTranscript Secp256k1.secp256k1) (reductionROM Secp256k1.secp256k1 red256 F)
+      Pr{let x ← (dlogExperiment secp256k1F (dlogOfKeyRecovery secp256k1F
+        (FiatShamir.cmaReduction (sigma secp256k1F) (keyGen secp256k1F) M
+          (simTranscript secp256k1F) (reductionROM secp256k1F red256 F)
           (qH + qS + ℓ + 1))))}[x = true] :=
-  halfagg_dlog Secp256k1.secp256k1 red256 Halfagg.Secp256k1.liftX_x_zero F q qH qS ℓ hq hH hS hL
+  halfagg_dlog secp256k1F red256 Halfagg.Secp256k1.liftX_x_zero F q qH qS ℓ hq hH hS hL
     _ secp256k1_redBound
 
 end Halfagg.Security

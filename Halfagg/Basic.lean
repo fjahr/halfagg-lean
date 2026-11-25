@@ -326,10 +326,9 @@ def verifyMulti (C : Curve n E X) (challenge : X → X → M → ZMod n)
 
 omit [DecidableEq X] in
 /-- **The multi-scalar form is `VerifyAggregate` in a group of prime order.**
-Reducing `zᵢ⋅eᵢ` mod `n` needs `n⋅Pᵢ = 0` for the lifted public keys. That holds
-for every point of secp256k1, but it is a hypothesis here
-(`Taproot.Curve.PrimeOrder`), because taproot-lean does not prove that the
-curve has `n` points. -/
+Reducing `zᵢ⋅eᵢ` mod `n` needs `n⋅Pᵢ = 0` for the lifted public keys
+(`Taproot.Curve.PrimeOrder`). For secp256k1 that is `secp256k1_primeOrder`
+in `Halfagg/PrimeOrder.lean`. -/
 theorem verifyMulti_eq (hord : PrimeOrder n E) (agg : AggSig n X) (pm : List (X × M)) :
     verifyMulti C challenge rand agg pm = verifyAggregate C challenge rand agg pm := by
   have h : isum (fun i it =>

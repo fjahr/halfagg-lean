@@ -18,7 +18,8 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 | `incAggregate_append`, `aggregate_append` | `Aggregate(A ++ B) = IncAggregate(Aggregate(A), A, B)`. |
 | `verifyAggregate_single` | A one-signature aggregate verifies exactly when the BIP 340 signature does. |
 | `aggregate_accepts_invalid` | An aggregate does not certify the signatures it was made from. Moving `δ ≠ 0` between the `s` values of the first two, weighted by `z₁`, makes the second invalid and leaves the aggregate unchanged. |
-| `verifyMulti_eq` | `VerifyAggregate` can be computed as one sum of scalar multiplications, `s⋅G = Σ zᵢ⋅Rᵢ + (zᵢ⋅eᵢ mod n)⋅Pᵢ`, if `n⋅P = 0` for every point. That holds for secp256k1, but taproot-lean does not prove it, so it is a hypothesis. |
+| `verifyMulti_eq`, `secp256k1_verifyMulti_eq` | `VerifyAggregate` can be computed as one sum of scalar multiplications, `s⋅G = Σ zᵢ⋅Rᵢ + (zᵢ⋅eᵢ mod n)⋅Pᵢ`, if `n⋅P = 0` for every point. That holds for secp256k1. |
+| `secp256k1_primeOrder` | secp256k1 has exactly `n` points, so `n⋅P = 0` for every point (`Halfagg/PrimeOrder.lean`). The proof counts no points: there are at most `2⋅p + 1`, the generator has order `n`, and no point has order two. |
 
 ### Security
 
@@ -34,7 +35,7 @@ In `Halfagg/`: `Unforgeability.lean`, `Knowledge.lean`, `Tightness.lean`, `Unfor
 | `halfagg_unforgeable_rom`, `halfagg_dlog` | The first theorem with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. |
 | `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
 | `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
-| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs the hypothesis of `verifyMulti_eq` on the order of the points. |
+| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs `n⋅P = 0` for every point. |
 
 For the discrete-log solvers, let `qH` and `qS` bound the forger's challenge queries and signing requests, `ℓ` the length of its forgery, `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`. The solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. Its quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`.
 
@@ -51,7 +52,9 @@ The theorems above are about x-coordinates and scalars. `Halfagg/Vectors.lean` a
 
 ### Axioms
 
-The theorems use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`), and `lake build` fails if that changes for a main result (`Halfagg/Summary.lean`). Two groups also depend on compiled evaluation (`native_decide`): the test vector checks, and every statement that names the curve secp256k1, which inherits taproot-lean's computation of `n·G = 0`.
+The theorems use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`), and `lake build` fails if that changes for a main result (`Halfagg/Summary.lean`). Only the test vector checks depend on compiled evaluation (`native_decide`).
+
+taproot-lean computes `n·G = 0` for secp256k1 with compiled code. `Halfagg/OrderG.lean` proves it from a certificate that the kernel checks: the double-and-add chain for `(n - 1)·G` with the slope and the result of every step. The theorems about secp256k1 are stated for `secp256k1F`, the curve with this proof.
 
 ## Proofs
 

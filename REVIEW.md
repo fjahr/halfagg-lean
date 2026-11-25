@@ -14,7 +14,7 @@ About 1,400 lines decide whether the results mean anything. [The statements](#th
 6. `Halfagg/SecurityTight.lean` and the statements in `Halfagg/UnforgeabilityTight.lean`, for the reduction to discrete log without forking.
 7. `Halfagg/SecurityBinding.lean` and the statement in `Halfagg/Binding.lean`, for binding.
 
-taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too.
+taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too. taproot-lean checks the order of secp256k1's generator with compiled code. `Halfagg/OrderG.lean` proves it from a certificate that the kernel checks, and the theorems here use that proof (`secp256k1F`), so only the test vector checks depend on compiled code.
 
 The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://github.com/bitcoin/bips/blob/a7f91321f25b5be8d93e901775621c21519e80b7/bip-0458.mediawiki). CI takes the test vectors and the Python reference from the same commit.
 
@@ -24,7 +24,7 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **Is the forger class too small?** `AlgForger` is agm-lean's adversary. It must explain every point it sends as a combination of `G`, the target key and the nonce points of the signatures it received. `erase` drops the explanations, so the theorems are about the standard game. The x-coordinates a forger hashes come from points it explained, with one exception: after an item that fails `lift_x`, a randomizer request may contain arbitrary encodings (`rawTail`). That is safe because no list with such an item verifies (`aggWins_lifts`).
 
-**Do the theorems need a curve group of prime order?** Only `verifyMulti_eq` and `halfagg_binding` do. `Curve` asks for a point `G` of prime order `n` in a commutative group. Every point the forger explains is a multiple of `G`, and the unforgeability and knowledge proofs need nothing about other points.
+**Do the theorems need a curve group of prime order?** Only `verifyMulti_eq` and `halfagg_binding` do. `Curve` asks for a point `G` of prime order `n` in a commutative group. Every point the forger explains is a multiple of `G`, and the unforgeability and knowledge proofs need nothing about other points. secp256k1 has prime order (`secp256k1_primeOrder`).
 
 **Could unforgeability be proven without the algebraic group model?** Neither proof that BIP 458 cites does so for BIP 458's scheme. BIP 458 derives `zᵢ` from the first `i + 1` items, so that signatures can be added to an aggregate later. Chen and Zhao call this scheme IASchnorr and prove it only in the algebraic group model. The random-oracle proof of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) (Theorem 5) is for the variant that hashes the whole list for every randomizer, and its loss is quadratic. For BIP 458's variant, Chen and Zhao note in Remark 6 that a random-oracle proof would rewind the forger once per item, so its loss would grow exponentially with the number of items.
 
@@ -59,14 +59,13 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | `Aggregate`: valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_aggregateBytes` on bytes, `verifyAggregate_aggregate` in the model. |
 | `IncAggregate`: a verifying aggregate and valid triples give an aggregate that passes `VerifyAggregate`. | `verifyAggregateBytes_incAggregateBytes` on bytes, `verifyAggregate_incAggregate` in the model. |
 | `Aggregate`, `IncAggregate`: the inverse does not hold. | `aggregate_accepts_invalid`, for invalid triples given to `Aggregate`. No theorem for an invalid aggregate given to `IncAggregate`. |
-| `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. |
+| `VerifyAggregate`: an efficient algorithm for a sum of scalar multiplications can be used. | `verifyMulti_eq`, if every point has order dividing `n`. `secp256k1_verifyMulti_eq` for secp256k1. |
 | The pseudocode of `VerifyAggregate`. | `verifyAggregateBytes_eq`: the verifier on bytes is the parsing and range checks followed by the model's `verifyAggregate`. |
 
 ## What the theorems do not say
 
 - The reduction to discrete log is tight only for forgers that explain the nonces they hash (`halfagg_dlog_tight`). For other algebraic forgers, `halfagg_dlog` has the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability, and `halfagg_key_or_signature` leaves one term without a bound.
 - The theorems with the challenge hash as a random oracle need a finite message type. BIP 458's 32-byte messages are one.
-- For secp256k1, `verifyMulti_eq` and `halfagg_binding` rest on a hypothesis: every point has order dividing `n`. That is true, but taproot-lean does not prove that the curve has `n` points.
 - No theorem bounds running time. Without that, `halfagg_unforgeable` alone would allow a reduction that breaks BIP 340 by brute force. This one does not, and `reduction` is short enough to check by reading.
 - The algebraic group model is a restriction on the forger. A forger that hashes x-coordinates of curve points it cannot explain is outside the theorems.
 - The challenge hash answers uniformly in `ZMod n`, as in taproot-lean's proof of BIP 340. BIP 340 reduces a 256-bit hash mod `n`. For secp256k1 that is about `2^-127.65` from uniform per answer, and the bounds leave this term out. The randomizer hash is modelled as BIP 458 computes it.
@@ -272,6 +271,32 @@ probability at most `2/2^256`. -/
 theorem secp256k1_redBound : RedBound red256 (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
 
+### The curve secp256k1
+
+From `Halfagg/OrderG.lean` and `Halfagg/PrimeOrder.lean`. `G`, `xCoord`, `hasEvenY` and `liftX` are taproot-lean's. `OrderG.n_smul_G` is the proof of `n⋅G = 0` from the certificate.
+
+```lean
+/-- **secp256k1** as the curve interface, with x-coordinates in the base
+field. It has the fields of taproot-lean's `secp256k1`, and the order of the
+generator is checked by the kernel. -/
+def secp256k1F : Curve n Point F where
+  G := G
+  G_ne_zero := WeierstrassCurve.Affine.Point.some_ne_zero _
+  order_G := OrderG.n_smul_G
+  x := xCoord
+  hasEvenY := hasEvenY
+  liftX := liftX
+  x_neg := x_neg
+  hasEvenY_neg := hasEvenY_neg
+  liftX_x := liftX_x
+  liftX_spec := liftX_spec
+```
+
+```lean
+/-- **secp256k1 has prime order `n`**: every point `P` has `n⋅P = 0`. -/
+theorem secp256k1_primeOrder : Curve.PrimeOrder n Point
+```
+
 ### The game's verifier is `VerifyAggregate`
 
 From `Halfagg/Unforgeability.lean`.
@@ -474,9 +499,9 @@ theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
     (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
     (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
     (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantage Secp256k1.secp256k1 challenge red256 (erase Secp256k1.secp256k1 F) ≤
+    aggAdvantage secp256k1F challenge red256 (erase secp256k1F F) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction Secp256k1.secp256k1 challenge red256 F) +
+        (reduction secp256k1F challenge red256 F) +
         (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
 
@@ -1068,16 +1093,14 @@ theorem halfagg_binding [Finite M] [Finite X] [SampleableType (M × (X × X) →
 
 ```lean
 /-- The theorem for secp256k1 and BIP458's randomizer hash. That every point of
-secp256k1 has order dividing `n` is a hypothesis, because taproot-lean does not
-prove that the curve has `n` points. -/
+secp256k1 has order dividing `n` is `secp256k1_primeOrder`. -/
 theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
     [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
-    (hord : PrimeOrder Secp256k1.n Secp256k1.Point)
     (A : BindAdversary Secp256k1.n (Fin (2 ^ 256)) Secp256k1.F M) (qC qZ ℓ : ℕ)
     (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
     (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
     (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
-    bindAdvantage Secp256k1.secp256k1 red256 A ≤
+    bindAdvantage secp256k1F red256 A ≤
       (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
         (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```

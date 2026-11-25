@@ -1,4 +1,4 @@
-import Taproot.Secp256k1
+import Halfagg.OrderG
 
 /-!
 # The point at infinity has no x-only encoding on secp256k1
@@ -33,8 +33,8 @@ theorem liftX_zero : liftX (0 : F) = none := by
     decide +kernel
 
 /-- The curve hypothesis of `halfagg_unforgeable` holds for secp256k1. -/
-theorem liftX_x_zero : secp256k1.liftX (secp256k1.x 0) = none := by
-  have h : secp256k1.liftX = liftX := by simp only [secp256k1]
+theorem liftX_x_zero : secp256k1F.liftX (secp256k1F.x 0) = none := by
+  have h : secp256k1F.liftX = liftX := by simp only [secp256k1F]
   rw [h]
   exact liftX_zero
 
