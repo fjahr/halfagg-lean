@@ -78,16 +78,30 @@ What BIP 458 says about correctness and security, and the theorem for it.
 - `scripts/check_selftest.sh` changes a copy of the sources in ten ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
 - `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 
-Mutating the model is a useful test. Each of these four mutants stops the build in one theorem:
+### Mutants of the model
 
-| Mutant | Edit | Fails in |
-|---|---|---|
-| Every randomizer is `1` | `zQuery`, `tableZs`, `zQueryAnn` and `zOf` return `1` for every `i` | `badKey_value` |
-| `zᵢ` does not cover item `i` | the same four definitions hash `take i` in place of `take (i + 1)` | `badKey_value` |
-| A win needs no unsigned message | `aggWins` loses `&& !signed it.2.2` | `extract_or_bad` |
-| The raw tail is always used | `rawTail` returns `it :: rest` in both branches | `covered_rawTail` |
+`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 16 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
 
-`zQuery`, `tableZs`, `aggWins` and `rawTail` are in `Halfagg/Security.lean`, `zQueryAnn` and `zOf` in `Halfagg/Proofs/Annotated.lean`. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.
+| Mutant | Fails in |
+|---|---|
+| Every randomizer is `1` | `badKey_value` |
+| The randomizer `zᵢ` does not cover item `i` | `badKey_value` |
+| A win needs no unsigned message | `extract_or_bad` |
+| A win needs no item under the target key | `extract_or_bad` |
+| The raw tail of a randomizer request is always used | `covered_rawTail` |
+| `VerifyAggregate` does not check that the nonces and the public keys lift | `verifyAggregate_incAggregate`, `verifyAggregate_single`, `verifyMulti_eq` |
+| Randomizer requests are not counted | `annImpl_step` |
+| Signing requests are not counted | `red_step_sign` |
+| Every reduction of a hash output counts as nearly uniform | `redMod_bound`, `id_bound`, `badKey_prob` |
+| Every 256-bit hash output reduces to the scalar `0` | `redMod_bound` |
+| The verification game of the knowledge theorem accepts every aggregate | `extract_all_or_bad`, `fail_sum_all` |
+| The game with a challenge oracle verifies with the challenges `0` | `halfagg_unforgeable_rom`, `halfagg_dlog` |
+| Challenge-hash queries are not counted | `romHandler_bound` |
+| Every forger counts as explaining its nonces | `demoRom_explains`, `explains_chal` |
+| The binding adversary wins with the same list twice | `win_pair` |
+| The randomizer hash does not cover the messages | `aggregate_vectors`, `incAggregate_vectors`, `verifyAggregate_vectors` |
+
+The two randomizer mutants change four definitions in the same way: `zQuery` of the game and `tableZs` of the reduction in `Halfagg/Security.lean`, and `zQueryAnn` and `zOf` of the proof in `Halfagg/Proofs/Annotated.lean`. A mutant of `z` in `Halfagg/Basic.lean` does not reach the security proof, because it already breaks `z_append` in the same file.
 
 ## The statements
 
