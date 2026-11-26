@@ -44,6 +44,8 @@ SECTIONS = [
       "Halfagg.Security.randomizerX_eq_red256", "Halfagg.Security.randHash256_input_injective",
       "Halfagg.Security.bytes_halfagg_unforgeable", "Halfagg.Security.bytes_halfagg_knowledge",
       "Halfagg.Security.bytes_halfagg_dlog_tight", "Halfagg.Security.bytes_halfagg_binding",
+      "Halfagg.Security.bytes_halfagg_dlog_tight_256",
+      "Halfagg.Security.bytes_halfagg_binding_256",
       "Halfagg.verifyWith_map", "Halfagg.Security.verifyAggregateBytes_eq_X",
       "Halfagg.Security.decodeX_bytes", "Halfagg.Security.bytes_game_verifier"]),
     ("The game with the forgery as bytes",
@@ -67,7 +69,8 @@ SECTIONS = [
      ["Halfagg.Security.bettor_advantage_pos", "Halfagg.Security.bettor_queries",
       "Halfagg.Security.bettor_bound", "Halfagg.Security.bettor_verify_pos",
       "Halfagg.Security.bettorRom_advantage_pos", "Halfagg.Security.bettorRom_explains",
-      "Halfagg.Security.bettorRom_bound"]),
+      "Halfagg.Security.bettorRom_bound", "Halfagg.Security.bettorRomH_advantage_pos",
+      "Halfagg.Security.bettorRomH_explains", "Halfagg.Security.bettorRomH_bound"]),
     ("The challenge hash as a random oracle",
      ["Halfagg.Security.halfagg_unforgeable_rom", "Halfagg.Security.halfagg_dlog",
       "Halfagg.Security.reductionROM_bound", "Halfagg.LoggedRun.rom_eq_table",
@@ -77,6 +80,14 @@ SECTIONS = [
       "Halfagg.Security.secp256k1_halfagg_dlog_tight"]),
     ("Binding",
      ["Halfagg.Security.halfagg_binding", "Halfagg.Security.secp256k1_halfagg_binding"]),
+    ("The challenge hash as BIP 340 computes it: hash outputs reduced modulo n",
+     ["Halfagg.Security.repMod_bound", "Halfagg.Security.secp256k1_repBound",
+      "Halfagg.Security.halfagg_hashed_le", "Halfagg.Security.halfagg_unforgeable_rom_hashed",
+      "Halfagg.Security.halfagg_dlog_hashed", "Halfagg.Security.halfagg_dlog_tight_hashed",
+      "Halfagg.Security.secp256k1_halfagg_dlog_256",
+      "Halfagg.Security.secp256k1_halfagg_dlog_tight_256",
+      "Halfagg.Security.halfagg_binding_hashed_le", "Halfagg.Security.halfagg_binding_hashed",
+      "Halfagg.Security.secp256k1_halfagg_binding_256"]),
 ]
 
 HEADER = '''

@@ -1,6 +1,7 @@
 import Halfagg.Tightness
 import Halfagg.Knowledge
 import Halfagg.UnforgeabilityTight
+import Halfagg.UnforgeabilityHashed
 
 /-!
 # The games can be won
@@ -24,8 +25,10 @@ key's own point as nonce. It asks for no signature.
 * `bettorRom_advantage_pos`: with the challenge hash as an oracle, `bettorRom`
   wins with positive probability. It explains its nonce
   (`bettorRom_explains`), as `halfagg_dlog_tight` asks.
-* `bettor_bound`, `bettorRom_bound`: `halfagg_unforgeable` and
-  `halfagg_dlog_tight` applied to these forgers.
+* `bettorRomH_advantage_pos`: the same for the game in which the challenge hash
+  returns hash outputs (`Halfagg/SecurityHashed.lean`).
+* `bettor_bound`, `bettorRom_bound`, `bettorRomH_bound`: `halfagg_unforgeable`,
+  `halfagg_dlog_tight` and `halfagg_dlog_tight_hashed` applied to these forgers.
 -/
 
 set_option linter.unusedSectionVars false
@@ -328,5 +331,111 @@ theorem bettorRom_bound [Inhabited M] [Finite M] [Finite X]
   simpa [one_add_one_eq_two] using h
 
 end Rom
+
+/-! ## The game with the challenge hash as BIP340 computes it -/
+
+section RomH
+
+-- Uniform nonces, as in `Halfagg/SecurityROM.lean`.
+attribute [local instance] NonceGen.uniform
+
+variable {Hc : Type} (redc : Hc → ZMod n)
+
+/-- The bettor for a challenge hash with outputs in `Hc`. It is `bettorRom` and
+reduces the hash output with `redc`. -/
+def bettorRomH (m₀ : M) : RomForgerH n H Hc E X M where
+  main input :=
+    let req : Explained (ZMod n) (Request X M) (Pts E) :=
+      Explained.ofVectors input.groups (Request.rand [] []) (copies input.groups 1)
+    OracleComp.queryBind (spec := RomForgerSpecH n H Hc E X M) (.inr req) fun rep =>
+    let pk : X := C.x ((req.value.groups ()).headD 0)
+    OracleComp.queryBind (spec := RomForgerSpecH n H Hc E X M) (.inl (m₀, (pk, pk))) fun h =>
+    pure (Explained.ofVectors (extend input.groups rep.groups)
+      (⟨[m₀], (1 + redc h) * C.evenScalar 1⟩ : Out n M) (copies _ 2))
+  algebraic _ _ :=
+    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
+
+/-- With its challenge queries answered from a table of hash outputs,
+`bettorRomH` is the bettor for the challenge hash of that table. -/
+theorem bettorRomH_at (g : M × (X × X) → Hc) (m₀ : M) :
+    (bettorRomH (H := H) C redc m₀).at g = bettor C (hOf fun key => redc (g key)) m₀ := rfl
+
+/-- **The game with the challenge hash as BIP340 computes it can be won.** -/
+theorem bettorRomH_advantage_pos [SampleableType (M × (X × X) → Hc)] (m₀ : M) :
+    0 < aggAdvantageROMH C red redc (bettorRomH C redc m₀) := by
+  unfold aggAdvantageROMH aggExperimentROMH
+  rw [prEvent_pos_iff]
+  refine ⟨true, ?_, rfl⟩
+  obtain ⟨g, hg⟩ := support_uniformSample_nonempty (α := M × (X × X) → Hc)
+  rw [mem_support_bind_iff]
+  refine ⟨g, hg, ?_⟩
+  rw [bettorRomH_at]
+  exact bettor_wins C (hOf fun key => redc (g key)) red m₀
+
+/-- `bettorRomH` explains the nonce of its challenge query. -/
+theorem bettorRomH_explains (m₀ : M) (input : Message Unit (Pts E)) :
+    ExplainsNoncesH C ((bettorRomH (H := H) C redc m₀).main input) [] :=
+  fun _ => ⟨by simp [Explained.ofVectors, isRand, copies], fun _ => trivial⟩
+
+theorem romHBind_eq {α : Type} (t : (RomForgerSpecH n H Hc E X M).Domain)
+    (f : _ → OracleComp (RomForgerSpecH n H Hc E X M) α) :
+    OracleComp.queryBind t f = (liftM ((RomForgerSpecH n H Hc E X M).query t) >>= f) := rfl
+
+/-- `bettorRomH` makes one randomizer request. -/
+theorem bettorRomH_rand (m₀ : M) (input : Message Unit (Pts E)) :
+    ((bettorRomH (H := H) C redc m₀).main input).IsQueryBoundP (fun t => isRandCall t) 1 := by
+  unfold bettorRomH
+  simp only [romHBind_eq]
+  exact (isQueryBoundP_query_bind_iff _ _ _ _).mpr ⟨Or.inr Nat.one_pos, fun _ =>
+    (isQueryBoundP_query_bind_iff _ _ _ _).mpr
+      ⟨Or.inl (by simp [isRandCall]), fun _ => isQueryBoundP_pure _ _ _⟩⟩
+
+/-- `bettorRomH` makes one challenge query. -/
+theorem bettorRomH_chal (m₀ : M) (input : Message Unit (Pts E)) :
+    ((bettorRomH (H := H) C redc m₀).main input).IsQueryBoundP (fun t => isChalCall t) 1 := by
+  unfold bettorRomH
+  simp only [romHBind_eq]
+  exact (isQueryBoundP_query_bind_iff _ _ _ _).mpr ⟨Or.inl (by simp [isChalCall]), fun _ =>
+    (isQueryBoundP_query_bind_iff _ _ _ _).mpr
+      ⟨Or.inr (by simp [isChalCall]), fun _ => isQueryBoundP_pure _ _ _⟩⟩
+
+/-- `bettorRomH` makes no signing request. -/
+theorem bettorRomH_sign (m₀ : M) (input : Message Unit (Pts E)) :
+    ((bettorRomH (H := H) C redc m₀).main input).IsQueryBoundP (fun t => isSignCall t) 0 := by
+  unfold bettorRomH
+  simp only [romHBind_eq]
+  exact (isQueryBoundP_query_bind_iff _ _ _ _).mpr
+    ⟨Or.inl (by simp [isSignCall, isSign, Explained.ofVectors]), fun _ =>
+      (isQueryBoundP_query_bind_iff _ _ _ _).mpr
+        ⟨Or.inl (by simp [isSignCall]), fun _ => isQueryBoundP_pure _ _ _⟩⟩
+
+/-- `bettorRomH` outputs one item. -/
+theorem bettorRomH_length (m₀ : M) (input : Message Unit (Pts E)) :
+    ∀ out ∈ support ((bettorRomH (H := H) C redc m₀).main input),
+      out.value.data.ms.length ≤ 1 := by
+  intro out hout
+  unfold bettorRomH at hout
+  simp only [romHBind_eq, support_bind, support_pure, Set.mem_iUnion, Set.mem_singleton_iff]
+    at hout
+  obtain ⟨_, -, _, -, rfl⟩ := hout
+  simp [Explained.ofVectors]
+
+/-- `halfagg_dlog_tight_hashed` applied to `bettorRomH`: one randomizer request,
+one challenge query, no signing request and one item, so the game reads two
+hash outputs. Its left-hand side is positive (`bettorRomH_advantage_pos`). -/
+theorem bettorRomH_bound [Inhabited M] [Finite M] [Finite X] [Finite Hc] [SampleableType Hc]
+    [SampleableType (M × (X × X) → Hc)] [SampleableType (M × (X × X) → ZMod n)]
+    (hx0 : C.liftX (C.x 0) = none) (rep : ZMod n → Hc) (hrep : ∀ c, redc (rep c) = c) (m₀ : M)
+    (μ : ℝ≥0∞) (hμ : RedBound red μ) (δ : ℝ≥0∞) (hδ : RepBound redc rep δ) :
+    aggAdvantageROMH C red redc (bettorRomH C redc m₀) ≤
+      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C
+        (keySolver C red ((bettorRomH C redc m₀).viaRep rep)))}[x = true] +
+        2 * μ + 2 / n + 2 * δ := by
+  have h := halfagg_dlog_tight_hashed C red redc hx0 rep hrep (bettorRomH C redc m₀) 1 1 0 1
+    (bettorRomH_rand C redc m₀) (bettorRomH_chal C redc m₀) (bettorRomH_sign C redc m₀)
+    (bettorRomH_length C redc m₀) (bettorRomH_explains C redc m₀) μ hμ δ hδ
+  simpa [one_add_one_eq_two] using h
+
+end RomH
 
 end Halfagg.Security

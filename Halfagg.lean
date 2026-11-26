@@ -43,6 +43,12 @@ import Halfagg.SecurityBinding
 import Halfagg.Proofs.BindingPairs
 import Halfagg.Proofs.Binding
 import Halfagg.Binding
+import Halfagg.SecurityHashed
+import Halfagg.Proofs.Hop
+import Halfagg.Proofs.HashedGame
+import Halfagg.UnforgeabilityHashed
+import Halfagg.Proofs.HashedBinding
+import Halfagg.BindingHashed
 import Halfagg.BytesSecurity
 import Halfagg.Winnable
 import Halfagg.BytesGame

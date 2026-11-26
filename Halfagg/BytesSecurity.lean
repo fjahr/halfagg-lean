@@ -3,6 +3,8 @@ import Halfagg.Unforgeability
 import Halfagg.Knowledge
 import Halfagg.UnforgeabilityTight
 import Halfagg.Binding
+import Halfagg.UnforgeabilityHashed
+import Halfagg.BindingHashed
 
 /-!
 # The theorems for 32-byte nonces, public keys and messages
@@ -21,6 +23,9 @@ arrays `B32`, and the hashes are BIP458's and BIP340's.
 * `bytes_halfagg_unforgeable`, `bytes_halfagg_knowledge`,
   `bytes_halfagg_dlog_tight` and `bytes_halfagg_binding` are the theorems for
   this instance.
+* `bytes_halfagg_dlog_tight_256` and `bytes_halfagg_binding_256` are the last
+  two with the challenge hash as a random oracle with 256-bit outputs, which the
+  adversary sees and the scheme reduces modulo `n`.
 -/
 
 open OracleSpec OracleComp AlgebraicGroupModel.Interaction
@@ -205,6 +210,42 @@ theorem bytes_halfagg_binding [SampleableType (B32 × (B32 × B32) → ZMod n)]
       (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / n +
         (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) :=
   halfagg_binding secp256k1X red256 secp256k1_primeOrder A qC qZ ℓ hC hZ hL _ secp256k1_redBound
+
+-- Uniform nonces, as in `Halfagg/SecurityROM.lean`.
+attribute [local instance] NonceGen.uniform in
+/-- `halfagg_dlog_tight_hashed` for the same instance: BIP340's challenge hash
+is a random oracle with 256-bit outputs, which the forger sees and the scheme
+reduces modulo `n`. -/
+theorem bytes_halfagg_dlog_tight_256 [SampleableType (B32 × (B32 × B32) → Fin (2 ^ 256))]
+    [SampleableType (B32 × (B32 × B32) → ZMod n)]
+    (F : RomForgerH n (Fin (2 ^ 256)) (Fin (2 ^ 256)) Point B32 B32) (q qH qS ℓ : ℕ)
+    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
+    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
+    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
+    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
+    (hE : ∀ input, ExplainsNoncesH secp256k1X (F.main input) []) :
+    aggAdvantageROMH secp256k1X red256 red256 F ≤
+      Pr{let x ← dlogExperiment secp256k1X (dlogOfKeyRecovery secp256k1X
+          (keySolver secp256k1X red256 (F.viaRep rep256)))}[x = true] +
+        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
+        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) + (qH + 1 : ℝ≥0∞) / n +
+        ((qH + qS + ℓ : ℕ) : ℝ≥0∞) * (1 / 2 ^ 127) :=
+  halfagg_dlog_tight_hashed secp256k1X red256 red256 liftX_x_zero_X rep256 red256_rep256 F
+    q qH qS ℓ hq hH hS hL hE _ secp256k1_redBound _ secp256k1_repBound
+
+/-- `halfagg_binding_hashed` for the same instance. -/
+theorem bytes_halfagg_binding_256 [SampleableType (B32 × (B32 × B32) → Fin (2 ^ 256))]
+    [SampleableType (B32 × (B32 × B32) → ZMod n)]
+    (A : BindAdversaryH n (Fin (2 ^ 256)) (Fin (2 ^ 256)) B32 B32) (qC qZ ℓ : ℕ)
+    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
+    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
+    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
+    bindAdvantageH secp256k1X red256 red256 A ≤
+      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / n +
+        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) +
+        ((qC + 2 * ℓ : ℕ) : ℝ≥0∞) * (1 / 2 ^ 127) :=
+  halfagg_binding_hashed secp256k1X red256 red256 secp256k1_primeOrder rep256 red256_rep256 A
+    qC qZ ℓ hC hZ hL _ secp256k1_redBound _ secp256k1_repBound
 
 end Halfagg.Security
 

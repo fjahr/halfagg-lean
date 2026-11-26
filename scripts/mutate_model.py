@@ -111,6 +111,23 @@ MUTANTS = [
        "(its.flatMap fun it => it.1 ++ it.2.1)) :\n"),
       ("Halfagg/Encoding.lean", "  its.flatMap fun it => it.1 ++ it.2.1 ++ it.2.2\n",
        "  its.flatMap fun it => it.1 ++ it.2.1\n")]),
+    ("hashgame", "the game with hash outputs verifies with the challenges 0",
+     [("Halfagg/SecurityHashed.lean",
+       "(aggExperiment C (hOf fun key => redc (g key)) red (erase C (F.at g)))).run' ∅\n",
+       "(aggExperiment C (hOf fun key => redc (g key) - redc (g key)) red "
+       "(erase C (F.at g)))).run' ∅\n")]),
+    ("viarep", "the forger for scalar answers gets the hash output of the scalar 0",
+     [("Halfagg/SecurityHashed.lean",
+       "  | .inl key => rep <$> (liftM ((RomForgerSpec n H E X M).query (.inl key)) :\n",
+       "  | .inl key => (fun _ => rep 0) <$> (liftM ((RomForgerSpec n H E X M).query (.inl key)) :\n")]),
+    ("repbound", "every choice of hash outputs counts as covering a uniform output",
+     [("Halfagg/Hash256.lean", "  Pr{let h ← $ᵗ Hc}[rep (red h) ≠ h] ≤ δ\n",
+       "  Pr{let h ← $ᵗ Hc}[rep (red h) ≠ rep (red h)] ≤ δ\n")]),
+    ("bindhash", "the binding game with hash outputs verifies with the challenges 0",
+     [("Halfagg/SecurityHashed.lean",
+       "    (bindGame C red (hOf fun key => redc (g key)) (simulateQ (answerChalBH g) A.main))).run' ∅\n",
+       "    (bindGame C red (hOf fun key => redc (g key) - redc (g key)) "
+       "(simulateQ (answerChalBH g) A.main))).run' ∅\n")]),
 ]
 
 DECL = re.compile(r"^(?:noncomputable |private |protected )*(?:def|theorem|lemma|abbrev|instance)\s+(\S+)")
