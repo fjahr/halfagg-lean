@@ -118,6 +118,23 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | The pseudocode of `VerifyAggregate`. | `verifyAggregateBytes_eq`: the verifier on bytes is the parsing and range checks followed by the model's `verifyAggregate`. |
 | `VerifyAggregate` fails if `s ≥ n`. | `verifyAggregateBytes_unique`: two aggregate signatures with the same nonces that verify for the same list are equal. Without the check, the empty aggregate would have the encodings `bytes(0)` and `bytes(n)`. No test vector of BIP 458 has that input. The differential test generates it. |
 
+## The papers' statements
+
+The definitions and theorems of the two papers that BIP 458 cites, next to the Lean ones. Page numbers are those of [Chen and Zhao](https://eprint.iacr.org/2022/222) in the ePrint version of 2022-02-21 and of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350), CGKN below, in the ePrint version of 2021-03-22.
+
+| Paper | Lean | Difference |
+|---|---|---|
+| Chen and Zhao, the scheme IASchnorr, Fig. 2 (p. 16): `a₁ = 1`, and `aᵢ = H₂(Lᵢ)` for the first `i` triples `(R, X, m)`. Its Schnorr signatures have `c = H₁(R, m)`, Fig. 1 (p. 11). | `Halfagg/Basic.lean`: `z`, `incAggregate`, `aggregate`, `verifyAggregate` | The same randomizers, on BIP 340 signatures. Nonces and public keys are x-only and are lifted to the point with the even y-coordinate. The challenge hash is any function of `(r, pk, m)`. |
+| Chen and Zhao, the game CK-AEUF-CMA, Section 2.1 (pp. 8 and 9). | `aggExperiment`, `aggWins` | The same game. The signer is BIP 340's, with any nonce derivation (`NonceGen`). |
+| Chen and Zhao, the algebraic group model, Section 2.3 (p. 10). The adversary gives a representation of every group element that it outputs or sends to an oracle, over the elements it received. | `AlgForger`, agm-lean's adversary | The forger hashes x-only encodings, so it explains a point when it first sends its x-coordinate, and the reduction keeps the first explanation (`memoize`). After an item that fails `lift_x`, a request may contain encodings without an explanation (`rawTail`). |
+| Chen and Zhao, Theorem 2 (p. 15): `ε' ≥ ε − (q_H₂ + 1)/|H₂|`, with the forger's number of signing queries and `t' = O(t)`. | `halfagg_unforgeable` with the loss `(q + 1)⋅μ`, `reduction_sign_queries` | The same bound for a uniform randomizer hash, where `μ = 1/|H₂|`. `μ` also covers a hash that is reduced modulo `n`, which is `2/2^256` for BIP 458. Running time is not covered. The theorem needs that `0` is not the x-coordinate of a point (`hx0`), which holds for secp256k1. |
+| Chen and Zhao, Remarks 3 and 5 (pp. 14 and 17): a forger that tries to cancel the target key matches the bound. | `grinder_advantage` | That forger wins with probability at least `1 − ((n − 1)/n)^q`. |
+| Chen and Zhao, Remark 2 (p. 14): with `H₁` as a random oracle too, the reduction makes at most `q_H₁ + q_S` queries to it. | `halfagg_unforgeable_rom`, `reductionROM_bound` | The Lean reduction also asks for the challenges of the forgery's items and makes `qH + qS + ℓ + 1` queries. |
+| Chen and Zhao, Remark 6 (p. 17): in the random oracle model alone, a reduction for IASchnorr rewinds the forger up to `n` times. | No theorem without the algebraic group model | `halfagg_dlog` forks once, inside taproot-lean's proof of BIP 340. `halfagg_dlog_tight` does not fork. |
+| CGKN, half-aggregation, Algorithm 7 (p. 19): `eᵢ = H₁(R₁, A₁, m₁, …, Rₙ, Aₙ, mₙ, i)`. Theorem 5 (p. 20) is its reduction in the random oracle model, with the loss `ε⋅(ε/(n⋅t) − 1/2^h)`. | Not modelled | Every randomizer of that scheme hashes the whole list. BIP 458's hashes the first `i + 1` items, so Theorem 5 is not about its scheme. |
+| CGKN, Theorem 3 (p. 12): an extractor that rewinds outputs the `i`-th signature with probability `ε⋅(ε/(n⋅Q) − 1/2^h)`. | `halfagg_knowledge` | For BIP 458's scheme and algebraic forgers. `extractor` outputs a signature for every item in one run, with probability at least `ε − (q + 1)⋅μ`. |
+| CGKN, the game CK-ASBS, Definition 4 (p. 19), and Theorem 6 (p. 20): `t²/2^(2λ+1)`. | `bindExperiment`, `halfagg_binding`: `(qC + 2ℓ)²/n + (qZ + 2ℓ)²⋅μ` | For BIP 458's scheme, in which the first randomizer is `1`. The challenge hash is then a random oracle as well, which gives the first term. The bound counts the verifier's queries and needs `n⋅P = 0` for every point. |
+
 ## What the theorems do not say
 
 - The reduction to discrete log is tight only for forgers that explain the nonces they hash (`halfagg_dlog_tight`). For other algebraic forgers, `halfagg_dlog` has the forking-lemma loss of BIP 340's own proof, which is quadratic in the forger's success probability, and `halfagg_key_or_signature` leaves one term without a bound.

@@ -4,7 +4,7 @@ Machine-checked proofs, in [Lean 4](https://lean-lang.org) with [Mathlib](https:
 
 The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which provides the curve interface, secp256k1 as a Mathlib elliptic curve, the BIP 340 model and SHA-256. Games and random oracles are [VCVio](https://github.com/Verified-zkEVM/VCVio)'s, and algebraic forgers use the interface of zkSecurity's [agm-lean](https://github.com/zksecurity/agm-lean).
 
-[REVIEW.md](REVIEW.md) is the guide for checking the statements: what to read, what the theorems leave out, and which theorem stands behind each claim of BIP 458. [FINDINGS.md](FINDINGS.md) lists what the work found in the BIP, its test vectors and the C module.
+[REVIEW.md](REVIEW.md) is the guide for checking the statements: what to read, what the theorems leave out, which theorem stands behind each claim of BIP 458, and how the statements compare with those of the papers it cites. [FINDINGS.md](FINDINGS.md) lists what the work found in the BIP, its test vectors and the C module.
 
 ## Results
 
