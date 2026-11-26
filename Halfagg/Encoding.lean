@@ -124,10 +124,6 @@ theorem bytes32_val_injective {a b : F} (h : bytes32 a.val = bytes32 b.val) : a 
 def randomizerInput (its : List (Item Bytes Bytes)) : Bytes :=
   its.flatMap fun it => it.1 ++ it.2.1 ++ it.2.2
 
-theorem randomizer_eq (its : List (Item Bytes Bytes)) :
-    randomizer its = (toNatBE (taggedHash "BIP0458/randomizer" (randomizerInput its)) : ZMod n) :=
-  rfl
-
 /-- An item with a 32-byte nonce, public key and message, as BIP458 requires. -/
 def Item32 (it : Item Bytes Bytes) : Prop :=
   it.1.length = 32 ∧ it.2.1.length = 32 ∧ it.2.2.length = 32

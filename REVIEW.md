@@ -1,19 +1,66 @@
 # Reviewing halfagg-lean
 
-Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Halfagg/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does. [Every definition behind the results](#every-definition-behind-the-results) lists all definitions that a result depends on, in this project and in the libraries it is built on. The list is computed from the compiled project, and the build fails if it changes.
+Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Halfagg/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does. [The main results](#the-main-results) names one result for every property and lists, for each, the definitions that decide what it says. [Every definition behind the results](#every-definition-behind-the-results) is that list for all results, in this project and in the libraries it is built on. Both are computed from the compiled project, and the build fails if they change.
+
+## The main results
+
+There is one main result for every property. It is stated for any curve that satisfies taproot-lean's interface and for any type of x-only encodings and of messages. Every other result is one of these in another form, for another model of a hash function, for secp256k1 or for bytes, or it is a fact that supports one. The [README](README.md#results) lists them.
+
+A reader of a main result has to agree with its statement and with the definitions behind the statement. The table counts those definitions and their source lines, comments included, in this project and in the libraries it is built on, up to Mathlib. `#reading` in `Halfagg/Audit.lean` computes the numbers and the lists, and `Halfagg/Summary.lean` guards them.
+
+<!-- main:begin -->
+
+| Main result | Theorem | Definitions here | Lines | Definitions in the libraries | Lines |
+|---|---|---|---|---|---|
+| Correctness | `verifyAggregate_aggregate`, `verifyAggregate_incAggregate` | 13 | 56 | 5 | 39 |
+| Unforgeability | `halfagg_unforgeable` | 50 | 290 | 127 | 811 |
+| Knowledge of the individual signatures | `halfagg_knowledge` | 53 | 293 | 120 | 764 |
+| A reduction to discrete log | `halfagg_dlog_tight` | 69 | 370 | 135 | 804 |
+| Binding | `halfagg_binding` | 21 | 93 | 71 | 402 |
+| All of them |  | 98 | 577 | 160 | 991 |
+
+The definitions of this project behind each main result, by file:
+
+**Correctness**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `aggregate`, `entryItem`, `entryPM`, `incAggregate`, `isum`, `items`, `lifts`, `term`, `verifyAggregate`, `verifyWith`, `z`
+
+**Unforgeability**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `isum`, `items`, `lifts`, `term`, `verifyWith`
+- `Halfagg/Security.lean`: `Security.AItem`, `Security.AggAdversary`, `Security.AlgForger`, `Security.AnnSpec`, `Security.Core`, `Security.GameSpec`, `Security.NonceGen`, `Security.Out`, `Security.Pts`, `Security.RandSpec`, `Security.RedBound`, `Security.Rep`, `Security.Reply`, `Security.Request`, `Security.SignSpec`, `Security.aggAdvantage`, `Security.aggExperiment`, `Security.aggWins`, `Security.annotate`, `Security.bip340`, `Security.coreImpl`, `Security.erase`, `Security.eraseImpl`, `Security.extractForgery`, `Security.flatten`, `Security.initial`, `Security.instDecidableEqAItem`, `Security.isRand`, `Security.liftRep`, `Security.memoRecord`, `Security.memoize`, `Security.memoizeList`, `Security.pairs`, `Security.rawTail`, `Security.reduction`, `Security.smulVal`, `Security.starRep`, `Security.tableRO`, `Security.tableZs`, `Security.toItems`, `Security.zQuery`, `Security.Core.init`, `Security.instDecidableEqAItem.decEq`
+
+**Knowledge of the individual signatures**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `isum`, `items`, `lifts`, `term`, `verifyWith`
+- `Halfagg/Security.lean`: `Security.AItem`, `Security.AggAdversary`, `Security.AlgForger`, `Security.AnnSpec`, `Security.Core`, `Security.GameSpec`, `Security.NonceGen`, `Security.Out`, `Security.Pts`, `Security.RandSpec`, `Security.RedBound`, `Security.Rep`, `Security.Reply`, `Security.Request`, `Security.SignSpec`, `Security.annotate`, `Security.bip340`, `Security.coreImpl`, `Security.erase`, `Security.eraseImpl`, `Security.flatten`, `Security.initial`, `Security.instDecidableEqAItem`, `Security.isRand`, `Security.liftRep`, `Security.memoRecord`, `Security.memoize`, `Security.memoizeList`, `Security.pairs`, `Security.rawTail`, `Security.smulVal`, `Security.starRep`, `Security.tableRO`, `Security.tableZs`, `Security.toItems`, `Security.zQuery`, `Security.Core.init`, `Security.instDecidableEqAItem.decEq`
+- `Halfagg/SecurityKnowledge.lean`: `Security.aggVerifies`, `Security.aggVerifyAdvantage`, `Security.aggVerifyExperiment`, `Security.extractAdvantage`, `Security.extractExperiment`, `Security.extractSig`, `Security.extractWins`, `Security.extractor`
+
+**A reduction to discrete log**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `isum`, `items`, `lifts`, `term`, `verifyWith`
+- `Halfagg/Security.lean`: `Security.AItem`, `Security.AggAdversary`, `Security.AlgForger`, `Security.AnnSpec`, `Security.Core`, `Security.GameSpec`, `Security.NonceGen`, `Security.Out`, `Security.Pts`, `Security.RandSpec`, `Security.RedBound`, `Security.Rep`, `Security.Reply`, `Security.Request`, `Security.SignSpec`, `Security.aggExperiment`, `Security.aggWins`, `Security.annotate`, `Security.bip340`, `Security.erase`, `Security.eraseImpl`, `Security.finalItems`, `Security.flatten`, `Security.initial`, `Security.instDecidableEqAItem`, `Security.isRand`, `Security.isSign`, `Security.liftRep`, `Security.memoRecord`, `Security.memoize`, `Security.memoizeList`, `Security.pairs`, `Security.rawTail`, `Security.smulVal`, `Security.starRep`, `Security.toItems`, `Security.zQuery`, `Security.Core.init`, `Security.NonceGen.uniform`, `Security.instDecidableEqAItem.decEq`
+- `Halfagg/SecurityROM.lean`: `Security.ChalSpec`, `Security.FSSig`, `Security.RomForger`, `Security.RomForgerSpec`, `Security.RomSpec`, `Security.aggAdvantageROM`, `Security.aggExperimentROM`, `Security.answerChal`, `Security.hOf`, `Security.hashQ`, `Security.isChalCall`, `Security.isRandCall`, `Security.isSignCall`, `Security.knownChal`, `Security.romHandler`, `Security.romTableRO`, `Security.RomForger.at`
+- `Halfagg/SecurityTight.lean`: `Security.ExplainsNonces`, `Security.candKey`, `Security.keySolver`, `Security.romPrefix`, `Security.target`
+
+**Binding**
+
+- `Halfagg/Basic.lean`: `AggSig`, `Item`, `isum`, `items`, `lifts`, `term`, `verifyWith`
+- `Halfagg/Security.lean`: `Security.RandSpec`, `Security.RedBound`, `Security.zQuery`
+- `Halfagg/SecurityBinding.lean`: `Security.BindAdversary`, `Security.BindSpec`, `Security.answerChalB`, `Security.bindAdvantage`, `Security.bindExperiment`, `Security.bindGame`, `Security.bindWins`, `Security.isChalB`, `Security.isRandB`
+- `Halfagg/SecurityROM.lean`: `Security.ChalSpec`, `Security.hOf`
+
+<!-- main:end -->
 
 ## What to read
 
-About 1,700 lines decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints most of them on one page.
+For a main result, read the definitions on its list and then its statement. [The statements](#the-statements) prints the statements and most of the definitions on one page, in this order.
 
-1. `Halfagg/Basic.lean`, the definitions. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458.
-2. `Halfagg/Security.lean`, all of it, and `Halfagg/Hash256.lean`. The header lists the modelling choices and the limitations.
-3. `Halfagg/Unforgeability.lean`, the theorem statements.
-4. `Halfagg/SecurityROM.lean` and the statements in `Halfagg/UnforgeabilityROM.lean`, for the version with the challenge hash as a random oracle.
-5. `Halfagg/SecurityKnowledge.lean` and the statements in `Halfagg/Knowledge.lean`, for the signatures under keys the forger chose.
-6. `Halfagg/SecurityTight.lean` and the statements in `Halfagg/UnforgeabilityTight.lean`, for the reduction to discrete log without forking.
-7. `Halfagg/SecurityBinding.lean` and the statement in `Halfagg/Binding.lean`, for binding.
-8. `Halfagg/SecurityHashed.lean` and the statements in `Halfagg/UnforgeabilityHashed.lean` and `Halfagg/BindingHashed.lean`, for the challenge hash with 256-bit outputs.
+1. `Halfagg/Basic.lean`, the definitions. Compare `incAggregate`, `aggregate` and `verifyWith` with the algorithms in BIP 458. Then the statements of `verifyAggregate_aggregate` and `verifyAggregate_incAggregate`.
+2. `Halfagg/Security.lean`, all of it: the game, the algebraic forger and the reduction. The header lists the modelling choices and the limitations. Then the statement of `halfagg_unforgeable` in `Halfagg/Unforgeability.lean`.
+3. `Halfagg/SecurityKnowledge.lean` and the statement of `halfagg_knowledge` in `Halfagg/Knowledge.lean`, for the signatures under keys the forger chose.
+4. `Halfagg/SecurityROM.lean` and `Halfagg/SecurityTight.lean`, for the game with the challenge hash as a random oracle and the discrete-log solver. Then the statement of `halfagg_dlog_tight` in `Halfagg/UnforgeabilityTight.lean`.
+5. `Halfagg/SecurityBinding.lean` and the statement of `halfagg_binding` in `Halfagg/Binding.lean`.
 
 taproot-lean supplies the curve interface, `BIP340.sign` and `BIP340.verify`. VCVio supplies the random oracle and the BIP 340 game (`SignatureAlg.unforgeableAdvantage`). agm-lean supplies the algebraic adversary. A full review reads those definitions too. taproot-lean checks the order of secp256k1's generator with compiled code. `Halfagg/OrderG.lean` proves it from a certificate that the kernel checks, and the theorems here use that proof (`secp256k1F`), so only the test vector checks depend on compiled code.
 
@@ -39,7 +86,7 @@ The model was compared with BIP 458 at bitcoin/bips commit [`a7f9132`](https://g
 
 **Do the random-oracle forger and reduction only query the oracle?** `RomForger.main` and `reductionROM` are oracle programs over a challenge-hash oracle, so they cannot read the table. `reductionROM_bound` counts the reduction's queries: the forger's signing requests, and `qH + qS + ℓ + 1` hash queries for a forger with `qH` hash queries, `qS` signing requests and forgeries of at most `ℓ` items. The game samples the whole table first, which for a finite domain is the same as lazy sampling (`rom_eq_table`).
 
-**How is the randomizer hash reduced mod `n`?** The oracle returns a uniform element of a type `H`, and the game and the reduction turn it into a scalar with `red`. The forger sees the unreduced output. The theorems hold for every `H` and `red` and lose `μ` per randomizer, where `RedBound red μ` says that `red` of a uniform output is a given scalar with probability at most `μ`. For secp256k1, `H` is `Fin (2^256)`, `red256` is `int(⋅) mod n` and `μ = 2/2^256`, because `2^256 ≤ 2n` (`secp256k1_redBound`). `grinder_advantage` and `demo` use the uniform model, `H = ZMod n` with `μ = 1/n`.
+**How is the randomizer hash reduced mod `n`?** The oracle returns a uniform element of a type `H`, and the game and the reduction turn it into a scalar with `red`. The forger sees the unreduced output. The theorems hold for every `H` and `red` and lose `μ` per randomizer, where `RedBound red μ` says that `red` of a uniform output is a given scalar with probability at most `μ`. For secp256k1, `H` is `Fin (2^256)`, `red256` is `int(⋅) mod n` and `μ = 2/2^256`, because `2^256 ≤ 2n` (`secp256k1_redBound`). `grinder_advantage` uses the uniform model, `H = ZMod n` with `μ = 1/n`.
 
 **How is the challenge hash reduced mod `n`?** BIP 340 computes a challenge as `int(hash(…)) mod n` from a 256-bit hash. In `Halfagg/SecurityROM.lean` the oracle returns a uniform scalar, as in taproot-lean's proof of BIP 340. In the games of `Halfagg/SecurityHashed.lean` it returns a uniform element of a type `Hc` of hash outputs. The adversary sees the outputs, and the game turns them into scalars with `redc`. `halfagg_hashed_le` reduces this game to the one with scalars. Choose one hash output `rep c` for every scalar `c`. The game reads at most `qH + qS + ℓ` hash outputs: the forger's queries, one for every signature and one for every item of the forgery. Each is one of the chosen outputs except with probability `δ` (`RepBound`), and a chosen output is `rep` of a uniform scalar. So the forger wins at most as often as `F.viaRep rep` wins the game with scalars, plus `(qH + qS + ℓ)·δ`. `F.viaRep rep` asks the oracle with scalar answers and runs `F` on `rep c`. For `Hc = Fin (2^256)` and `redc h = h mod n`, `rep c` is the output below `n` and `δ = (2^256 - n)/2^256`, which is at most `2^-127` for secp256k1 (`secp256k1_repBound`). `halfagg_dlog_hashed` and `halfagg_dlog_tight_hashed` are the discrete-log theorems for this game. `halfagg_binding_hashed` is the binding theorem, where the game reads at most `qC + 2ℓ` hash outputs.
 
@@ -84,10 +131,10 @@ What BIP 458 says about correctness and security, and the theorem for it.
 
 ## Machine checks
 
-- `lake build` compiles every proof and fails if the axioms of a main result change (`Halfagg/Summary.lean`).
-- `Halfagg/Summary.lean` also guards two inventories of the whole project, computed by the commands of `Halfagg/Audit.lean`. `#project_axioms` lists the axioms that the modules declare and that their declarations depend on, so an axiom that no main result uses fails the build too. `#surface` lists the definitions behind the results, which is the last section of this file.
-- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Halfagg/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's tables. It finds a result by its full name, so a declaration with the same last name in another namespace does not count. It checks that the list of definitions at the end of this file is the one the summary guards, and that no definition on it is under `Halfagg/Proofs/`.
-- `scripts/check_selftest.sh` changes a copy of the sources in twelve ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
+- `lake build` compiles every proof and fails if the axioms of a result change (`Halfagg/Summary.lean`).
+- `Halfagg/Summary.lean` also guards two inventories of the whole project, computed by the commands of `Halfagg/Audit.lean`. `#project_axioms` lists the axioms that the modules declare and that their declarations depend on, so an axiom that no result uses fails the build too. `#surface` lists the definitions behind the results, which is the last section of this file. The summary also guards the output of `#reading` for every main result, which is the table and the lists under [The main results](#the-main-results).
+- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Halfagg/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's tables. It finds a result by its full name, so a declaration with the same last name in another namespace does not count. It checks that the table of the main results and the list of definitions at the end of this file are the ones the summary guards, that this file prints the statement of every main result, and that no definition on the list is under `Halfagg/Proofs/`.
+- `scripts/check_selftest.sh` changes a copy of the sources in fourteen ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
 - `scripts/replay.sh` replays in the kernel with `leanchecker`, without the elaborator, every project module and every module of taproot-lean and agm-lean that the project imports, one process per module. It rejects a module that adds a false theorem behind the kernel's back, which `#print axioms` does not notice.
 - `scripts/replay.sh --deps` does the same for the 255 modules of VCVio, PolyFun and cslib that the project imports. A CI workflow of its own runs it when a pinned commit or the toolchain changes, and once a week. Mathlib and the libraries under it are not replayed here.
 - CI runs all of these. It also regenerates the summary and the test vector data, runs 300 cases of `scripts/fuzz.py` against the Python reference with a new seed for every run, and checks that the build fails when an unused axiom is added to a module.
@@ -112,7 +159,7 @@ What BIP 458 says about correctness and security, and the theorem for it.
 | The verification game of the knowledge theorem accepts every aggregate | `extract_all_or_bad`, `fail_sum_all` |
 | The game with a challenge oracle verifies with the challenges `0` | `halfagg_unforgeable_rom`, `halfagg_dlog` |
 | Challenge-hash queries are not counted | `romHandler_bound` |
-| Every forger counts as explaining its nonces | `demoRom_explains`, `explains_chal` |
+| Every forger counts as explaining its nonces | `explains_chal` |
 | The binding adversary wins with the same list twice | `win_pair` |
 | The challenge hash on 32-byte arrays hashes the public key before the nonce | `challengeX_encX` |
 | The game on bytes is won by a forgery that fails the parsing | `aggExperimentB_eq` |
@@ -127,11 +174,12 @@ For the two randomizer mutants there is more than a proof that fails: `forgeOnes
 
 ## The statements
 
-The definitions and theorem statements a reviewer has to agree with, copied from the sources with their comments. Proofs are left out.
+The statements of the main results and the definitions behind them, copied from the sources with their comments. Proofs are left out.
 
 Throughout, `n` is a prime, `E` is the group of curve points, `X` is the type of x-only encodings, `M` is the message type and `H` is the type of the randomizer hash's outputs. `C : Curve n E X` is taproot-lean's curve interface, `challenge : X → X → M → ZMod n` is the BIP 340 challenge hash and `red : H → ZMod n` turns a randomizer hash output into a scalar.
 
-Not printed here: the parts of the two reductions (`coreImpl`, `extractForgery`, `romHandler`, `extractROM` and their helpers, in `Halfagg/Security.lean` and `Halfagg/SecurityROM.lean`), the grinding forger (`Halfagg/Tightness.lean`), and the definitions of taproot-lean, VCVio and agm-lean at the commits pinned in `lakefile.toml`.
+Not printed here: the parts of the reduction and of the discrete-log solver (`coreImpl`, `extractForgery`, `romHandler` and their helpers, in `Halfagg/Security.lean` and `Halfagg/SecurityROM.lean`), and the definitions of taproot-lean, VCVio and agm-lean at the commits pinned in `lakefile.toml`. The lists under [The main results](#the-main-results) name every definition of this project that a main result needs.
+
 
 ### BIP 458's verifier
 
@@ -194,85 +242,58 @@ def verifyAggregate (C : Curve n E X) (challenge : X → X → M → ZMod n)
   verifyWith C challenge (z rand (items pm agg.rs)) agg pm
 ```
 
-### Forgeries against weakened verifiers
+### Correctness
 
-From `Halfagg/Attacks.lean`. `verifyWith` is printed above: `VerifyAggregate` with the randomizers as a parameter.
+From `Halfagg/Basic.lean`. `Entry` is taproot-lean's: a public key, a message and a BIP 340 signature `(r, s)`. `Entry.valid` is BIP 340 `Verify`.
 
 ```lean
-/-- The forger's nonce point `w⋅G - c⋅P`. -/
-def rogue (P : E) (c w : ZMod n) : E := C.mulG w - c.val • P
+/-- The item `(r, pk, m)` of a signature to be aggregated. -/
+def entryItem (e : Entry n X M) : Item X M := (e.r, e.pk, e.m)
 ```
 
 ```lean
-/-- The forgery against the verifier with every randomizer `1`, for the public
-key `pk` with point `P` and the message `m`. The forger picks the scalars `k`,
-`a` and `w` and the message `m'`. -/
-def forgeOnes (pk : X) (P : E) (m m' : M) (k a w : ZMod n) : AggSig n X × List (X × M) :=
-  let r₀ := C.x (C.mulG k)
-  let e₀ := challenge r₀ pk m
-  let r₁ := C.x (rogue C P e₀ w)
-  let pk₁ := C.x (C.mulG a)
-  let e₁ := challenge r₁ pk₁ m'
-  (⟨[r₀, r₁], C.evenScalar k + w + e₁ * C.evenScalar a⟩, [(pk, m), (pk₁, m')])
+/-- The `(pk, m)` pair of a signature to be aggregated. -/
+def entryPM (e : Entry n X M) : X × M := (e.pk, e.m)
 ```
 
 ```lean
-/-- **Without randomizers anyone forges.** If the forger's nonce point is not
-`0` and has an even y-coordinate, its aggregate for `(pk, m)` passes the
-verifier with every randomizer `1`. -/
-theorem forgeOnes_verifies {pk : X} {P : E} (hP : C.liftX pk = some P) (m m' : M)
-    {k a : ZMod n} (hk : k ≠ 0) (ha : a ≠ 0) (w : ZMod n)
-    (hQ : rogue C P (challenge (C.x (C.mulG k)) pk m) w ≠ 0)
-    (he : C.hasEvenY (rogue C P (challenge (C.x (C.mulG k)) pk m) w) = true) :
-    verifyWith C challenge (fun _ => 1) (forgeOnes C challenge pk P m m' k a w).1
-      (forgeOnes C challenge pk P m m' k a w).2 = true
+/-- BIP458 `IncAggregate(aggsig, pm_aggd, pms_to_agg)`: add the signatures
+`pms` to the aggregate `agg` of the pairs `pmAggd`. Fails if the aggregate
+has a nonce count different from `pmAggd`. -/
+def incAggregate (rand : List (Item X M) → ZMod n) (agg : AggSig n X) (pmAggd : List (X × M))
+    (pms : List (Entry n X M)) : Option (AggSig n X) :=
+  if agg.rs.length = pmAggd.length then
+    let its := items pmAggd agg.rs ++ pms.map entryItem
+    some ⟨agg.rs ++ pms.map (·.r),
+      agg.s + isum (fun i e => z rand its i * e.s) pmAggd.length pms⟩
+  else none
 ```
 
 ```lean
-/-- Randomizers that hash only the items before their own: `zᵢ` is the hash of
-the items `0, …, i - 1`. -/
-def zLate (rand : List (Item X M) → ZMod n) (its : List (Item X M)) (i : ℕ) : ZMod n :=
-  if i = 0 then 1 else rand (its.take i)
+/-- BIP458 `Aggregate(pms)`: `IncAggregate` starting from the empty aggregate
+`bytes(0)`. -/
+def aggregate (rand : List (Item X M) → ZMod n) (pms : List (Entry n X M)) :
+    Option (AggSig n X) :=
+  incAggregate rand ⟨[], 0⟩ [] pms
 ```
 
 ```lean
-/-- The forgery against the verifier with the randomizers `zLate`. The forger
-knows `z₁`, the hash of its first item, before it chooses the second item. -/
-def forgeLate (rand : List (Item X M) → ZMod n) (pk : X) (P : E) (m m' : M) (k a w : ZMod n) :
-    AggSig n X × List (X × M) :=
-  let r₀ := C.x (C.mulG k)
-  let e₀ := challenge r₀ pk m
-  let z₁ := rand [(r₀, pk, m)]
-  let r₁ := C.x (rogue C P (z₁⁻¹ * e₀) w)
-  let pk₁ := C.x (C.mulG a)
-  let e₁ := challenge r₁ pk₁ m'
-  (⟨[r₀, r₁], C.evenScalar k + z₁ * (w + e₁ * C.evenScalar a)⟩, [(pk, m), (pk₁, m')])
+/-- **Correctness of `IncAggregate`**: adding valid signatures to an aggregate
+that verifies gives an aggregate that verifies, for every choice of the hash
+functions. -/
+theorem verifyAggregate_incAggregate {agg agg' : AggSig n X} {pmAggd : List (X × M)}
+    {pms : List (Entry n X M)} (hagg : verifyAggregate C challenge rand agg pmAggd = true)
+    (hpms : ∀ e ∈ pms, Entry.valid C challenge e = true)
+    (hinc : incAggregate rand agg pmAggd pms = some agg') :
+    verifyAggregate C challenge rand agg' (pmAggd ++ pms.map entryPM) = true
 ```
 
 ```lean
-/-- **A randomizer must cover its own item.** If `z₁` is not `0` and the
-forger's nonce point is not `0` and has an even y-coordinate, its aggregate for
-`(pk, m)` passes the verifier with the randomizers `zLate`. `hn` holds for every
-key that is a multiple of `G`. -/
-theorem forgeLate_verifies (rand : List (Item X M) → ZMod n) {pk : X} {P : E}
-    (hP : C.liftX pk = some P) (hn : n • P = 0) (m m' : M) {k a : ZMod n} (hk : k ≠ 0)
-    (ha : a ≠ 0) (w : ZMod n) (hz : rand [(C.x (C.mulG k), pk, m)] ≠ 0)
-    (hQ : rogue C P ((rand [(C.x (C.mulG k), pk, m)])⁻¹ * challenge (C.x (C.mulG k)) pk m) w ≠ 0)
-    (he : C.hasEvenY (rogue C P
-      ((rand [(C.x (C.mulG k), pk, m)])⁻¹ * challenge (C.x (C.mulG k)) pk m) w) = true) :
-    verifyWith C challenge
-      (zLate rand (items (forgeLate C challenge rand pk P m m' k a w).2
-        (forgeLate C challenge rand pk P m m' k a w).1.rs))
-      (forgeLate C challenge rand pk P m m' k a w).1
-      (forgeLate C challenge rand pk P m m' k a w).2 = true
-```
-
-```lean
-/-- **Half of the tries work.** For a key `x⋅G`, the nonce point is not `0` and
-has an even y-coordinate for at least `(n - 1)/2` of the `n` values of `w`. -/
-theorem card_rogue (x c : ZMod n) :
-    n - 1 ≤ 2 * (Finset.univ.filter fun w : ZMod n =>
-      rogue C (C.mulG x) c w ≠ 0 ∧ C.hasEvenY (rogue C (C.mulG x) c w) = true).card
+/-- **Correctness of `Aggregate`**: aggregating valid signatures gives an
+aggregate that verifies, for every choice of the hash functions. -/
+theorem verifyAggregate_aggregate {agg : AggSig n X} {pms : List (Entry n X M)}
+    (hpms : ∀ e ∈ pms, Entry.valid C challenge e = true) (h : aggregate rand pms = some agg) :
+    verifyAggregate C challenge rand agg (pms.map entryPM) = true
 ```
 
 ### The game
@@ -411,59 +432,6 @@ probability at most `2/2^256`. -/
 theorem secp256k1_redBound : RedBound red256 (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
 ```
 
-### The curve secp256k1
-
-From `Halfagg/OrderG.lean` and `Halfagg/PrimeOrder.lean`. `G`, `xCoord`, `hasEvenY` and `liftX` are taproot-lean's. `OrderG.n_smul_G` is the proof of `n⋅G = 0` from the certificate.
-
-```lean
-/-- **secp256k1** as the curve interface, with x-coordinates in the base
-field. It has the fields of taproot-lean's `secp256k1`, and the order of the
-generator is checked by the kernel. -/
-def secp256k1F : Curve n Point F where
-  G := G
-  G_ne_zero := WeierstrassCurve.Affine.Point.some_ne_zero _
-  order_G := OrderG.n_smul_G
-  x := xCoord
-  hasEvenY := hasEvenY
-  liftX := liftX
-  x_neg := x_neg
-  hasEvenY_neg := hasEvenY_neg
-  liftX_x := liftX_x
-  liftX_spec := liftX_spec
-```
-
-```lean
-/-- **secp256k1 has prime order `n`**: every point `P` has `n⋅P = 0`. -/
-theorem secp256k1_primeOrder : Curve.PrimeOrder n Point
-```
-
-### The game's verifier is `VerifyAggregate`
-
-From `Halfagg/Unforgeability.lean`.
-
-```lean
-/-- Answer randomizer queries from the function `rand` and pass uniform sampling
-on: the randomizer oracle as a fixed hash function. -/
-def answerRand (rand : List (Item X M) → H) : QueryImpl (unifSpec + RandSpec H X M) ProbComp
-  | .inl k => liftM (unifSpec.query k)
-  | .inr its => pure (rand its)
-```
-
-```lean
-/-- **The game's verifier is BIP 458's `VerifyAggregate`.** With the randomizer
-oracle answered by the function `rand`, the last two lines of `aggExperiment`
-compute `verifyAggregate` with the randomizer `red ∘ rand`, and check that some
-item has the target key and a message that was never signed. -/
-theorem game_verifier (rand : List (Item X M) → H) (pk : X) (its : List (Item X M))
-    (s : ZMod n) (signed : M → Bool) :
-    simulateQ (answerRand rand) (do
-        let zs ← (List.range its.length).mapM (zQuery red its)
-        return aggWins C challenge pk its s zs signed) =
-      pure (verifyAggregate C challenge (fun l => red (rand l)) ⟨its.map (·.1), s⟩
-          (its.map (·.2)) &&
-        its.any fun it => it.2.1 == pk && !signed it.2.2)
-```
-
 ### Algebraic forgers
 
 From `Halfagg/Security.lean`. `Adversary`, `Message` and `explainedSpec` are agm-lean's: every oracle call and the output carry coefficient vectors for their points, over the points received so far.
@@ -586,7 +554,7 @@ def isSignQuery (p : M → Bool) : ℕ ⊕ M → Bool
 
 ### Unforgeability
 
-From `Halfagg/Security.lean`, `Halfagg/Unforgeability.lean` and `Halfagg/Tightness.lean`. The type of `reduction` makes it a forger in VCVio's BIP 340 game (`unforgeableAdvantage`), with the public key and a signing oracle. `secp256k1_halfagg_unforgeable` is the theorem for secp256k1 with BIP 458's hash. The other secp256k1 theorems take the same form.
+From `Halfagg/Security.lean` and `Halfagg/Unforgeability.lean`. The type of `reduction` makes it a forger in VCVio's BIP 340 game (`unforgeableAdvantage`), with the public key and a signing oracle.
 
 ```lean
 /-- **The reduction**: run the forger with `coreImpl`, forwarding uniform
@@ -631,51 +599,6 @@ theorem halfagg_unforgeable [NonceGen n M] [Inhabited M] (hx0 : C.liftX (C.x 0) 
     aggAdvantage C challenge red (erase C F) ≤
       SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp (reduction C challenge red F) +
         (q + 1 : ℝ≥0∞) * μ
-```
-
-```lean
-/-- The theorem for secp256k1 and BIP458's randomizer hash: the curve hypothesis
-holds, the hash has 256 bits and is reduced modulo `n`. -/
-theorem secp256k1_halfagg_unforgeable {M : Type} [DecidableEq M] [Inhabited M]
-    [NonceGen Secp256k1.n M]
-    (challenge : Secp256k1.F → Secp256k1.F → M → ZMod Secp256k1.n)
-    (F : AlgForger Secp256k1.n (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M) (q : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantage secp256k1F challenge red256 (erase secp256k1F F) ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction secp256k1F challenge red256 F) +
-        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
-```
-
-```lean
-/-- **The reduction signs what the forger signs.** For every set of messages
-`p`: if the forger makes at most `q` signing requests for messages in `p`, the
-reduction makes at most `q` signing queries for messages in `p`. With `p` all
-messages, the reduction makes no more signing queries than the forger; with
-`q = 0`, it never asks for a signature the forger did not ask for. -/
-theorem reduction_sign_queries [NonceGen n M] [Inhabited M] (F : AlgForger n H E X M)
-    (p : M → Bool) (q : ℕ)
-    (h : ∀ input, (F.main input).IsQueryBoundP (fun r => isSign p r.value.data) q) (pk : X) :
-    ((reduction C challenge red F).main pk).IsQueryBoundP (fun t => isSignQuery p t) q
-```
-
-```lean
-/-- **Items that fail `lift_x` never win.** Every item of a winning forgery has
-an `r` and a `pk` that are x-coordinates of the curve. So the randomizer of a
-list with an item that fails `lift_x` is never used by the verifier of a winning
-forgery, which is why a forger may hash anything after such an item (`rawTail`). -/
-theorem aggWins_lifts {pk : X} {its : List (Item X M)} {s : ZMod n} {zs : List (ZMod n)}
-    {signed : M → Bool} (h : aggWins C challenge pk its s zs signed = true) :
-    ∀ it ∈ its, lifts C it = true
-```
-
-```lean
-/-- **The bound is tight in `q`.** The grinding forger makes no signing requests
-and at most `q` randomizer requests, and wins the standard game with probability
-at least `1 - ((n - 1)/n)^q`. -/
-theorem grinder_advantage [NonceGen n ℕ] (q : ℕ) :
-    1 - (((n - 1 : ℕ) : ℝ≥0∞) / n) ^ q ≤
-      aggAdvantage C challenge id (erase C (grinder C challenge q))
 ```
 
 ### Knowledge of the individual signatures
@@ -795,9 +718,9 @@ theorem extractor_sign_queries (F : AlgForger n H E X M) (p : M → Bool) (q : �
     (extractor C challenge red F pk).IsQueryBoundP (fun t => isSignQuery p t) q
 ```
 
-### With the challenge hash as a random oracle
+### A reduction to discrete log
 
-From `Halfagg/SecurityROM.lean` and `Halfagg/UnforgeabilityROM.lean`. `sigma`, `keyGen`, `dlogExperiment` and `dlogOfKeyRecovery` are taproot-lean's, and `FiatShamir` is VCVio's.
+From `Halfagg/SecurityROM.lean`, `Halfagg/SecurityTight.lean` and `Halfagg/UnforgeabilityTight.lean`, with `finalItems` from `Halfagg/Security.lean`. The challenge hash is a random oracle here. `sigma`, `keyGen`, `dlogExperiment` and `dlogOfKeyRecovery` are taproot-lean's. `FiatShamir.simulatedNmaImpl` and `FiatShamir.Fork.roImpl` are VCVio's: a signing oracle that needs no secret key, and a lazily sampled challenge hash.
 
 ```lean
 /-- The challenge hash as an oracle on `(m, (r, pk))`, the input order of VCVio's
@@ -880,75 +803,6 @@ noncomputable def aggAdvantageROM [SampleableType (M × (X × X) → ZMod n)]
     (F : RomForger n H E X M) : ℝ≥0∞ :=
   Pr{let b ← aggExperimentROM C red F}[b = true]
 ```
-
-```lean
-/-- **The reduction as an oracle machine.** It runs the forger with `romHandler`,
-asks the oracle for the challenges of the forgery's items and then extracts with
-`extractROM`. -/
-noncomputable def reductionROM [Inhabited M] (F : RomForger n H E X M) :
-    SignatureAlg.UnforgeableAdversary (FiatShamir.inROM (sigma C) (keyGen C) M) where
-  main P := do
-    let pk := C.x P.1
-    let ((out, st), table) ← ((simulateQ (romHandler (H := H) C pk)
-      (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
-    let st := memoize C st (out.value.groups ()) (out.coefficients ())
-    let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
-    let (zs, _) ← ((List.range items.length).mapM fun i =>
-      if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1))).run table
-    let es ← items.mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
-    extractROM C pk items out.value.data.s zs st.signed es
-```
-
-```lean
-/-- **Half-aggregation is as secure as BIP340, with the challenge hash as a
-random oracle.** An algebraic forger with oracle access to the challenge hash,
-at most `q` randomizer requests, wins with probability at most the success
-probability of `reductionROM F` in the BIP340 game of
-`Taproot.BIP340Security.euf_cma`, plus `(q + 1)⋅μ`, with `μ` as in
-`halfagg_unforgeable`. -/
-theorem halfagg_unforgeable_rom [Inhabited M] [Finite M] [Finite X]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (F : RomForger n H E X M) (q : ℕ)
-    (hq : ∀ g input, ((F.at g).main input).IsQueryBoundP (fun r => isRand r.value.data) q)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
-    aggAdvantageROM C red F ≤
-      SignatureAlg.unforgeableAdvantage (FiatShamir.runtime M) (reductionROM C red F) +
-        (q + 1 : ℝ≥0∞) * μ
-```
-
-```lean
-/-- **Half-aggregation is unforgeable under the discrete-log assumption**, in
-the algebraic group model with both hashes as random oracles:
-`halfagg_unforgeable_rom` chained with `Taproot.BIP340Security.euf_cma_dlog`.
-
-For an algebraic forger with at most `q` randomizer requests, `qH` challenge
-queries, `qS` signing requests and forgeries of at most `ℓ` items, let
-`Q = qH + qS + ℓ + 1` and
-
-`ε = Pr[forger wins] - (q + 1)⋅μ - qS⋅(qS + Q)⋅2/(n - 1)`.
-
-Then a discrete-log solver built from the forger succeeds with probability at
-least `ε⋅(ε/(Q + 1) - 1/n)`. The first loss is this project's tight step, the
-rest is the forking-lemma loss of BIP340 itself. -/
-theorem halfagg_dlog [Inhabited M] [Finite M] [Finite X]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (F : RomForger n H E X M) (q qH qS ℓ : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
-    let ε := aggAdvantageROM C red F - (q + 1 : ℝ≥0∞) * μ -
-      (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞))
-    ε * (ε / ((qH + qS + ℓ + 1 : ℕ) + 1 : ℝ≥0∞) - FiatShamir.challengeSpaceInv (ZMod n)) ≤
-      Pr{let x ← (dlogExperiment C (dlogOfKeyRecovery C
-        (FiatShamir.cmaReduction (sigma C) (keyGen C) M (simTranscript C) (reductionROM C red F)
-          (qH + qS + ℓ + 1))))}[x = true]
-```
-
-### A reduction to discrete log without forking
-
-From `Halfagg/SecurityTight.lean` and `Halfagg/UnforgeabilityTight.lean`, with `finalItems` from `Halfagg/Security.lean`. `FiatShamir.simulatedNmaImpl` and `FiatShamir.Fork.roImpl` are VCVio's: a signing oracle that needs no secret key, and a lazily sampled challenge hash.
 
 ```lean
 /-- The forgery's annotated items, after recording its representations. -/
@@ -1049,428 +903,6 @@ theorem halfagg_dlog_tight [Inhabited M] [Finite M] [Finite X]
       Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C (keySolver C red F))}[x = true] +
         (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
         (q + 1 : ℝ≥0∞) * μ + (qH + 1 : ℝ≥0∞) / n
-```
-
-```lean
-/-- The final step of an oracle machine: from the public key, the forgery's
-annotated items, `s`, the randomizers, the signed messages and the challenges of
-the items, compute a forgery of the Fiat-Shamir scheme. -/
-abbrev FinalStep (n : ℕ) (E X M : Type) [AddCommGroup E] [Fact n.Prime] (C : Curve n E X) :=
-  Stmt C → List (AItem n X M) → ZMod n → List (ZMod n) → List M → List (ZMod n) →
-    OracleComp (RomSpec n X M) (M × FSSig n X)
-```
-
-```lean
-/-- `reductionROM` with its last step replaced by `fin`. -/
-noncomputable def romMachine (F : RomForger n H E X M) (fin : FinalStep n E X M C) :
-    SignatureAlg.UnforgeableAdversary (FiatShamir.inROM (sigma C) (keyGen C) M) where
-  main P := do
-    let pk := C.x P.1
-    let ((out, st), table) ← ((simulateQ (romHandler (H := H) C pk)
-      (F.main (initial C ((C.liftX pk).getD 0)))).run Core.init).run ∅
-    let st := memoize C st (out.value.groups ()) (out.coefficients ())
-    let items := annotate C st.memo (toItems C out.value.data.ms (out.value.groups ()))
-    let (zs, _) ← ((List.range items.length).mapM fun i =>
-      if i = 0 then pure 1 else red <$> romTableRO (items.take (i + 1))).run table
-    let es ← items.mapM fun a => hashQ (n := n) (a.m, (a.r, a.pk))
-    fin P items out.value.data.s zs st.signed es
-```
-
-```lean
-/-- A forgery that never verifies: its nonce is the x-coordinate of the point at
-infinity, which does not lift. -/
-def junk [Inhabited M] : M × FSSig n X := (default, ((C.x 0, C.x 0), 0))
-```
-
-```lean
-/-- Output the signature `(r, α*)` of the target item if the forgery wins, the
-item's `β*` is `0` and the candidate key is not the secret key. Otherwise output
-`junk`. -/
-noncomputable def repFin [Inhabited M] : FinalStep n E X M C :=
-  fun P items s zs signed es =>
-    match target (C.x P.1) items signed with
-    | none => pure (junk C)
-    | some a =>
-      if C.mulG (candKey (knownChal items es) (C.x P.1) items s zs signed) = P.1 then
-        pure (junk C)
-      else if aggWins C (knownChal items es) (C.x P.1) (items.map fun a => (a.r, a.pk, a.m))
-          s zs (fun m => signed.contains m) = true ∧ (starRep (knownChal items es) a).2 = 0 then
-        pure (a.m, ((a.r, C.x P.1), (starRep (knownChal items es) a).1))
-      else pure (junk C)
-```
-
-```lean
-/-- **A forger yields the secret key or a signature made without it**, with no
-forking. In the algebraic group model with both hashes as random oracles, for a
-forger with at most `q` randomizer requests, `qH` challenge queries, `qS` signing
-requests and forgeries of at most `ℓ` items, and `Q = qH + qS + ℓ + 1`:
-
-`Pr[forger wins] ≤ Pr[keySolver solves discrete log] + qS⋅(qS + Q)⋅2/(n - 1) +
-(q + 1)⋅μ + Pr[romMachine F repFin forges BIP340]`,
-
-with `μ` as in `halfagg_unforgeable`.
-
-The second term is the loss of VCVio's signing simulation and the third is the
-bad event of `halfagg_unforgeable`. The last term is the success of the machine
-that reads a signature `(r, α*)` off the forger's explanations while its
-candidate key is wrong. This theorem does not bound it, and
-`halfagg_dlog_tight` does for forgers that explain the nonces they hash. -/
-theorem halfagg_key_or_signature [Inhabited M] [Finite M] [Finite X]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (F : RomForger n H E X M) (q qH qS ℓ : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
-    aggAdvantageROM C red F ≤
-      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C (keySolver C red F))}[x = true] +
-        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
-        (q + 1 : ℝ≥0∞) * μ +
-        SignatureAlg.unforgeableAdvantage (FiatShamir.runtime (Commit := X × X) (Chal := ZMod n) M)
-          (romMachine C red F (repFin C))
-```
-
-### The games can be won
-
-From `Halfagg/Winnable.lean`. `copies` is from `Halfagg/Tightness.lean`. A request of the forger carries points as combinations of the points it has received, here the target key's point.
-
-```lean
-/-- `k` copies of the second received point, the target key's point `P*`. -/
-def copies (b : Groups (Pts E)) (k : ℕ) : (s : Unit) → List (Fin (b s).length → ZMod n) :=
-  fun _ => List.replicate k fun i => if i.val = 1 then 1 else 0
-```
-
-```lean
-/-- The forger that bets on the secret key `1`. Its nonce and its key are the
-x-coordinate of the point in its randomizer request, the target key's point. -/
-def bettor (m₀ : M) : AlgForger n H E X M where
-  main input :=
-    let req : Explained (ZMod n) (Request X M) (Pts E) :=
-      Explained.ofVectors input.groups (Request.rand [] []) (copies input.groups 1)
-    OracleComp.queryBind
-      (spec := explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)) req fun rep =>
-    let pk : X := C.x ((req.value.groups ()).headD 0)
-    pure (Explained.ofVectors (extend input.groups rep.groups)
-      (⟨[m₀], (1 + challenge pk pk m₀) * C.evenScalar 1⟩ : Out n M) (copies _ 2))
-  algebraic _ :=
-    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
-```
-
-```lean
-/-- **The standard game can be won.** The bettor wins it with positive
-probability, for every randomizer hash, every reduction of its outputs and
-every nonce derivation of the signer. -/
-theorem bettor_advantage_pos [NonceGen n M] (m₀ : M) :
-    0 < aggAdvantage C challenge red (erase C (bettor C challenge m₀))
-```
-
-```lean
-/-- **The game of the knowledge theorem can be won.** The bettor's aggregate
-verifies with positive probability. -/
-theorem bettor_verify_pos [NonceGen n M] (m₀ : M) :
-    0 < aggVerifyAdvantage C challenge red (erase C (bettor C challenge m₀))
-```
-
-```lean
-/-- `halfagg_unforgeable` applied to the bettor. Its left-hand side is positive
-(`bettor_advantage_pos`). -/
-theorem bettor_bound [NonceGen n M] [Inhabited M] (hx0 : C.liftX (C.x 0) = none) (m₀ : M)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
-    aggAdvantage C challenge red (erase C (bettor C challenge m₀)) ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction C challenge red (bettor C challenge m₀)) + 2 * μ
-```
-
-```lean
-/-- The bettor with oracle access to the challenge hash. It sends the target
-key's point in a randomizer request, asks for the challenge of `m₀` with that
-point's x-coordinate as nonce and as key, and outputs the bettor's aggregate. -/
-def bettorRom (m₀ : M) : RomForger n H E X M where
-  main input :=
-    let req : Explained (ZMod n) (Request X M) (Pts E) :=
-      Explained.ofVectors input.groups (Request.rand [] []) (copies input.groups 1)
-    OracleComp.queryBind (spec := RomForgerSpec n H E X M) (.inr req) fun rep =>
-    let pk : X := C.x ((req.value.groups ()).headD 0)
-    OracleComp.queryBind (spec := RomForgerSpec n H E X M) (.inl (m₀, (pk, pk))) fun e =>
-    pure (Explained.ofVectors (extend input.groups rep.groups)
-      (⟨[m₀], (1 + e) * C.evenScalar 1⟩ : Out n M) (copies _ 2))
-  algebraic _ _ :=
-    ⟨Explained.valid_ofVectors _ _ _, fun _ => Explained.valid_ofVectors _ _ _⟩
-```
-
-```lean
-/-- **The game with the challenge hash as a random oracle can be won.** -/
-theorem bettorRom_advantage_pos [SampleableType (M × (X × X) → ZMod n)] (m₀ : M) :
-    0 < aggAdvantageROM C red (bettorRom C m₀)
-```
-
-```lean
-/-- `halfagg_dlog_tight` applied to `bettorRom`: one randomizer request, one
-challenge query, no signing request and one item. Its left-hand side is
-positive (`bettorRom_advantage_pos`). -/
-theorem bettorRom_bound [Inhabited M] [Finite M] [Finite X]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none) (m₀ : M)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) :
-    aggAdvantageROM C red (bettorRom C m₀) ≤
-      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C
-        (keySolver C red (bettorRom C m₀)))}[x = true] + 2 * μ + 2 / n
-```
-
-### The theorems for 32-byte arrays
-
-From `Halfagg/BytesSecurity.lean`. `bytes32`, `toNatBE` and `taggedHash` are taproot-lean's `bytes`, `int` and tagged SHA-256. `decodeVerify` and `verifyAggregateBytes` are printed under [BIP 458's verifier](#bip-458s-verifier). `bytes_halfagg_knowledge`, `bytes_halfagg_dlog_tight` and `bytes_halfagg_binding` are the other three theorems for this instance.
-
-```lean
-/-- 32-byte arrays. -/
-abbrev B32 := {b : Bytes // b.length = 32}
-```
-
-```lean
-/-- **secp256k1 with x-coordinates as 32-byte arrays**: the x-only encoding of
-a point is `bytes(x(P))`, and `lift_x` fails for an array that is not below
-`p`. -/
-def secp256k1X : Curve n Point B32 where
-  G := G
-  G_ne_zero := secp256k1F.G_ne_zero
-  order_G := OrderG.n_smul_G
-  x P := ⟨bytes32 (xCoord P).val, bytes32_length _⟩
-  hasEvenY := hasEvenY
-  liftX b := if toNatBE b.1 < p then liftX (toNatBE b.1 : F) else none
-  x_neg P := Subtype.ext (by simp only [Secp256k1.x_neg])
-  hasEvenY_neg := hasEvenY_neg
-  liftX_x P hP he := by
-    have hv : (xCoord P).val < p := ZMod.val_lt _
-    simp only [toNatBE_bytes32, Nat.mod_eq_of_lt (hv.trans p_lt), hv, ↓reduceIte,
-      ZMod.natCast_zmod_val]
-    exact Secp256k1.liftX_x P hP he
-  liftX_spec r P h := by
-    split_ifs at h with hr
-    obtain ⟨h1, h2, h3⟩ := Secp256k1.liftX_spec _ P h
-    refine ⟨h1, h2, Subtype.ext ?_⟩
-    change bytes32 (xCoord P).val = r.1
-    rw [h3, ZMod.val_natCast_of_lt hr]
-    exact bytes32_toNatBE r.2
-```
-
-```lean
-/-- `int(hash_BIP0340/challenge(r ‖ pk ‖ m)) mod n` on 32-byte arrays. -/
-def challengeX (r pk m : B32) : ZMod n :=
-  (toNatBE (taggedHash "BIP0340/challenge" (r.1 ++ pk.1 ++ m.1)) : ZMod n)
-```
-
-```lean
-/-- The bytes of an item of 32-byte arrays. -/
-def itemBytes (it : Item B32 B32) : Item Bytes Bytes := (it.1.1, it.2.1.1, it.2.2.1)
-```
-
-```lean
-/-- BIP458's randomizer hash on items of 32-byte arrays:
-`int(hash_BIP0458/randomizer(r₀ ‖ pk₀ ‖ m₀ ‖ … ‖ rᵢ ‖ pkᵢ ‖ mᵢ)) mod n`. -/
-def randomizerX (its : List (Item B32 B32)) : ZMod n := randomizer (its.map itemBytes)
-```
-
-```lean
-/-- A 32-byte array as a 256-bit value. -/
-def int256 (b : Bytes) (h : b.length = 32) : Fin (2 ^ 256) :=
-  ⟨toNatBE b, by
-    have := toNatBE_lt b
-    rw [h] at this
-    exact lt_of_lt_of_eq this (by norm_num)⟩
-```
-
-```lean
-/-- `hash_BIP0458/randomizer` with its 256-bit output, on items of 32-byte
-arrays. -/
-def randHash256 (its : List (Item B32 B32)) : Fin (2 ^ 256) :=
-  int256 (taggedHash "BIP0458/randomizer" (randomizerInput (its.map itemBytes)))
-    (length_taggedHash _ _)
-```
-
-```lean
-/-- **BIP458's randomizer is a 256-bit hash output reduced modulo `n`**: the
-`red256` of the security theorems for secp256k1. -/
-theorem randomizerX_eq_red256 (its : List (Item B32 B32)) :
-    randomizerX its = red256 (randHash256 its)
-```
-
-```lean
-/-- **Half-aggregation on 32-byte arrays is as secure as BIP340.**
-`halfagg_unforgeable` for secp256k1 with 32-byte nonces, public keys and
-messages, BIP340's challenge hash and a 256-bit randomizer hash that is reduced
-modulo `n`. -/
-theorem bytes_halfagg_unforgeable [NonceGen n B32]
-    (F : AlgForger n (Fin (2 ^ 256)) Point B32 B32) (q : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantage secp256k1X challengeX red256 (erase secp256k1X F) ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction secp256k1X challengeX red256 F) +
-        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
-```
-
-```lean
-/-- A byte array as a 32-byte array, if it has 32 bytes. -/
-def to32 (b : Bytes) : B32 := if h : b.length = 32 then ⟨b, h⟩ else default
-```
-
-```lean
-/-- A field element as its 32 bytes. -/
-def encX (x : F) : B32 := ⟨bytes32 x.val, bytes32_length _⟩
-```
-
-```lean
-/-- The parsing and the checks of `VerifyAggregate`, with the nonces, public
-keys and messages as 32-byte arrays. -/
-def decodeX (aggsig : Bytes) (pm : List (Bytes × Bytes)) :
-    Option (AggSig n B32 × List (B32 × B32)) :=
-  (decodeVerify aggsig pm).map fun x =>
-    (⟨x.1.rs.map encX, x.1.s⟩, x.2.map fun y => (encX y.1, to32 y.2))
-```
-
-```lean
-/-- **`VerifyAggregate` on bytes is the verifier of the instance with 32-byte
-arrays**, after the parsing and the checks. -/
-theorem verifyAggregateBytes_eq_X (aggsig : Bytes) (pm : List (Bytes × Bytes)) :
-    verifyAggregateBytes aggsig pm =
-      (decodeX aggsig pm).any fun x =>
-        verifyAggregate secp256k1X challengeX randomizerX x.1 x.2
-```
-
-```lean
-/-- **The 32-byte arrays of the decoded input are the bytes of the input**: the
-nonces are the 32-byte chunks of `aggsig`, and the public keys and messages are
-those of `pm`. -/
-theorem decodeX_bytes {aggsig : Bytes} {pm : List (Bytes × Bytes)}
-    {x : AggSig n B32 × List (B32 × B32)} (h : decodeX aggsig pm = some x) :
-    x.1.rs.map (·.1) = chunks32 aggsig pm.length ∧
-      x.2.map (fun y => (y.1.1, y.2.1)) = pm ∧
-      x.1.s = (toNatBE (aggsig.drop (32 * pm.length)) : ZMod n)
-```
-
-```lean
-/-- **With SHA-256 as the randomizer hash, the game's verifier is
-`VerifyAggregate` on bytes.** For an input that passes the parsing and the
-checks, the last two lines of `aggExperiment` on the decoded items, with the
-randomizer oracle answered by `hash_BIP0458/randomizer`, compute
-`verifyAggregateBytes` on the input and check that some item has the target key
-and a message that was never signed. -/
-theorem bytes_game_verifier {aggsig : Bytes} {pm : List (Bytes × Bytes)}
-    {x : AggSig n B32 × List (B32 × B32)} (h : decodeX aggsig pm = some x) (pk : B32)
-    (signed : B32 → Bool) :
-    simulateQ (answerRand randHash256) (do
-        let zs ← (List.range (items x.2 x.1.rs).length).mapM
-          (zQuery red256 (items x.2 x.1.rs))
-        return aggWins secp256k1X challengeX pk (items x.2 x.1.rs) x.1.s zs signed) =
-      pure (verifyAggregateBytes aggsig pm &&
-        (items x.2 x.1.rs).any fun it => decide (it.2.1 = pk) && !signed it.2.2)
-```
-
-### The game with the forgery as bytes
-
-From `Halfagg/BytesGame.lean`.
-
-```lean
-/-- An adversary of the game on bytes. It gets the target public key as 32
-bytes and has the oracles of the game. Its forgery is BIP458's `aggsig` and
-`pm_aggd`: byte arrays of any length. -/
-structure AggAdversaryB (H : Type) where
-  main (pk : B32) : OracleComp (GameSpec n H B32 B32) (Bytes × List (Bytes × Bytes))
-```
-
-```lean
-/-- **The game on bytes.** The adversary outputs `aggsig` and `pm_aggd`. The
-game parses them as `VerifyAggregate` does. If that fails, the adversary loses.
-Otherwise it wins as in `aggExperiment`: `VerifyAggregate` accepts, and some
-pair has the target public key and a message that was never signed. -/
-noncomputable def aggExperimentB [NonceGen n B32] (red : H → ZMod n) (A : AggAdversaryB H) :
-    OracleComp (unifSpec + RandSpec H B32 B32) Bool := do
-  let alg := bip340 (M := B32) secp256k1X challengeX (OracleComp (unifSpec + RandSpec H B32 B32))
-  let (pk, sk) ← alg.keygen
-  let ((aggsig, pm), log) ← alg.runWithSigningOracle pk sk (A.main pk)
-  match decodeX aggsig pm with
-  | none => return false
-  | some x =>
-    let zs ← (List.range (items x.2 x.1.rs).length).mapM (zQuery red (items x.2 x.1.rs))
-    return aggWins secp256k1X challengeX pk (items x.2 x.1.rs) x.1.s zs log.wasQueried
-```
-
-```lean
-/-- The probability that a game outputs `true`, with the randomizer hash as a
-lazily sampled random oracle. `aggAdvantage` is this probability for
-`aggExperiment`. -/
-noncomputable def romProb [SampleableType H]
-    (exp : OracleComp (unifSpec + RandSpec H X M) Bool) : ℝ≥0∞ :=
-  (ProbCompRuntime.rom (RandSpec H X M)).evalDist exp {true}
-```
-
-```lean
-/-- The adversary's success probability, with a lazily sampled random oracle. -/
-noncomputable def aggAdvantageB [NonceGen n B32] [SampleableType H] (red : H → ZMod n)
-    (A : AggAdversaryB H) : ℝ≥0∞ :=
-  romProb (aggExperimentB red A)
-```
-
-```lean
-/-- The items and `s` of a forgery in bytes. A forgery that fails the parsing
-or the checks becomes the empty aggregate, which never wins. -/
-def parseOut (out : Bytes × List (Bytes × Bytes)) : List (Item B32 B32) × ZMod n :=
-  match decodeX out.1 out.2 with
-  | none => ([], 0)
-  | some x => (items x.2 x.1.rs, x.1.s)
-```
-
-```lean
-/-- The adversary of the game on 32-byte arrays that parses the forgery of `A`. -/
-def toStruct (A : AggAdversaryB H) : AggAdversary n H B32 B32 where
-  main pk := parseOut <$> A.main pk
-```
-
-```lean
-/-- **The game on bytes is the game on 32-byte arrays for the adversary that
-parses its forgery.** -/
-theorem aggExperimentB_eq [NonceGen n B32] (red : H → ZMod n) (A : AggAdversaryB H) :
-    aggExperimentB red A = aggExperiment secp256k1X challengeX red (toStruct A)
-```
-
-```lean
-/-- A forgery of the game on 32-byte arrays as BIP458's bytes:
-`aggsig = r₀ ‖ … ‖ r_{u-1} ‖ bytes(s)` and `pm_aggd`. -/
-def serOut (out : List (Item B32 B32) × ZMod n) : Bytes × List (Bytes × Bytes) :=
-  ((out.1.map (·.1.1)).flatten ++ bytes32 out.2.val, out.1.map fun it => (it.2.1.1, it.2.2.1))
-```
-
-```lean
-/-- The byte adversary that runs an algebraic forger and outputs its forgery as
-bytes. -/
-noncomputable def serB (F : AlgForger n H Point B32 B32) : AggAdversaryB H where
-  main pk := serOut <$> (erase secp256k1X F).main pk
-```
-
-```lean
-/-- **Parsing the bytes of a forger's output gives the forger back.** -/
-theorem toStruct_serB (F : AlgForger n H Point B32 B32) :
-    toStruct (serB F) = erase secp256k1X F
-```
-
-```lean
-/-- **Half-aggregation is as secure as BIP340, with the forgery as bytes.** For
-a byte adversary whose parsed forgery is that of an algebraic forger `F`, the
-bound of `bytes_halfagg_unforgeable` holds in the game on bytes. -/
-theorem bytesGame_halfagg_unforgeable [NonceGen n B32] (A : AggAdversaryB (Fin (2 ^ 256)))
-    (F : AlgForger n (Fin (2 ^ 256)) Point B32 B32) (hF : toStruct A = erase secp256k1X F)
-    (q : ℕ) (hq : ∀ input, (F.main input).IsQueryBoundP (fun r => isRand r.value.data) q) :
-    aggAdvantageB red256 A ≤
-      SignatureAlg.unforgeableAdvantage ProbCompRuntime.probComp
-        (reduction secp256k1X challengeX red256 F) +
-        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
-```
-
-```lean
-/-- **The game on bytes can be won.** The bettor with its forgery written as
-bytes wins it with positive probability: a correct aggregate in bytes passes
-the parsing, the checks and `VerifyAggregate`. -/
-theorem bytesGame_winnable [NonceGen n B32] [SampleableType H] (red : H → ZMod n) (m₀ : B32) :
-    0 < aggAdvantageB red (serB (bettor (H := H) secp256k1X challengeX m₀))
 ```
 
 ### Binding
@@ -1578,359 +1010,11 @@ theorem halfagg_binding [Finite M] [Finite X] [SampleableType (M × (X × X) →
         (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * μ
 ```
 
-```lean
-/-- The theorem for secp256k1 and BIP458's randomizer hash. That every point of
-secp256k1 has order dividing `n` is `secp256k1_primeOrder`. -/
-theorem secp256k1_halfagg_binding {M : Type} [DecidableEq M] [Finite M]
-    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
-    (A : BindAdversary Secp256k1.n (Fin (2 ^ 256)) Secp256k1.F M) (qC qZ ℓ : ℕ)
-    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
-    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
-    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
-    bindAdvantage secp256k1F red256 A ≤
-      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
-        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞))
-```
-
-### The challenge hash reduced mod `n`
-
-From `Halfagg/SecurityHashed.lean`, `Halfagg/Hash256.lean`, `Halfagg/UnforgeabilityHashed.lean` and `Halfagg/BindingHashed.lean`. `Hc` is the type of the challenge hash's outputs and `redc : Hc → ZMod n` turns an output into a scalar. The forger and the game are those of the section on the random oracle, with hash outputs as the oracle's answers.
-
-```lean
-/-- The challenge hash as an oracle on `(m, (r, pk))` with answers in `Hc`. -/
-abbrev ChalSpecH (Hc X M : Type) := (M × (X × X)) →ₒ Hc
-```
-
-```lean
-/-- A forger's oracles: the challenge hash with answers in `Hc` and the requests
-of an `AlgForger`. -/
-abbrev RomForgerSpecH (n : ℕ) (H Hc E X M : Type) :=
-  ChalSpecH Hc X M + explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)
-```
-
-```lean
-/-- Answer challenge-hash queries from the table `g` and pass requests on. -/
-def answerChalH (g : M × (X × X) → Hc) :
-    QueryImpl (RomForgerSpecH n H Hc E X M)
-      (OracleComp (explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)))
-  | .inl key => pure (g key)
-  | .inr t => liftM ((explainedSpec (ZMod n) (Pts E) (Request X M) (Reply n H X M)).query t)
-```
-
-```lean
-/-- An algebraic forger with oracle access to the challenge hash, whose answers
-are hash outputs in `Hc`. -/
-structure RomForgerH (n : ℕ) (H Hc E X M : Type) [AddCommGroup E] where
-  main : Message Unit (Pts E) →
-    OracleComp (RomForgerSpecH n H Hc E X M) (Explained (ZMod n) (Out n M) (Pts E))
-  algebraic : ∀ (g : M × (X × X) → Hc) input,
-    IsAlgebraic input.groups (simulateQ (answerChalH g) (main input))
-```
-
-```lean
-/-- The forger with its challenge queries answered from the table `g`. -/
-def RomForgerH.at (F : RomForgerH n H Hc E X M) (g : M × (X × X) → Hc) :
-    AlgForger n H E X M where
-  main input := simulateQ (answerChalH g) (F.main input)
-  algebraic := F.algebraic g
-```
-
-```lean
-/-- **The game with the challenge hash as BIP340 computes it**: sample the table
-of hash outputs, then play the game of `aggExperiment` with the challenge
-`redc (g (m, (r, pk)))`. The forger gets the hash outputs. -/
-noncomputable def aggExperimentROMH [SampleableType (M × (X × X) → Hc)]
-    (F : RomForgerH n H Hc E X M) : ProbComp Bool := do
-  let g ← $ᵗ (M × (X × X) → Hc)
-  (simulateQ (RandSpec H X M).romImpl
-    (aggExperiment C (hOf fun key => redc (g key)) red (erase C (F.at g)))).run' ∅
-```
-
-```lean
-/-- The forger's success probability. -/
-noncomputable def aggAdvantageROMH [SampleableType (M × (X × X) → Hc)]
-    (F : RomForgerH n H Hc E X M) : ℝ≥0∞ :=
-  Pr{let b ← aggExperimentROMH C red redc F}[b = true]
-```
-
-A forger for this oracle becomes a forger for the oracle with scalar answers. It is the forger of the solvers in the theorems below.
-
-```lean
-/-- Ask the oracle with scalar answers and pass the answer `c` on as the hash
-output `rep c`. Requests pass through. -/
-def repChal (rep : ZMod n → Hc) :
-    QueryImpl (RomForgerSpecH n H Hc E X M) (OracleComp (RomForgerSpec n H E X M))
-  | .inl key => rep <$> (liftM ((RomForgerSpec n H E X M).query (.inl key)) :
-      OracleComp (RomForgerSpec n H E X M) (ZMod n))
-  | .inr t => liftM ((RomForgerSpec n H E X M).query (.inr t))
-```
-
-```lean
-/-- **The forger for the oracle with scalar answers.** It runs `F` and answers a
-challenge query with the hash output `rep c` for the oracle's answer `c`. -/
-def RomForgerH.viaRep (rep : ZMod n → Hc) (F : RomForgerH n H Hc E X M) :
-    RomForger n H E X M where
-  main input := simulateQ (repChal rep) (F.main input)
-  algebraic g input := by
-    rw [answerChal_repChal]
-    exact F.algebraic _ input
-```
-
-The cost of one hash output, and its value for a 256-bit hash and secp256k1.
-
-```lean
-/-- A uniform hash output `h` is not `rep (red h)`, the chosen output for its
-scalar, with probability at most `δ`. -/
-def RepBound {n : ℕ} {Hc : Type} [SampleableType Hc] (red : Hc → ZMod n) (rep : ZMod n → Hc)
-    (δ : ℝ≥0∞) : Prop :=
-  Pr{let h ← $ᵗ Hc}[rep (red h) ≠ h] ≤ δ
-```
-
-```lean
-/-- The hash output below `n` that reduces to the scalar `c`. -/
-def repMod (n N : ℕ) [Fact n.Prime] (hN : n ≤ N) : ZMod n → Fin N :=
-  fun c => ⟨c.val, (ZMod.val_lt c).trans_le hN⟩
-```
-
-```lean
-/-- **The hash outputs that `repMod` does not return are the `N - n` outputs
-that are not below `n`.** -/
-theorem repMod_bound (n N : ℕ) [Fact n.Prime] [NeZero N] (hN : n ≤ N) :
-    RepBound (redMod n N) (repMod n N hN) (((N - n : ℕ) : ℝ≥0∞) / N)
-```
-
-```lean
-/-- The 256-bit hash output below `n` that reduces to a scalar of secp256k1. -/
-abbrev rep256 : ZMod Taproot.Secp256k1.n → Fin (2 ^ 256) :=
-  repMod Taproot.Secp256k1.n (2 ^ 256) (by norm_num [Taproot.Secp256k1.n])
-```
-
-```lean
-/-- For secp256k1, a uniform 256-bit hash output is not below `n` with
-probability at most `2^-127`. -/
-theorem secp256k1_repBound : RepBound red256 rep256 (1 / 2 ^ 127)
-```
-
-The comparison of the two games, and the two discrete-log theorems for the game with hash outputs. `ExplainsNoncesH` is `ExplainsNonces` for this forger.
-
-```lean
-/-- **The game with hash outputs against the game with scalars.** For a forger
-with at most `qH` challenge queries, `qS` signing requests and forgeries of at
-most `ℓ` items:
-
-`Pr[F wins with hash outputs] ≤ Pr[F.viaRep rep wins with scalars] + (qH + qS + ℓ)⋅δ`,
-
-where `rep c` is a hash output that reduces to `c` and `δ` bounds the
-probability that a uniform hash output `h` is not `rep (redc h)`. -/
-theorem halfagg_hashed_le [Finite M] [Finite X] [Finite Hc] [SampleableType Hc]
-    [SampleableType (M × (X × X) → Hc)] [SampleableType (M × (X × X) → ZMod n)]
-    (rep : ZMod n → Hc) (hrep : ∀ c, redc (rep c) = c) (F : RomForgerH n H Hc E X M)
-    (qH qS ℓ : ℕ)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (δ : ℝ≥0∞) (hδ : RepBound redc rep δ) :
-    aggAdvantageROMH C red redc F ≤
-      aggAdvantageROM C red (F.viaRep rep) + ((qH + qS + ℓ : ℕ) : ℝ≥0∞) * δ
-```
-
-```lean
-/-- **Half-aggregation is unforgeable under the discrete-log assumption, with
-the challenge hash as BIP340 computes it**: `halfagg_dlog` for the game with
-hash outputs. With `Q = qH + qS + ℓ + 1` and
-
-`ε = Pr[forger wins] - (qH + qS + ℓ)⋅δ - (q + 1)⋅μ - qS⋅(qS + Q)⋅2/(n - 1)`,
-
-the discrete-log solver built from `F.viaRep rep` succeeds with probability at
-least `ε⋅(ε/(Q + 1) - 1/n)`. -/
-theorem halfagg_dlog_hashed [Inhabited M] [Finite M] [Finite X] [Finite Hc]
-    [SampleableType Hc] [SampleableType (M × (X × X) → Hc)]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (rep : ZMod n → Hc) (hrep : ∀ c, redc (rep c) = c) (F : RomForgerH n H Hc E X M)
-    (q qH qS ℓ : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) (δ : ℝ≥0∞) (hδ : RepBound redc rep δ) :
-    let ε := aggAdvantageROMH C red redc F - ((qH + qS + ℓ : ℕ) : ℝ≥0∞) * δ -
-      (q + 1 : ℝ≥0∞) * μ -
-      (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞))
-    ε * (ε / ((qH + qS + ℓ + 1 : ℕ) + 1 : ℝ≥0∞) - FiatShamir.challengeSpaceInv (ZMod n)) ≤
-      Pr{let x ← (dlogExperiment C (dlogOfKeyRecovery C
-        (FiatShamir.cmaReduction (sigma C) (keyGen C) M (simTranscript C)
-          (reductionROM C red (F.viaRep rep)) (qH + qS + ℓ + 1))))}[x = true]
-```
-
-```lean
-/-- **The forger explains the nonce of every challenge-hash query**:
-`ExplainsNonces` for a forger whose challenge hash has answers in `Hc`. -/
-def ExplainsNoncesH {α : Type} (prog : OracleComp (RomForgerSpecH n H Hc E X M) α) :
-    List X → Prop :=
-  OracleComp.recOn (motive := fun _ => List X → Prop) prog
-    (fun _ _ => True)
-    (fun t _ next seen =>
-      match t, next with
-      | .inl key, next => key.2.1 ∈ seen ∧ ∀ e, next e seen
-      | .inr q, next => ∀ rep, next rep
-          (if isRand q.value.data then (q.value.groups ()).map C.x ++ seen else seen))
-```
-
-```lean
-/-- **A tight reduction to discrete log, with the challenge hash as BIP340
-computes it**: `halfagg_dlog_tight` for the game with hash outputs. For a forger
-that explains the nonce of every challenge-hash query (`ExplainsNoncesH`), with
-`Q = qH + qS + ℓ + 1`:
-
-`Pr[forger wins] ≤ Pr[keySolver solves discrete log] + qS⋅(qS + Q)⋅2/(n - 1) +
-(q + 1)⋅μ + (qH + 1)/n + (qH + qS + ℓ)⋅δ`. -/
-theorem halfagg_dlog_tight_hashed [Inhabited M] [Finite M] [Finite X] [Finite Hc]
-    [SampleableType Hc] [SampleableType (M × (X × X) → Hc)]
-    [SampleableType (M × (X × X) → ZMod n)] (hx0 : C.liftX (C.x 0) = none)
-    (rep : ZMod n → Hc) (hrep : ∀ c, redc (rep c) = c) (F : RomForgerH n H Hc E X M)
-    (q qH qS ℓ : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (hE : ∀ input, ExplainsNoncesH C (F.main input) [])
-    (μ : ℝ≥0∞) (hμ : RedBound red μ) (δ : ℝ≥0∞) (hδ : RepBound redc rep δ) :
-    aggAdvantageROMH C red redc F ≤
-      Pr{let x ← dlogExperiment C (dlogOfKeyRecovery C
-          (keySolver C red (F.viaRep rep)))}[x = true] +
-        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((n - 1 : ℕ) : ℝ≥0∞)) +
-        (q + 1 : ℝ≥0∞) * μ + (qH + 1 : ℝ≥0∞) / n + ((qH + qS + ℓ : ℕ) : ℝ≥0∞) * δ
-```
-
-```lean
-/-- The tight reduction to discrete log for secp256k1, BIP458's randomizer hash
-and BIP340's challenge hash: both are 256-bit values reduced modulo `n`. -/
-theorem secp256k1_halfagg_dlog_tight_256 {M : Type} [DecidableEq M] [Inhabited M] [Finite M]
-    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → Fin (2 ^ 256))]
-    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
-    (F : RomForgerH Secp256k1.n (Fin (2 ^ 256)) (Fin (2 ^ 256)) Secp256k1.Point Secp256k1.F M)
-    (q qH qS ℓ : ℕ)
-    (hq : ∀ input, (F.main input).IsQueryBoundP (fun t => isRandCall t) q)
-    (hH : ∀ input, (F.main input).IsQueryBoundP (fun t => isChalCall t) qH)
-    (hS : ∀ input, (F.main input).IsQueryBoundP (fun t => isSignCall t) qS)
-    (hL : ∀ input, ∀ out ∈ support (F.main input), out.value.data.ms.length ≤ ℓ)
-    (hE : ∀ input, ExplainsNoncesH secp256k1F (F.main input) []) :
-    aggAdvantageROMH secp256k1F red256 red256 F ≤
-      Pr{let x ← dlogExperiment secp256k1F (dlogOfKeyRecovery secp256k1F
-          (keySolver secp256k1F red256 (F.viaRep rep256)))}[x = true] +
-        (qS : ℝ≥0∞) * (qS + (qH + qS + ℓ + 1 : ℕ)) * (2 / ((Secp256k1.n - 1 : ℕ) : ℝ≥0∞)) +
-        (q + 1 : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) + (qH + 1 : ℝ≥0∞) / Secp256k1.n +
-        ((qH + qS + ℓ : ℕ) : ℝ≥0∞) * (1 / 2 ^ 127)
-```
-
-The game can be won. `bettorRomH` is `bettorRom` with the hash output reduced.
-
-```lean
-/-- **The game with the challenge hash as BIP340 computes it can be won.** -/
-theorem bettorRomH_advantage_pos [SampleableType (M × (X × X) → Hc)] (m₀ : M) :
-    0 < aggAdvantageROMH C red redc (bettorRomH C redc m₀)
-```
-
-Binding, in the same way.
-
-```lean
-/-- A binding adversary's oracles, with challenge hash answers in `Hc`. -/
-abbrev BindSpecH (H Hc X M : Type) := (unifSpec + ChalSpecH Hc X M) + RandSpec H X M
-```
-
-```lean
-/-- A binding adversary whose challenge hash has answers in `Hc`. -/
-structure BindAdversaryH (n : ℕ) (H Hc X M : Type) where
-  main : OracleComp (BindSpecH H Hc X M) (AggSig n X × List (X × M) × List (X × M))
-```
-
-```lean
-/-- Answer challenge-hash queries from the table `g` and pass the rest on. -/
-def answerChalBH (g : M × (X × X) → Hc) :
-    QueryImpl (BindSpecH H Hc X M) (OracleComp (unifSpec + RandSpec H X M))
-  | .inl (.inl k) => liftM ((unifSpec + RandSpec H X M).query (.inl k))
-  | .inl (.inr key) => pure (g key)
-  | .inr L => liftM ((unifSpec + RandSpec H X M).query (.inr L))
-```
-
-```lean
-/-- **The binding game with the challenge hash as BIP340 computes it**: sample
-the table of hash outputs, then play `bindGame` with the challenge
-`redc (g (m, (r, pk)))`. The adversary gets the hash outputs. -/
-noncomputable def bindExperimentH [SampleableType (M × (X × X) → Hc)]
-    (A : BindAdversaryH n H Hc X M) : ProbComp Bool := do
-  let g ← $ᵗ (M × (X × X) → Hc)
-  (simulateQ (RandSpec H X M).romImpl
-    (bindGame C red (hOf fun key => redc (g key)) (simulateQ (answerChalBH g) A.main))).run' ∅
-```
-
-```lean
-/-- The adversary's success probability. -/
-noncomputable def bindAdvantageH [SampleableType (M × (X × X) → Hc)]
-    (A : BindAdversaryH n H Hc X M) : ℝ≥0∞ :=
-  Pr{let b ← bindExperimentH C red redc A}[b = true]
-```
-
-```lean
-/-- Ask the oracle with scalar answers and pass the answer `c` on as the hash
-output `rep c`. The other queries pass through. -/
-def repChalB (rep : ZMod n → Hc) :
-    QueryImpl (BindSpecH H Hc X M) (OracleComp (BindSpec n H X M))
-  | .inl (.inl k) => liftM ((BindSpec n H X M).query (.inl (.inl k)))
-  | .inl (.inr key) => rep <$> (liftM ((BindSpec n H X M).query (.inl (.inr key))) :
-      OracleComp (BindSpec n H X M) (ZMod n))
-  | .inr L => liftM ((BindSpec n H X M).query (.inr L))
-```
-
-```lean
-/-- **The binding adversary for the oracle with scalar answers.** -/
-def BindAdversaryH.viaRep (rep : ZMod n → Hc) (A : BindAdversaryH n H Hc X M) :
-    BindAdversary n H X M where
-  main := simulateQ (repChalB rep) A.main
-```
-
-```lean
-/-- **Half-aggregation is binding, with the challenge hash as BIP340 computes
-it**: `halfagg_binding` for the game with hash outputs. An adversary with at
-most `qC` challenge-hash queries, `qZ` randomizer-hash queries and aggregates of
-at most `ℓ` signatures wins with probability at most
-
-`(qC + 2⋅ℓ)²/n + (qZ + 2⋅ℓ)²⋅μ + (qC + 2⋅ℓ)⋅δ`. -/
-theorem halfagg_binding_hashed [Finite M] [Finite X] [Finite Hc] [SampleableType Hc]
-    [SampleableType (M × (X × X) → Hc)] [SampleableType (M × (X × X) → ZMod n)]
-    (hord : PrimeOrder n E) (rep : ZMod n → Hc) (hrep : ∀ c, redc (rep c) = c)
-    (A : BindAdversaryH n H Hc X M) (qC qZ ℓ : ℕ)
-    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
-    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
-    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) (μ : ℝ≥0∞) (hμ : RedBound red μ)
-    (δ : ℝ≥0∞) (hδ : RepBound redc rep δ) :
-    bindAdvantageH C red redc A ≤
-      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / n +
-        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * μ + ((qC + 2 * ℓ : ℕ) : ℝ≥0∞) * δ
-```
-
-```lean
-/-- The theorem for secp256k1, BIP458's randomizer hash and BIP340's challenge
-hash: both are 256-bit values reduced modulo `n`. -/
-theorem secp256k1_halfagg_binding_256 {M : Type} [DecidableEq M] [Finite M]
-    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → Fin (2 ^ 256))]
-    [SampleableType (M × (Secp256k1.F × Secp256k1.F) → ZMod Secp256k1.n)]
-    (A : BindAdversaryH Secp256k1.n (Fin (2 ^ 256)) (Fin (2 ^ 256)) Secp256k1.F M)
-    (qC qZ ℓ : ℕ)
-    (hC : A.main.IsQueryBoundP (fun t => isChalB t) qC)
-    (hZ : A.main.IsQueryBoundP (fun t => isRandB t) qZ)
-    (hL : ∀ out ∈ support A.main, out.1.rs.length ≤ ℓ) :
-    bindAdvantageH secp256k1F red256 red256 A ≤
-      (((qC + 2 * ℓ) * (qC + 2 * ℓ) : ℕ) : ℝ≥0∞) / Secp256k1.n +
-        (((qZ + 2 * ℓ) * (qZ + 2 * ℓ) : ℕ) : ℝ≥0∞) * (2 / ((2 ^ 256 : ℕ) : ℝ≥0∞)) +
-        ((qC + 2 * ℓ : ℕ) : ℝ≥0∞) * (1 / 2 ^ 127)
-```
-
 <!-- definitions:begin -->
 
-### Every definition behind the results
+## Every definition behind the results
 
-The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 185 of this project and 261 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
+The definitions that the statements of the results in `Halfagg/Summary.lean` depend on, directly or through other definitions: 183 of this project and 260 of the libraries it is built on. `#surface` in `Halfagg/Audit.lean` computes the list from the compiled project, `Halfagg/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. The list stops at Lean's core library and at Mathlib. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources, for the libraries at the commits in `lake-manifest.json`. `scripts/check.sh` fails if the list has a module under `Halfagg/Proofs/`.
 
 **This project**
 
@@ -1939,7 +1023,6 @@ The definitions that the statements of the results in `Halfagg/Summary.lean` dep
 - `Halfagg/BytesGame.lean`: `Security.AggAdversaryB`, `Security.aggAdvantageB`, `Security.aggExperimentB`, `Security.parseOut`, `Security.romProb`, `Security.serB`, `Security.serOut`, `Security.toStruct`
 - `Halfagg/BytesSecurity.lean`: `Security.B32`, `Security.challengeX`, `Security.decodeX`, `Security.encX`, `Security.instDecidableEqB32`, `Security.instInhabitedB32`, `Security.int256`, `Security.itemBytes`, `Security.randHash256`, `Security.randomizerX`, `Security.secp256k1X`, `Security.to32`
 - `Halfagg/Encoding.lean`: `Vectors.Item32`, `Vectors.decodeVerify`, `Vectors.encodeItem`, `Vectors.randomizerInput`
-- `Halfagg/Examples.lean`: `Examples.demo`, `Examples.uvec`
 - `Halfagg/Hash256.lean`: `Security.RepBound`, `Security.red256`, `Security.redMod`, `Security.rep256`, `Security.repMod`
 - `Halfagg/OrderG.lean`: `secp256k1F`
 - `Halfagg/Security.lean`: `Security.AItem`, `Security.AggAdversary`, `Security.AlgForger`, `Security.AnnSpec`, `Security.Core`, `Security.GameSpec`, `Security.NonceGen`, `Security.Out`, `Security.Pts`, `Security.RandSpec`, `Security.RedBound`, `Security.Rep`, `Security.Reply`, `Security.Request`, `Security.SignSpec`, `Security.aggAdvantage`, `Security.aggExperiment`, `Security.aggWins`, `Security.annotate`, `Security.bip340`, `Security.coreImpl`, `Security.erase`, `Security.eraseImpl`, `Security.extractForgery`, `Security.finalItems`, `Security.flatten`, `Security.initial`, `Security.instDecidableEqAItem`, `Security.isRand`, `Security.isSign`, `Security.isSignQuery`, `Security.liftRep`, `Security.memoRecord`, `Security.memoize`, `Security.memoizeList`, `Security.pairs`, `Security.rawTail`, `Security.reduction`, `Security.smulVal`, `Security.starRep`, `Security.tableRO`, `Security.tableZs`, `Security.toItems`, `Security.zQuery`, `Security.Core.init`, `Security.NonceGen.uniform`, `Security.instDecidableEqAItem.decEq`
@@ -1957,7 +1040,7 @@ The definitions that the statements of the results in `Halfagg/Summary.lean` dep
 
 **taproot-lean**
 
-- `Taproot/BIP340.lean`: `Taproot.BIP340.pubkey`, `Taproot.BIP340.sign`, `Taproot.BIP340.verify`
+- `Taproot/BIP340.lean`: `Taproot.BIP340.sign`, `Taproot.BIP340.verify`
 - `Taproot/BIP340Props.lean`: `Taproot.BIP340.Entry`, `Taproot.BIP340.Entry.valid`
 - `Taproot/BIP340Security.lean`: `Taproot.BIP340Security.Good`, `Taproot.BIP340Security.NonzeroScalar`, `Taproot.BIP340Security.Stmt`, `Taproot.BIP340Security.dlogExperiment`, `Taproot.BIP340Security.dlogOfKeyRecovery`, `Taproot.BIP340Security.instSampleableTypeGoodValMemSetStmt`, `Taproot.BIP340Security.instSampleableTypeNonzeroScalar`, `Taproot.BIP340Security.keyGen`, `Taproot.BIP340Security.negStmt`, `Taproot.BIP340Security.sigma`, `Taproot.BIP340Security.simTranscript`
 - `Taproot/BIP340Vectors.lean`: `Taproot.BIP340Vectors.Bytes`, `Taproot.BIP340Vectors.be32`, `Taproot.BIP340Vectors.bytes32`, `Taproot.BIP340Vectors.challenge`, `Taproot.BIP340Vectors.hex`, `Taproot.BIP340Vectors.rotr`, `Taproot.BIP340Vectors.sha256`, `Taproot.BIP340Vectors.sha256Block`, `Taproot.BIP340Vectors.sha256H0`, `Taproot.BIP340Vectors.sha256K`, `Taproot.BIP340Vectors.sha256Pad`, `Taproot.BIP340Vectors.taggedHash`, `Taproot.BIP340Vectors.toNatBE`, `Taproot.BIP340Vectors.hex.go`

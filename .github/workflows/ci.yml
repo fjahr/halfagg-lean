@@ -26,7 +26,7 @@ jobs:
       - name: Regenerate the test vector data
         run: python3 scripts/gen_vectors.py bips/bip-0458/vectors | diff - Halfagg/VectorData.lean
       # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
-      # runs `lake build`. The build fails if the axioms of a main result, the
+      # runs `lake build`. The build fails if the axioms of a result, the
       # axioms of the project or the definitions behind the results change
       # (Halfagg/Summary.lean).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1

@@ -1,15 +1,15 @@
 import Lean
 
 /-!
-# Two inventories of the compiled project
+# Inventories of the compiled project
 
-`Halfagg/Summary.lean` checks the axioms of the main results one by one. The
-two commands here look at the whole project instead, and `Summary.lean` guards
+`Halfagg/Summary.lean` checks the axioms of the results one by one. The
+commands here look at the whole project instead, and `Summary.lean` guards
 their output as well.
 
 * `#project_axioms` lists the axioms that the modules of the project declare
   and the axioms that the declarations of the project depend on. Axioms that
-  no main result uses still show up here.
+  no result uses still show up here.
 * `#surface c₁ c₂ …` lists the definitions that the statements of the given
   results depend on: the constants in the type of a theorem, and for a
   definition, a structure or an inductive type the constants in its type and
@@ -18,6 +18,10 @@ their output as well.
   are built on, and it stops at Lean's core library and at Mathlib. This is
   what a reader has to agree with to know what the results say. `REVIEW.md`
   lists the same definitions, and `scripts/check.sh` compares the two lists.
+* `#reading c₁ c₂ …` counts these definitions and their source lines, for this
+  project and for every library, and lists the ones of this project by module.
+  `Summary.lean` has one for every main result, so `REVIEW.md` can say how
+  much a reader of that result has to read.
 -/
 
 open Lean Elab Command
@@ -128,35 +132,74 @@ partial def visit (x : Ctx) (c : Name) : StateM NameSet Unit := do
   | .inductInfo v => v.ctors.forM (visit x)
   | _ => pure ()
 
-/-- `#surface c₁ c₂ …`: the definitions behind the statements of the given
-results, by module. -/
-elab "#surface " ids:ident+ : command => do
-  let x := Ctx.of (← getEnv)
-  let env := x.env
+/-- The declarations a reader sees behind the statements of the given results:
+for a theorem the constants of its statement, for anything else the constant
+itself, and what these depend on. -/
+def Ctx.behind (x : Ctx) (cs : Array Name) : NameSet := Id.run do
   let mut seen : NameSet := {}
-  for id in ids do
-    let c := id.getId
-    let some info := env.find? c | throwErrorAt id "unknown constant {c}"
-    match info with
-    | .thmInfo _ =>
+  for c in cs do
+    match x.env.find? c with
+    | some (.thmInfo v) =>
       -- only the statement of a theorem
-      let (_, s) := (info.type.getUsedConstants.forM fun d => do
+      let (_, s) := (v.type.getUsedConstants.forM fun d => do
         if x.listed d then
-          match env.find? d with
+          match x.env.find? d with
           | some (.thmInfo _) => pure ()
           | _ => visit x d).run seen
       seen := s
     | _ =>
       let (_, s) := (visit x c).run seen
       seen := s
-  let mut byModule : NameMap NameSet := {}
+  let mut out : NameSet := {}
   for c in seen do
-    let o := owner env c
-    if env.contains o && x.listed o then
-      let m := x.moduleOf o
-      byModule := byModule.insert m (((byModule.find? m).getD {}).insert o)
-  let lines := (byModule.toList.toArray.qsort fun a b => Name.lt a.1 b.1).map fun (m, s) =>
+    let o := owner x.env c
+    if x.env.contains o && x.listed o then
+      out := out.insert o
+  return out
+
+/-- Declarations by module, one line `module: name, name, …` for every module. -/
+def Ctx.byModule (x : Ctx) (s : NameSet) : Array String := Id.run do
+  let mut byModule : NameMap NameSet := {}
+  for o in s do
+    let m := x.moduleOf o
+    byModule := byModule.insert m (((byModule.find? m).getD {}).insert o)
+  return (byModule.toList.toArray.qsort fun a b => Name.lt a.1 b.1).map fun (m, s) =>
     s!"{m}: {", ".intercalate ((s.toArray.qsort Name.lt).toList.map toString)}"
-  logInfo m!"{"\n".intercalate lines.toList}"
+
+/-- The names of the given identifiers, which must be constants. -/
+def constants (ids : Array Ident) : CommandElabM (Array Name) := do
+  let env ← getEnv
+  ids.mapM fun id => do
+    unless env.contains id.getId do throwErrorAt id "unknown constant {id.getId}"
+    return id.getId
+
+/-- `#surface c₁ c₂ …`: the definitions behind the statements of the given
+results, by module. -/
+elab "#surface " ids:ident+ : command => do
+  let x := Ctx.of (← getEnv)
+  let s := x.behind (← constants ids)
+  logInfo m!"{"\n".intercalate (x.byModule s).toList}"
+
+/-- `#reading c₁ c₂ …`: how much a reader of the given results has to read. The
+first lines count the definitions behind their statements and the source lines
+of these definitions, with one line for this project and one for every
+library. The other lines list the definitions of this project by module. -/
+elab "#reading " ids:ident+ : command => do
+  let x := Ctx.of (← getEnv)
+  let s := x.behind (← constants ids)
+  let mut sizes : NameMap (Nat × Nat) := {}
+  let mut own : NameSet := {}
+  for o in s do
+    let lines := match ← findDeclarationRanges? o with
+      | some r => r.range.endPos.line - r.range.pos.line + 1
+      | none => 0
+    let lib := (x.moduleOf o).getRoot
+    let (k, l) := (sizes.find? lib).getD (0, 0)
+    sizes := sizes.insert lib (k + 1, l + lines)
+    if x.inProject o then
+      own := own.insert o
+  let counts := (sizes.toList.toArray.qsort fun a b => Name.lt a.1 b.1).map fun (lib, k, l) =>
+    s!"{lib}: {k} definitions, {l} lines"
+  logInfo m!"{"\n".intercalate (counts ++ x.byModule own).toList}"
 
 end Halfagg.Audit

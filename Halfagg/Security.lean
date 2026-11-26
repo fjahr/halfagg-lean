@@ -288,9 +288,6 @@ attribute [local instance] smulVal
 /-- A representation `(α, β)` of the point `α⋅G + β⋅P*`. -/
 abbrev Rep (n : ℕ) := ZMod n × ZMod n
 
-/-- The point `α⋅G + β⋅P*`. -/
-def evalRep (Pstar : E) (ρ : Rep n) : E := C.mulG ρ.1 + ρ.2.val • Pstar
-
 /-- Flatten coefficients over the received points into a representation over
 `(G, P*)`, given the representations `basis` of the received points. -/
 def flatten (coeff : List (ZMod n)) (basis : List (Rep n)) : Rep n :=

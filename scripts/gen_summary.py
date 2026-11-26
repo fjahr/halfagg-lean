@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Generate Halfagg/Summary.lean from the axioms Lean reports for the main results.
+"""Generate Halfagg/Summary.lean from the axioms Lean reports for the results.
 
 Usage: python3 scripts/gen_summary.py > Halfagg/Summary.lean  (after `lake build`)
 
-Run it when a main result is added or a definition behind a result changes.
-The generated file then fails the build if the axioms of a result, the axioms
-of the project or the list of definitions behind the results change.
+Run it when a result is added or a definition behind a result changes. The
+generated file then fails the build if the axioms of a result, the axioms of
+the project, the list of definitions behind the results or the reading list of
+a main result change.
 """
 
 import os
@@ -61,10 +62,9 @@ SECTIONS = [
     ("Knowledge of the individual signatures",
      ["Halfagg.Security.halfagg_knowledge", "Halfagg.Security.extractor_sign_queries",
       "Halfagg.Security.secp256k1_halfagg_knowledge"]),
-    ("The loss is tight, and the theorem is not vacuous",
+    ("The loss is tight",
      ["Halfagg.Security.grinder_advantage", "Halfagg.Security.grinder_sandwich",
-      "Halfagg.Security.grinder_reduction_no_sign", "Halfagg.Examples.demo_theorem",
-      "Halfagg.Examples.aggWins_honest"]),
+      "Halfagg.Security.grinder_reduction_no_sign"]),
     ("The games can be won",
      ["Halfagg.Security.bettor_advantage_pos", "Halfagg.Security.bettor_queries",
       "Halfagg.Security.bettor_bound", "Halfagg.Security.bettor_verify_pos",
@@ -90,11 +90,24 @@ SECTIONS = [
       "Halfagg.Security.secp256k1_halfagg_binding_256"]),
 ]
 
+# The main results: one theorem for every property, in its general form. The
+# other results are forms of these for other models of the hash functions, for
+# secp256k1 and for bytes, and facts that support them. REVIEW.md prints the
+# statements of the main results and what a reader of each has to read.
+MAIN = [
+    ("Correctness",
+     ["Halfagg.verifyAggregate_aggregate", "Halfagg.verifyAggregate_incAggregate"]),
+    ("Unforgeability", ["Halfagg.Security.halfagg_unforgeable"]),
+    ("Knowledge of the individual signatures", ["Halfagg.Security.halfagg_knowledge"]),
+    ("A reduction to discrete log", ["Halfagg.Security.halfagg_dlog_tight"]),
+    ("Binding", ["Halfagg.Security.halfagg_binding"]),
+]
+
 HEADER = '''
 /-!
-# Main results and their axioms
+# The results and their axioms
 
-Each check below fails the build if the axioms of a main result change. The
+Each check below fails the build if the axioms of a result change. The
 theorems must depend only on Lean's standard axioms (`propext`,
 `Classical.choice`, `Quot.sound`); a `sorry` would show up as `sorryAx`. This
 includes the results about secp256k1: the order of its generator is checked by
@@ -110,7 +123,7 @@ set_option linter.style.longLine false
 INVENTORY = '''
 /-! ## The axioms of the whole project
 
-The checks above are about the main results. This one is about every
+The checks above are about single results. This one is about every
 declaration of the project: the axioms that its modules declare, and the
 axioms that its declarations depend on. The only axioms of the project are
 the ones of the test vector checks. -/
@@ -123,6 +136,15 @@ The definitions that the statements of the results above depend on, directly
 or through other definitions, by module: the ones of this project, and the
 ones of taproot-lean, VCVio, agm-lean and the libraries these are built on.
 Proofs are not followed. `REVIEW.md` lists the same definitions. -/
+'''
+
+READING = '''
+/-! ## What to read for each main result
+
+For every main result, the definitions behind its statement: how many there
+are and how many source lines they have, for this project and for every
+library, and the ones of this project by module. The last check is for all
+main results together. `REVIEW.md` shows these lists. -/
 '''
 
 
@@ -138,12 +160,21 @@ def lean(imports, body):
     return out
 
 
-def guard(imports, command, start):
-    """A guarded command with the message it prints, which must begin with `start`."""
-    msg = lean(imports, command + "\n").strip()
-    if not msg.startswith(start):
-        sys.exit(f"unexpected output of {command.split()[0]}:\n{msg}")
-    return f"\n/--\ninfo: {msg}\n-/\n#guard_msgs in\n{command}\n"
+SEPARATOR = "-- next command --"
+
+
+def guards(imports, commands, start):
+    """Guarded commands with the messages they print, each of which must begin
+    with one of the strings in `start`. One run of Lean for all of them."""
+    out = lean(imports, f'\n#eval IO.println "{SEPARATOR}"\n'.join(commands) + "\n")
+    msgs = [m.strip() for m in out.split(SEPARATOR)]
+    if len(msgs) != len(commands):
+        sys.exit(f"expected {len(commands)} messages, got {len(msgs)}:\n{out}")
+    for command, msg in zip(commands, msgs):
+        if not msg.startswith(start):
+            sys.exit(f"unexpected output of {command.split()[0]}:\n{msg}")
+    return [f"\n/--\ninfo: {msg}\n-/\n#guard_msgs in\n{command}\n"
+            for command, msg in zip(commands, msgs)]
 
 
 def main():
@@ -174,10 +205,19 @@ def main():
                 doc += f"\n/--\ninfo: {m}\n-/\n#guard_msgs in\n#print axioms {name}\n"
             else:
                 doc += f"\n/-- info: {m} -/\n#guard_msgs in\n#print axioms {name}\n"
-    doc += INVENTORY
-    doc += guard(imports, "#project_axioms", "axioms declared in the project")
-    doc += SURFACE
-    doc += guard(imports, "#surface " + " ".join(names), "AlgebraicGroupModel.")
+    main_names = [n for _, l in MAIN for n in l]
+    if not set(main_names) <= set(names):
+        sys.exit("a main result is not in SECTIONS")
+    reading = MAIN + [("All main results", main_names)]
+    libraries = ("AlgebraicGroupModel: ", "Cslib: ", "Halfagg: ")
+    inventory, surface, *lists = guards(
+        imports,
+        ["#project_axioms", "#surface " + " ".join(names)]
+        + ["#reading " + " ".join(l) for _, l in reading],
+        ("axioms declared in the project", "AlgebraicGroupModel.") + libraries)
+    doc += INVENTORY + inventory + SURFACE + surface + READING
+    for (title, _), text in zip(reading, lists):
+        doc += f"\n/-! ### {title} -/\n" + text
     sys.stdout.write(doc)
 
 

@@ -28,7 +28,6 @@ import Halfagg.Unforgeability
 import Halfagg.SecurityKnowledge
 import Halfagg.Proofs.Knowledge
 import Halfagg.Knowledge
-import Halfagg.Examples
 import Halfagg.Tightness
 import Halfagg.SecurityROM
 import Halfagg.Proofs.Eager

@@ -52,10 +52,6 @@ theorem map_isum_fun {α β γ : Type*} [AddCommMonoid β] [AddCommMonoid γ] (�
 /-- The point `(α + β⋅d)⋅G` represented by `ρ` when `P* = d⋅G`. -/
 def repPoint (d : ZMod n) (ρ : Rep n) : E := C.mulG (ρ.1 + ρ.2 * d)
 
-theorem evalRep_mulG (d : ZMod n) (ρ : Rep n) :
-    evalRep C (C.mulG d) ρ = repPoint C d ρ := by
-  rw [evalRep, repPoint, C.val_smul_mulG, ← map_add]
-
 /-- The received points are represented by `basis`. -/
 def BasisOK (d : ZMod n) (pts : List E) (basis : List (Rep n)) : Prop :=
   List.Forall₂ (fun P ρ => P = repPoint C d ρ) pts basis
@@ -171,9 +167,6 @@ theorem memoizeList_isSome (basis : List (Rep n)) (pts : List E)
       rw [memoizeList_of_some C basis pts _ hρ]
       rfl
     · exact ih _ _ hY
-
-theorem memoize_basis (st : Core n X M) (pts : List E) (coeffs : List (List (ZMod n))) :
-    (memoize C st pts coeffs).basis = st.basis := rfl
 
 theorem memoize_signed (st : Core n X M) (pts : List E) (coeffs : List (List (ZMod n))) :
     (memoize C st pts coeffs).signed = st.signed := rfl

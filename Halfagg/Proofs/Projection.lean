@@ -45,8 +45,6 @@ instance covered.dec (memo : X → Option (Rep n)) : ∀ L : List (Item X M),
 /-- `memo'` keeps every representation recorded in `memo`. -/
 def MemoExt (memo memo' : X → Option (Rep n)) : Prop := ∀ v ρ, memo v = some ρ → memo' v = some ρ
 
-theorem MemoExt.refl (memo : X → Option (Rep n)) : MemoExt memo memo := fun _ _ h => h
-
 theorem covered_ext {memo memo' : X → Option (Rep n)} (h : MemoExt memo memo')
     {L : List (Item X M)} (hc : covered C memo L) : covered C memo' L := by
   induction L with

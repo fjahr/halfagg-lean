@@ -80,18 +80,6 @@ theorem app_sign [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M) (l : List M) :
 
 /-! ## Components of the joint handler -/
 
-theorem rom_unif (k : ℕ) (c : (AnnSpec n H X M).QueryCache) :
-    (simulateQ (AnnSpec n H X M).romImpl
-      (liftM ((unifSpec + AnnSpec n H X M).query (.inl k)))).run c =
-      (fun u => (u, c)) <$> (liftM (unifSpec.query k) : ProbComp _) := by
-  simpa using roSim.run_apply_inl (hashSpec := AnnSpec n H X M) (AnnSpec n H X M).randomOracle k c
-
-theorem rom_ro (l : List (AItem n X M)) (c : (AnnSpec n H X M).QueryCache) :
-    (simulateQ (AnnSpec n H X M).romImpl
-      (liftM ((unifSpec + AnnSpec n H X M).query (.inr l)))).run c =
-      ((AnnSpec n H X M).randomOracle l).run c := by
-  simp
-
 theorem rom_sign [NonceGen n M] (pk : X) (sk : ZMod n) (msg : M)
     (c : (AnnSpec n H X M).QueryCache) :
     (simulateQ (AnnSpec n H X M).romImpl

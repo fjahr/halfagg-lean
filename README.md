@@ -8,63 +8,62 @@ The model is built on [taproot-lean](https://github.com/dni/taproot-lean), which
 
 ## Results
 
-### The scheme
+### Main results
 
-`Halfagg/Basic.lean`. These hold over any curve that satisfies taproot-lean's interface and for every choice of the challenge and randomizer hash functions.
+One result for every property, in `Halfagg/Basic.lean`, `Unforgeability.lean`, `Knowledge.lean`, `UnforgeabilityTight.lean` and `Binding.lean`. Each holds for any curve that satisfies taproot-lean's interface. [REVIEW.md](REVIEW.md#the-main-results) prints their statements and lists, for each, the definitions that a reader has to agree with.
 
 | Theorem | Statement |
 |---|---|
-| `verifyAggregate_aggregate`, `verifyAggregate_incAggregate` | Valid BIP 340 signatures give an aggregate that `VerifyAggregate` accepts, whether aggregated at once or added to an aggregate that verifies. |
+| `verifyAggregate_aggregate`, `verifyAggregate_incAggregate` | Correctness, for every choice of the challenge and randomizer hash functions. Valid BIP 340 signatures give an aggregate that `VerifyAggregate` accepts, whether aggregated at once or added to an aggregate that verifies. |
+| `halfagg_unforgeable` | Half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, for every challenge hash. An explicit reduction turns a forger of the standard aggregate chosen-key game into a BIP 340 forger and loses at most `(q + 1)·μ`. |
+| `halfagg_knowledge` | Whoever produces a verifying aggregate knows a BIP 340 signature for every item, also under keys it chose itself. If the aggregate verifies with probability `ε`, an extractor outputs all of them with probability at least `ε - (q + 1)·μ`. |
+| `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. The challenge hash is a random oracle too. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
+| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs `n⋅P = 0` for every point. |
+
+Except for binding, the forger is algebraic. The randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. `μ` bounds the probability that one randomizer is a given scalar. For BIP 458's 256-bit hash reduced mod `n` it is `2/2^256` (`Halfagg/Hash256.lean`).
+
+`halfagg_unforgeable`, `halfagg_knowledge` and `grinder_advantage` hold for every way the signer derives a nonce from its key and the message (`NonceGen`), so also for BIP 340's hashed nonces. The BIP 340 game of the reduction has the same signer. The theorems with the challenge hash as a random oracle are for uniform nonces, as taproot-lean's proof of BIP 340 is.
+
+### The main results in other forms
+
+The same theorems for other models of the challenge hash, for secp256k1 and for bytes. The main results are about x-coordinates and scalars. `Halfagg/Vectors.lean` adds BIP 458's byte encodings, length checks and range checks, and `Halfagg/Encoding.lean` connects them to the model.
+
+| Theorem | Statement |
+|---|---|
+| `halfagg_unforgeable_rom`, `halfagg_dlog` | `halfagg_unforgeable` with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. Its loss is quadratic, which is the forking lemma in BIP 340's own proof. |
+| `halfagg_key_or_signature` | `halfagg_dlog_tight` for every algebraic forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
+| `halfagg_hashed_le`, `halfagg_dlog_hashed`, `halfagg_dlog_tight_hashed`, `halfagg_binding_hashed` | The challenge hash as BIP 340 computes it (`Halfagg/SecurityHashed.lean`). The oracle returns a hash output, the adversary sees it, and the game reduces it mod `n`. The game reads at most `qH + qS + ℓ` hash outputs, in the binding game `qC + 2ℓ`, and each costs `δ`, the probability that a uniform hash output is not the one chosen for its scalar. For a 256-bit hash and secp256k1, `δ ≤ 2^-127` (`secp256k1_repBound`). The solvers are those of the theorems above, for the forger that turns scalar answers into hash outputs (`viaRep`). |
+| `secp256k1_halfagg_unforgeable`, `secp256k1_halfagg_knowledge`, `secp256k1_halfagg_dlog`, `secp256k1_halfagg_dlog_tight`, `secp256k1_halfagg_binding`, `secp256k1_halfagg_dlog_256`, `secp256k1_halfagg_dlog_tight_256`, `secp256k1_halfagg_binding_256` | The theorems for secp256k1 and BIP 458's randomizer hash, a 256-bit value reduced mod `n`, so `μ = 2/2^256`. The last three have the challenge hash with 256-bit outputs. |
+| `bytes_halfagg_unforgeable`, `bytes_halfagg_knowledge`, `bytes_halfagg_dlog_tight`, `bytes_halfagg_binding`, `bytes_halfagg_dlog_tight_256`, `bytes_halfagg_binding_256` | The main security results for secp256k1 with 32-byte nonces, public keys and messages (`Halfagg/BytesSecurity.lean`). The x-only encoding of a point is `bytes(x(P))`, the challenge hash is BIP 340's, and the randomizer hash has 256-bit outputs that are reduced mod `n`. The last two have the challenge hash as a random oracle with 256-bit outputs that are reduced mod `n`. |
+| `aggExperimentB_eq`, `bytesGame_halfagg_unforgeable` | The game in which the forgery is `aggsig` and `pm_aggd` as byte arrays of any length (`Halfagg/BytesGame.lean`). It is the game on 32-byte arrays for the adversary that parses its forgery, so the bound carries over. |
+| `verifyAggregateBytes_aggregateBytes`, `verifyAggregateBytes_incAggregateBytes` | `Aggregate` and `IncAggregate` on bytes are correct: signatures that pass BIP 340 `Verify` give bytes that pass `VerifyAggregate`. |
+
+For the discrete-log solvers, let `qH` and `qS` bound the forger's challenge queries and signing requests, `ℓ` the length of its forgery, `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`. The solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. Its quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`. With a 256-bit challenge hash, `ε` loses another `(qH + qS + ℓ)/2^127` (`secp256k1_halfagg_dlog_256`, `secp256k1_halfagg_dlog_tight_256`).
+
+### Supporting facts
+
+| Theorem | Statement |
+|---|---|
 | `incAggregate_append`, `aggregate_append` | `Aggregate(A ++ B) = IncAggregate(Aggregate(A), A, B)`. |
 | `verifyAggregate_single` | A one-signature aggregate verifies exactly when the BIP 340 signature does. |
 | `aggregate_accepts_invalid` | An aggregate does not certify the signatures it was made from. Moving `δ ≠ 0` between the `s` values of the first two, weighted by `z₁`, makes the second invalid and leaves the aggregate unchanged. |
 | `verifyMulti_eq`, `secp256k1_verifyMulti_eq` | `VerifyAggregate` can be computed as one sum of scalar multiplications, `s⋅G = Σ zᵢ⋅Rᵢ + (zᵢ⋅eᵢ mod n)⋅Pᵢ`, if `n⋅P = 0` for every point. That holds for secp256k1. |
 | `secp256k1_primeOrder` | secp256k1 has exactly `n` points, so `n⋅P = 0` for every point (`Halfagg/PrimeOrder.lean`). The proof counts no points: there are at most `2⋅p + 1`, the generator has order `n`, and no point has order two. |
 | `forgeOnes_verifies`, `forgeLate_verifies`, `card_rogue` | The randomizers are needed, and each must cover its own item (`Halfagg/Attacks.lean`). With every randomizer `1`, the verifier of the first proposal of half-aggregation, an explicit aggregate for any public key and message verifies without a signature. The same holds if `zᵢ` hashes only the items before item `i`. The forger's nonce point must have an even y-coordinate, and at least `(n - 1)/2` of its `n` choices give one. |
-
-### Security
-
-In `Halfagg/`: `Unforgeability.lean`, `Knowledge.lean`, `Tightness.lean`, `UnforgeabilityROM.lean`, `UnforgeabilityTight.lean`, `Binding.lean`, `UnforgeabilityHashed.lean` and `BindingHashed.lean`. Except for binding, the forger is algebraic. The randomizer hash is a random oracle, and `q` bounds the forger's randomizer queries. `μ` bounds the probability that one randomizer is a given scalar. For BIP 458's 256-bit hash reduced mod `n` it is `2/2^256` (`Halfagg/Hash256.lean`), and the secp256k1 forms of the theorems use that value.
-
-`halfagg_unforgeable`, `halfagg_knowledge` and `grinder_advantage` hold for every way the signer derives a nonce from its key and the message (`NonceGen`), so also for BIP 340's hashed nonces. The BIP 340 game of the reduction has the same signer. The theorems with the challenge hash as a random oracle are for uniform nonces, as taproot-lean's proof of BIP 340 is.
-
-| Theorem | Statement |
-|---|---|
-| `halfagg_unforgeable` | Half-aggregation is as secure as BIP 340: Theorem 2 of [Chen and Zhao](https://eprint.iacr.org/2022/222) for BIP 458's scheme, for every challenge hash. An explicit reduction turns a forger of the standard aggregate chosen-key game into a BIP 340 forger and loses at most `(q + 1)·μ`. |
 | `grinder_advantage` | The loss is tight up to one query. With a randomizer hash that is uniform in `ZMod n`, where `μ = 1/n`, a forger with `q` randomizer queries and no signing query wins with probability at least `1 - ((n - 1)/n)^q`. |
-| `halfagg_knowledge` | Whoever produces a verifying aggregate knows a BIP 340 signature for every item, also under keys it chose itself. If the aggregate verifies with probability `ε`, an extractor outputs all of them with probability at least `ε - (q + 1)·μ`. |
 | `reduction_sign_queries`, `extractor_sign_queries` | The reduction and the extractor make no signing query the forger did not make. |
 | `game_verifier` | The game's verifier is `verifyAggregate`. |
-| `halfagg_unforgeable_rom`, `halfagg_dlog` | The first theorem with the challenge hash as a random oracle too, chained with taproot-lean's proof of BIP 340 into a discrete-log solver. |
-| `halfagg_dlog_tight` | A discrete-log solver without forking, so every loss is additive. It is for forgers that send a nonce point in a randomizer request before they ask for a challenge with that nonce (`ExplainsNonces`). |
-| `halfagg_key_or_signature` | The same for every forger, up to one term: the probability that a challenge cancels the coefficient of the target key in the forger's explanation of the nonce point. |
-| `halfagg_binding` | An aggregate belongs to one list of `(pk, m)` pairs: Theorem 6 of [Chalkias, Garillot, Kondi and Nikolaenko](https://eprint.iacr.org/2021/350) for BIP 458's scheme. With both hashes as random oracles, an adversary with `qC` challenge queries and `qZ` randomizer queries finds an aggregate of at most `ℓ` signatures that verifies for two different lists with probability at most `(qC + 2ℓ)²/n + (qZ + 2ℓ)²·μ`. The bound needs no algebraic group model and no hardness assumption. It needs `n⋅P = 0` for every point. |
-| `halfagg_hashed_le`, `halfagg_dlog_hashed`, `halfagg_dlog_tight_hashed`, `halfagg_binding_hashed` | The theorems with the challenge hash as a random oracle, for the challenge hash as BIP 340 computes it (`Halfagg/SecurityHashed.lean`). The oracle returns a hash output, the adversary sees it, and the game reduces it mod `n`. The game reads at most `qH + qS + ℓ` hash outputs, in the binding game `qC + 2ℓ`, and each costs `δ`, the probability that a uniform hash output is not the one chosen for its scalar. For a 256-bit hash and secp256k1, `δ ≤ 2^-127` (`secp256k1_repBound`). The solvers are those of the theorems above, for the forger that turns scalar answers into hash outputs (`viaRep`). |
-| `bettor_advantage_pos`, `bettor_verify_pos`, `bettorRom_advantage_pos`, `bettorRomH_advantage_pos` | The games can be won, so the bounds are not empty. A forger that bets on the secret key `1` wins the standard game, the game of the knowledge theorem and the games with the challenge hash as a random oracle, with scalars or hash outputs as answers, with positive probability, for every model of the randomizer hash and every nonce derivation. |
-| `bettor_bound`, `bettorRom_bound`, `bettorRomH_bound` | `halfagg_unforgeable`, `halfagg_dlog_tight` and `halfagg_dlog_tight_hashed` applied to that forger: their hypotheses hold for a forger that wins. |
-
-For the discrete-log solvers, let `qH` and `qS` bound the forger's challenge queries and signing requests, `ℓ` the length of its forgery, `Q = qH + qS + ℓ + 1` and `ε = Pr[forger wins] - (q + 1)·μ - qS·(qS + Q)·2/(n - 1)`. The solver of `halfagg_dlog` succeeds with probability at least `ε·(ε/(Q + 1) - 1/n)`. Its quadratic loss is the forking lemma in BIP 340's own proof. The solver of `halfagg_dlog_tight` succeeds with probability at least `ε - (qH + 1)/n`. With a 256-bit challenge hash, `ε` loses another `(qH + qS + ℓ)/2^127` (`secp256k1_halfagg_dlog_256`, `secp256k1_halfagg_dlog_tight_256`).
-
-### Bytes
-
-The theorems above are about x-coordinates and scalars. `Halfagg/Vectors.lean` adds BIP 458's byte encodings, length checks and range checks, and `Halfagg/Encoding.lean` connects them to the model.
-
-| Theorem | Statement |
-|---|---|
+| `bettor_advantage_pos`, `bettor_verify_pos`, `bettorRom_advantage_pos`, `bettorRomH_advantage_pos`, `bettor_bound`, `bettorRom_bound`, `bettorRomH_bound`, `bytesGame_winnable` | The games can be won, so the bounds are not empty. A forger that bets on the secret key `1` wins the standard game, the game of the knowledge theorem and the games with the challenge hash as a random oracle, with scalars or hash outputs as answers, with positive probability, for every model of the randomizer hash and every nonce derivation. The three `_bound` theorems are `halfagg_unforgeable`, `halfagg_dlog_tight` and `halfagg_dlog_tight_hashed` applied to that forger, so their hypotheses hold for a forger that wins. The game on bytes can be won as well: a correct aggregate in bytes passes the parsing, the checks and `VerifyAggregate`. |
 | `verifyAggregateBytes_eq` | `VerifyAggregate` on bytes is the parsing and the checks, followed by the model's `verifyAggregate`. |
 | `decodeVerify_randomizer` | The randomizers of the decoded input hash the bytes of the input. |
 | `randomizerInput_injective` | The bytes that a randomizer hashes determine the item list, because every field has 32 bytes. So the model loses nothing by taking the randomizer as a function of the list. |
-| `verifyAggregateBytes_aggregateBytes`, `verifyAggregateBytes_incAggregateBytes` | `Aggregate` and `IncAggregate` on bytes are correct: signatures that pass BIP 340 `Verify` give bytes that pass `VerifyAggregate`. |
 | `verifyAggregateBytes_unique` | An aggregate signature has one encoding. Two aggregate signatures with the same nonces that pass `VerifyAggregate` for the same list are equal, because `VerifyAggregate` rejects an `s` that is not below `n`. |
-| `bytes_halfagg_unforgeable`, `bytes_halfagg_knowledge`, `bytes_halfagg_dlog_tight`, `bytes_halfagg_binding` | The security theorems for secp256k1 with 32-byte nonces, public keys and messages (`Halfagg/BytesSecurity.lean`). The x-only encoding of a point is `bytes(x(P))`, the challenge hash is BIP 340's, and the randomizer hash has 256-bit outputs that are reduced mod `n`. |
-| `bytes_halfagg_dlog_tight_256`, `bytes_halfagg_binding_256` | The last two for that instance with the challenge hash as a random oracle with 256-bit outputs that are reduced mod `n`. |
-| `randomizerX_eq_red256`, `length_sha256` | BIP 458's randomizer is such a hash: SHA-256 has 32 bytes of output, and the randomizer is that value reduced mod `n`. |
-| `verifyAggregateBytes_eq_X`, `decodeX_bytes`, `bytes_game_verifier` | `VerifyAggregate` on bytes is the verifier of that instance on the 32-byte chunks of its input. So with SHA-256 as the randomizer hash, the game's check of a forgery is `VerifyAggregate` on bytes. |
-| `aggExperimentB_eq`, `bytesGame_halfagg_unforgeable`, `bytesGame_winnable` | The game in which the forgery is `aggsig` and `pm_aggd` as byte arrays of any length (`Halfagg/BytesGame.lean`). It is the game on 32-byte arrays for the adversary that parses its forgery, so the bound carries over. The game on bytes can be won: a correct aggregate in bytes passes the parsing, the checks and `VerifyAggregate`. |
+| `randomizerX_eq_red256`, `length_sha256` | BIP 458's randomizer is the randomizer hash of the instance for 32-byte arrays. SHA-256 has 32 bytes of output, and the randomizer is that value reduced mod `n`. |
+| `verifyAggregateBytes_eq_X`, `decodeX_bytes`, `bytes_game_verifier` | `VerifyAggregate` on bytes is the verifier of the instance for 32-byte arrays on the 32-byte chunks of its input. So with SHA-256 as the randomizer hash, the game's check of a forgery is `VerifyAggregate` on bytes. |
 
 ### Axioms
 
-The theorems use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`), and `lake build` fails if that changes for a main result (`Halfagg/Summary.lean`). Only the test vector checks depend on compiled evaluation (`native_decide`).
+The theorems use only Lean's standard axioms (`propext`, `Classical.choice`, `Quot.sound`), and `lake build` fails if that changes for a result (`Halfagg/Summary.lean`). Only the test vector checks depend on compiled evaluation (`native_decide`).
 
 taproot-lean computes `n·G = 0` for secp256k1 with compiled code. `Halfagg/OrderG.lean` proves it from a certificate that the kernel checks: the double-and-add chain for `(n - 1)·G` with the slope and the result of every step. The theorems about secp256k1 are stated for `secp256k1F`, the curve with this proof.
 
@@ -93,7 +92,7 @@ The proofs of the security theorems are under `Halfagg/Proofs/`:
 | `Hop.lean` | A computation with at most `Q` hash queries, with a table of hash outputs against a table of scalars read through `rep`: the difference is at most `Q·δ` (`table_hop`). |
 | `HashedGame.lean`, `HashedBinding.lean` | The games with hash outputs as oracle machines (`gameM_table`, `bindM_table`) and the number of hash outputs they read (`gameM_bound`, `bindM_bound`). |
 
-`Halfagg/Winnable.lean` has the forger that wins each game. `Halfagg/Examples.lean` has two more forgers that satisfy the hypotheses of `halfagg_unforgeable` and `ExplainsNonces`.
+`Halfagg/Winnable.lean` has the forger that wins each game.
 
 ## Test vectors
 

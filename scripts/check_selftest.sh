@@ -76,4 +76,20 @@ grep -v '^- `Halfagg/Hash256.lean`: ' "$tmp/work/REVIEW.md" > "$tmp/review"
 cp "$tmp/review" "$tmp/work/REVIEW.md"
 expect_fail 'a list of definitions in REVIEW.md that is not the one of the summary'
 
+fresh
+sed 's/\(Halfagg: \)\([0-9]* definitions, \)/\10\2/' "$tmp/work/Halfagg/Summary.lean" > "$tmp/summary"
+cp "$tmp/summary" "$tmp/work/Halfagg/Summary.lean"
+expect_fail 'a table of the main results in REVIEW.md that is not the one of the summary'
+
+fresh
+python3 - "$tmp/work/REVIEW.md" <<'EOF'
+import re, sys
+text = open(sys.argv[1]).read()
+blocks = [b for b in re.findall(r'```lean\n.*?\n```\n', text, re.S)
+          if '\ntheorem halfagg_binding ' in b]
+assert len(blocks) == 1
+open(sys.argv[1], 'w').write(text.replace(blocks[0], ''))
+EOF
+expect_fail 'a main result whose statement REVIEW.md does not print'
+
 exit $fail
